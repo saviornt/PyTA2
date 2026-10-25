@@ -1,0 +1,11 @@
+# Python virtual environment
+.venv/
+
+# Cache
+__pycache__/
+
+# Rust build artifacts
+/target/
+
+*.lock
+*.so

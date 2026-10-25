@@ -53,7 +53,7 @@ All calculation entry points are asynchronous. This keeps the interface consiste
 ```python
 import pyta
 
-rsi_values = await pyta.rsi(close, period=14)
+rsi_values = pyta.rsi(close, period=14)
 ```
 
 A convenience function should provide sensible defaults where the indicator definition supports them, accept explicit keyword arguments for meaningful parameters, and return a documented result type.

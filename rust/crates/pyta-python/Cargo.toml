@@ -1,0 +1,17 @@
+[package]
+name = "pyta-python"
+description = "Python bindings for the PyTA Rust library"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[lib]
+name = "_native"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { workspace = true }
+pyta-core = { path = "../pyta-core" }
+pyta-engine = { path = "../pyta-engine" }
+tokio.workspace = true

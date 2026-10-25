@@ -29,15 +29,15 @@
 
 ### Tasks
 
-- [ ] Confirm `rustup` is installed and the stable Rust toolchain is active.
-- [ ] Install and verify `rustfmt` and `clippy`.
-- [ ] Create and activate the root Python virtual environment, `.venv`.
-- [ ] Install Python development dependencies, including Maturin and pytest.
-- [ ] Configure Visual Studio Code / Code OSS to use the project virtual environment and Rust Analyzer.
-- [ ] Create the initial repository structure.
-- [ ] Add `.gitignore`, a README, and basic project documentation directories.
-- [ ] Initialize or verify Git and commit the clean starting point.
-- [ ] Verify Rust, Cargo, Python, pip, Git, and Maturin versions.
+- [x] Confirm `rustup` is installed and the stable Rust toolchain is active.
+- [x] Install and verify `rustfmt` and `clippy`.
+- [x] Create and activate the root Python virtual environment, `.venv`.
+- [x] Install Python development dependencies, including Maturin and pytest.
+- [x] Configure Visual Studio Code / Code OSS to use the project virtual environment and Rust Analyzer.
+- [x] Create the initial repository structure.
+- [x] Add `.gitignore`, a README, and basic project documentation directories.
+- [x] Initialize or verify Git and commit the clean starting point.
+- [x] Verify Rust, Cargo, Python, pip, Git, and Maturin versions.
 
 ### Acceptance criteria
 
@@ -46,7 +46,7 @@
 - Rust commands use the intended rustup-managed toolchain.
 - Generated build artifacts and virtual-environment files are excluded from Git.
 
-**Sprint completion:** ☐
+**Sprint completion:** [x]
 
 ---
 
@@ -56,15 +56,15 @@
 
 ### Tasks
 
-- [ ] Create `rust/Cargo.toml` as the Rust workspace manifest.
-- [ ] Create the initial crates: `pyta-core`, `pyta-engine`, `pyta-momentum`, `pyta-trend`, and `pyta-python`.
-- [ ] Configure shared dependency versions and workspace settings.
-- [ ] Add `rust-toolchain.toml` to pin the selected stable toolchain policy.
-- [ ] Configure the root `pyproject.toml` for Maturin and the chosen Python source layout.
-- [ ] Add a minimal PyO3 extension module.
-- [ ] Build and install the package into the development virtual environment.
-- [ ] Import `pyta` from Python.
-- [ ] Add a minimal automated build/import smoke test.
+- [x] Create `rust/Cargo.toml` as the Rust workspace manifest.
+- [x] Create the initial crates: `pyta-core`, `pyta-engine`, `pyta-momentum`, `pyta-trend`, and `pyta-python`.
+- [x] Configure shared dependency versions and workspace settings.
+- [x] Add `rust-toolchain.toml` to pin the selected stable toolchain policy.
+- [x] Configure the root `pyproject.toml` for Maturin and the chosen Python source layout.
+- [x] Add a minimal PyO3 extension module.
+- [x] Build and install the package into the development virtual environment.
+- [x] Import `pyta` from Python.
+- [x] Add a minimal automated build/import smoke test.
 
 ### Acceptance criteria
 
@@ -75,7 +75,7 @@
 - Python can import `pyta` and call a minimal native function.
 - The package does not require manually copying a compiled extension into the Python source directory.
 
-**Sprint completion:** ☐
+**Sprint completion:** [x]
 
 ---
 

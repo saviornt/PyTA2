@@ -1,10 +1,15 @@
 [package]
 name = "pyta-engine"
-description = "Batch execution, dependency planning, concurrency"
+description = "Asynchronous calculation engine for PyTA indicators"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+pyta-core = { path = "../pyta-core" }
+pyta-momentum = { path = "../pyta-momentum" }
+pyta-trend = { path = "../pyta-trend" }
 thiserror.workspace = true
+tokio = { workspace = true }
+rayon = { workspace = true }

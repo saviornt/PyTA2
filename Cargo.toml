@@ -1,9 +1,9 @@
-
 [workspace]
 resolver = "3"
 members = [
     "rust/crates/pyta-core",
     "rust/crates/pyta-momentum",
+    "rust/crates/pyta-trend",
     "rust/crates/pyta-engine",
     "rust/crates/pyta-python",
 ]
@@ -12,10 +12,11 @@ members = [
 version = "0.2.0"
 edition = "2024"
 license = "MIT"
-rust-version = "1.85"
+rust-version = "1.99.1"
 
 [workspace.dependencies]
-numpy = "0.29"
-pyo3 = "0.29"
+numpy = "0.30"
+pyo3 = "0.30"
 rayon = "1.12"
 thiserror = "2"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync"] }
