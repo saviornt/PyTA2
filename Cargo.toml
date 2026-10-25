@@ -1,0 +1,21 @@
+
+[workspace]
+resolver = "3"
+members = [
+    "rust/crates/pyta-core",
+    "rust/crates/pyta-momentum",
+    "rust/crates/pyta-engine",
+    "rust/crates/pyta-python",
+]
+
+[workspace.package]
+version = "0.2.0"
+edition = "2024"
+license = "MIT"
+rust-version = "1.85"
+
+[workspace.dependencies]
+numpy = "0.29"
+pyo3 = "0.29"
+rayon = "1.12"
+thiserror = "2"

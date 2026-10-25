@@ -1,0 +1,10 @@
+[package]
+name = "pyta-core"
+description = "Core library for PyTA, providing shared numerical types, validation, errors"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+thiserror.workspace = true

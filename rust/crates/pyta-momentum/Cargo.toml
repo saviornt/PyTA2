@@ -1,0 +1,10 @@
+[package]
+name = "pyta-momentum"
+description = "Calculates momentum indicators and rate-of-change for financial analysis"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+pyta-core = { path = "../pyta-core" }
