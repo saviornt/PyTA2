@@ -1,77 +1,86 @@
-/// Calculates the Relative Strength Index (RSI) for a given series of data using Wilder's smoothing method.
-///
-/// The period represents the number of price changes used to initialize
-/// the average gain and average loss.
-///
-/// The output has the same length as the input series, with the first 'period'
-/// values being None, as they cannot be calculated without sufficient data.
-///
-/// When both average gain and average loss are zero, the RSI is defined to be 0 to avoid division by zero.
-/// When average loss is zero but average gain is positive, the RSI is defined to be 100, indicating a strong upward trend.
-/// When the average gain is zero but the average loss is positive, the RSI is defined to be 0, indicating a strong downward trend.
-use pyta_core::{IndicatorOutput, PytaResult, Series};
+use pyta_core::{IndicatorOutput, PytaError, PytaResult, Series};
 
+/// Calculates the Relative Strength Index (RSI) using Wilder's smoothing.
+///
+/// `period` is the number of price changes used to initialize the
+/// average gain and average loss, so at least `period + 1` values
+/// are required.
+///
+/// The output has the same length as the input. The first `period`
+/// positions are `NaN` (warm-up).
+///
+/// Edge cases:
+/// - Average gain and average loss both zero: RSI is 0.
+/// - Average loss zero, average gain positive: RSI is 100.
+/// - Average gain zero, average loss positive: RSI is 0.
+///
+/// # Errors
+///
+/// Returns `InvalidPeriod` when `period` is zero.
+/// Returns `InsufficientData` when the input has fewer than
+/// `period + 1` values.
 pub fn rsi(close: &Series, period: usize) -> PytaResult<IndicatorOutput> {
     if period == 0 {
-        return Err(pyta_core::PytaError::InvalidPeriod);
+        return Err(PytaError::InvalidPeriod);
     }
-    
+
     let prices = close.values();
 
     if period >= prices.len() {
-        return Err(pyta_core::PytaError::PeriodExceedsLength {
-            period,
+        return Err(PytaError::InsufficientData {
+            required: period + 1,
             length: prices.len(),
         });
     }
 
-    let mut output = vec![None; prices.len()];
+    let mut output = vec![f64::NAN; prices.len()];
 
     let mut gain_sum = 0.0;
     let mut loss_sum = 0.0;
 
-    // Calculate the initial average gain and loss over `period` changes.
+    // Initial average gain and loss over the first `period` changes.
     for index in 1..=period {
         let change = prices[index] - prices[index - 1];
 
         if change > 0.0 {
             gain_sum += change;
         } else {
-            loss_sum -= change; // loss is positive
+            loss_sum -= change; // losses are stored as positive values
         }
     }
 
-    let mut average_gain = gain_sum / period as f64;
-    let mut average_loss = loss_sum / period as f64;
+    let period_f = period as f64;
+    let prior_weight = (period - 1) as f64;
 
-    output[period] = Some(calculate_rsi(average_gain, average_loss));
+    let mut average_gain = gain_sum / period_f;
+    let mut average_loss = loss_sum / period_f;
 
-    // Apply Wilder's smoothing method for the rest of the series.
+    output[period] = relative_strength_index(average_gain, average_loss);
+
+    // Wilder's smoothing for the rest of the series.
     for index in (period + 1)..prices.len() {
         let change = prices[index] - prices[index - 1];
 
         let gain = change.max(0.0);
         let loss = (-change).max(0.0);
 
-        average_gain = (average_gain * (period -1) as f64 + gain) / period as f64;
-        average_loss = (average_loss * (period -1) as f64 + loss) / period as f64;
+        average_gain = (average_gain * prior_weight + gain) / period_f;
+        average_loss = (average_loss * prior_weight + loss) / period_f;
 
-        output[index] = Some(calculate_rsi(average_gain, average_loss));
+        output[index] = relative_strength_index(average_gain, average_loss);
     }
+
     Ok(IndicatorOutput::new(output))
 }
 
-fn calculate_rsi(average_gain: f64, average_loss: f64) -> f64 {
-    if average_gain == 0.0 && average_loss == 0.0 {
-        return 0.0; // Both gains and losses are zero
+fn relative_strength_index(average_gain: f64, average_loss: f64) -> f64 {
+    if average_gain == 0.0 {
+        // Covers both "no gains" and "no movement at all".
+        return 0.0;
     }
 
     if average_loss == 0.0 {
         return 100.0;
-    }
-
-    if average_gain == 0.0 {
-        return 0.0;
     }
 
     let relative_strength = average_gain / average_loss;

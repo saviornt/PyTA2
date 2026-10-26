@@ -3,9 +3,15 @@
 
 # Cache
 __pycache__/
+.pytest_cache/
 
 # Rust build artifacts
 /target/
-
 *.lock
 *.so
+
+*.pyd
+*.dylib
+dist/
+*.egg-info/
+fixes/

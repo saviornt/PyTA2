@@ -1,92 +1,72 @@
-use std::sync::OnceLock;
-
+use numpy::{IntoPyArray, PyArray1, PyReadonlyArray1};
 use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
-use pyo3::types::PyModule;
 use pyta_core::{IndicatorOutput, PytaError, Series};
-use pyta_engine::{
-    execute_batch, IndicatorKind, IndicatorRequest, IndicatorStatus,
-};
-use tokio::runtime::{Builder, Runtime};
-
-static RUNTIME: OnceLock<Result<Runtime, String>> = OnceLock::new();
-
-/// Returns the shared Tokio runtime owned by the Python binding layer.
-fn runtime() -> PyResult<&'static Runtime> {
-    match RUNTIME.get_or_init(|| {
-        Builder::new_multi_thread()
-            .enable_all()
-            .build()
-            .map_err(|error| error.to_string())
-    }) {
-        Ok(runtime) => Ok(runtime),
-        Err(message) => Err(PyRuntimeError::new_err(format!(
-            "Failed to initialize PyTA's async runtime: {message}"
-        ))),
-    }
-}
+use pyta_engine::{IndicatorKind, IndicatorRequest, execute_direct};
 
 /// Converts a PyTA error into a suitable Python exception.
+///
+/// Invalid input maps to `ValueError`; internal execution failures
+/// map to `RuntimeError`.
 fn to_python_error(error: PytaError) -> PyErr {
-    PyValueError::new_err(error.to_string())
+    match error {
+        PytaError::ExecutionFailed => PyRuntimeError::new_err(error.to_string()),
+        _ => PyValueError::new_err(error.to_string()),
+    }
 }
 
 /// Executes one indicator request through the Rust engine.
-fn calculate(
-    values: Vec<f64>,
-    period: usize,
-    kind: IndicatorKind,
-) -> PyResult<IndicatorOutput> {
+fn calculate(values: Vec<f64>, period: usize, kind: IndicatorKind) -> PyResult<IndicatorOutput> {
     let input = Series::new(values).map_err(to_python_error)?;
     let request = IndicatorRequest::new(kind, input, period);
-    let runtime = runtime()?;
 
-    let mut results = runtime.block_on(execute_batch(vec![request]));
+    execute_direct(&request).map_err(to_python_error)
+}
 
-    let result = results.pop().ok_or_else(|| {
-        PyRuntimeError::new_err(
-            "PyTA's engine returned no result for a single request",
-        )
-    })?;
+/// Copies the input, releases the GIL, runs the engine, and returns a
+/// NumPy array.
+///
+/// The input is copied once (a single memcpy) so the GIL can be
+/// released safely while another Python thread might mutate the
+/// caller's array.
+fn compute<'py>(
+    py: Python<'py>,
+    values: PyReadonlyArray1<'py, f64>,
+    period: usize,
+    kind: IndicatorKind,
+) -> PyResult<Bound<'py, PyArray1<f64>>> {
+    let data = values.as_array().to_vec();
+    drop(values);
 
-    match result.status {
-        IndicatorStatus::Success(output) => Ok(output),
-        IndicatorStatus::Error(error) => Err(to_python_error(error)),
-    }
+    let output = py.detach(move || calculate(data, period, kind))?;
+
+    Ok(output.into_values().into_pyarray(py))
 }
 
 /// Calculates the Simple Moving Average (SMA).
 ///
-/// Returns a list with the same length as the input. Warm-up
-/// positions contain None.
+/// Returns a float64 array with the same length as the input. Warm-up
+/// positions are NaN.
 #[pyfunction]
-fn sma(
-    py: Python<'_>,
-    values: Vec<f64>,
+fn sma<'py>(
+    py: Python<'py>,
+    values: PyReadonlyArray1<'py, f64>,
     period: usize,
-) -> PyResult<Vec<Option<f64>>> {
-    let output = py.detach(move || {
-        calculate(values, period, IndicatorKind::Sma)
-    })?;
-
-    Ok(output.values().to_vec())
+) -> PyResult<Bound<'py, PyArray1<f64>>> {
+    compute(py, values, period, IndicatorKind::Sma)
 }
 
 /// Calculates the Relative Strength Index (RSI) using Wilder's smoothing.
 ///
-/// Returns a list with the same length as the input. Warm-up
-/// positions contain None.
+/// Returns a float64 array with the same length as the input. Warm-up
+/// positions are NaN.
 #[pyfunction]
-fn rsi(
-    py: Python<'_>,
-    values: Vec<f64>,
+fn rsi<'py>(
+    py: Python<'py>,
+    values: PyReadonlyArray1<'py, f64>,
     period: usize,
-) -> PyResult<Vec<Option<f64>>> {
-    let output = py.detach(move || {
-        calculate(values, period, IndicatorKind::Rsi)
-    })?;
-
-    Ok(output.values().to_vec())
+) -> PyResult<Bound<'py, PyArray1<f64>>> {
+    compute(py, values, period, IndicatorKind::Rsi)
 }
 
 /// Native Python extension module: pyta._native

@@ -14,7 +14,7 @@ impl Series {
         if values.is_empty() {
             return Err(PytaError::EmptyInput);
         }
-        
+
         if let Some(index) = values.iter().position(|value| !value.is_finite()) {
             return Err(PytaError::NonFiniteValue { index });
         }
@@ -55,14 +55,9 @@ impl Ohlcv {
     ) -> PytaResult<Self> {
         let length = open.len();
 
-        if [
-            high.len(),
-            low.len(),
-            close.len(),
-            volume.len(),
-        ]
-        .iter()
-        .any(|&candidate| candidate != length)
+        if [high.len(), low.len(), close.len(), volume.len()]
+            .iter()
+            .any(|&candidate| candidate != length)
         {
             return Err(PytaError::LengthMismatch);
         }

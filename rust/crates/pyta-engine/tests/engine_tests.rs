@@ -1,14 +1,21 @@
 use pyta_core::{PytaError, Series};
-use pyta_engine::{
-    execute_batch, IndicatorKind, IndicatorRequest, IndicatorStatus,
-};
+use pyta_engine::{IndicatorKind, IndicatorRequest, IndicatorStatus, execute_batch};
 
-fn request(
-    kind: IndicatorKind,
-    values: Vec<f64>,
-    period: usize,
-) -> IndicatorRequest {
+const NAN: f64 = f64::NAN;
+
+fn request(kind: IndicatorKind, values: Vec<f64>, period: usize) -> IndicatorRequest {
     IndicatorRequest::new(kind, Series::new(values).unwrap(), period)
+}
+
+fn assert_values(actual: &[f64], expected: &[f64]) {
+    assert_eq!(actual.len(), expected.len());
+
+    for (index, (a, e)) in actual.iter().zip(expected).enumerate() {
+        assert!(
+            (a.is_nan() && e.is_nan()) || a == e,
+            "mismatch at {index}: got {a}, expected {e}"
+        );
+    }
 }
 
 #[tokio::test]
@@ -37,10 +44,7 @@ async fn batch_preserves_input_order() {
 
     match &results[0].status {
         IndicatorStatus::Success(output) => {
-            assert_eq!(
-                output.values(),
-                &[None, Some(15.0), Some(25.0)]
-            );
+            assert_values(output.values(), &[NAN, 15.0, 25.0]);
         }
         IndicatorStatus::Error(error) => {
             panic!("Expected SMA success, got {error:?}");
@@ -49,10 +53,7 @@ async fn batch_preserves_input_order() {
 
     match &results[1].status {
         IndicatorStatus::Success(output) => {
-            assert_eq!(output.len(), 4);
-            assert_eq!(output.values()[0], None);
-            assert_eq!(output.values()[1], None);
-            assert_eq!(output.values()[2], Some(100.0));
+            assert_values(output.values(), &[NAN, NAN, 100.0, 100.0]);
         }
         IndicatorStatus::Error(error) => {
             panic!("Expected RSI success, got {error:?}");
@@ -61,7 +62,7 @@ async fn batch_preserves_input_order() {
 
     match &results[2].status {
         IndicatorStatus::Success(output) => {
-            assert_eq!(output.values(), &[None, None, Some(10.0)]);
+            assert_values(output.values(), &[NAN, NAN, 10.0]);
         }
         IndicatorStatus::Error(error) => {
             panic!("Expected SMA success, got {error:?}");
@@ -111,38 +112,40 @@ async fn batch_records_multiple_independent_errors() {
     let requests = vec![
         request(IndicatorKind::Sma, vec![1.0, 2.0, 3.0], 0),
         request(IndicatorKind::Rsi, vec![1.0, 2.0, 3.0], 0),
+        request(IndicatorKind::Rsi, vec![1.0, 2.0, 3.0], 3),
         request(IndicatorKind::Sma, vec![1.0, 2.0, 3.0], 2),
     ];
 
     let results = execute_batch(requests).await;
 
-    assert_eq!(results.len(), 3);
+    assert_eq!(results.len(), 4);
     assert!(results[0].is_error());
     assert!(results[1].is_error());
-    assert!(results[2].is_success());
+    assert!(results[2].is_error());
+    assert!(results[3].is_success());
 
-    match &results[0].status {
-        IndicatorStatus::Error(error) => {
-            assert_eq!(*error, PytaError::InvalidPeriod);
-        }
-        IndicatorStatus::Success(_) => {
-            panic!("Expected the first request to fail");
-        }
-    }
+    let expected = [
+        PytaError::InvalidPeriod,
+        PytaError::InvalidPeriod,
+        PytaError::InsufficientData {
+            required: 4,
+            length: 3,
+        },
+    ];
 
-    match &results[1].status {
-        IndicatorStatus::Error(error) => {
-            assert_eq!(*error, PytaError::InvalidPeriod);
-        }
-        IndicatorStatus::Success(_) => {
-            panic!("Expected the second request to fail");
+    for (result, expected_error) in results.iter().zip(expected) {
+        match &result.status {
+            IndicatorStatus::Error(error) => assert_eq!(*error, expected_error),
+            IndicatorStatus::Success(_) => {
+                panic!("Expected request {} to fail", result.index);
+            }
         }
     }
 }
 
 #[tokio::test]
 async fn batch_results_keep_original_indices() {
-    let requests = (0..20)
+    let requests = (0..200)
         .map(|index| {
             request(
                 IndicatorKind::Sma,
@@ -154,7 +157,7 @@ async fn batch_results_keep_original_indices() {
 
     let results = execute_batch(requests).await;
 
-    assert_eq!(results.len(), 20);
+    assert_eq!(results.len(), 200);
 
     for (expected_index, result) in results.iter().enumerate() {
         assert_eq!(result.index, expected_index);

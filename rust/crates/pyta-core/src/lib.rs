@@ -1,4 +1,4 @@
- //! Core types and shared contracts for PyTA.
+//! Core types and shared contracts for PyTA.
 
 pub mod error;
 pub mod input;

@@ -1,5 +1,43 @@
 # TODO Scratchpad — PyTA Python Boundary & Data Standardization
 
+## Repository Analysis
+
+### Blocking bugs
+[x] 1. Smoke test path mismatch: `rebuild-and-run.sh` runs `tests/smoke/smoke_test.py`, but the file is `test_smoke.py`. The script fails.
+[x] 2. Rayon panics abort the process: rayon::spawn with no panic handler aborts on panic, so the ExecutionFailed fallback in `batch.rs` never runs. Wrap the kernel in `std::panic::catch_unwind` inside `execution.rs`.
+[x] 3. `.gitignore` ignores *.lock: Cargo.lock and uv.lock are never committed, which contradicts the architecture doc. Also add *.pyd, *.dylib, dist/ and *.egg-info.
+[x] 4. `cargo fmt --check` fails: `error.rs` is missing a trailing comma, `rsi.rs` has period -1 and trailing whitespace, and `pyta-engine/src/lib.rs` is unformatted.
+[x] 5. Doc comments attached to use: in `rsi.rs` and `sma.rs` the `///` blocks sit above use, so they never document rsi/sma. Move them onto the functions.
+[x] 6. `PytaError::ExecutionFailed` maps to `ValueError:` it should be a `RuntimeError`.
+
+### Design conflicts to resolve
+[x] 1. **Output type:** `Vec<Option<f64>>` costs 16 bytes per element plus a copy at the boundary. Consider `Vec<f64>` with NaN internally.
+[ ] 2. RSI period == len error: it reports `PeriodExceedsLength`, but the real problem is that RSI needs period + 1 points. Add an `InsufficientData` variant.
+[ ] 3. Single-call overhead: one call goes through Tokio, a worker, Rayon and a oneshot channel. Benchmark a direct-dispatch fast path.
+
+### Packaging
+[x] 1. LICENSE is not MIT: it’s the X11 text with a non-advertising clause, a leftover “X CONSORTIUM”, and <...> placeholders, while pyproject.toml and Cargo say MIT. Use the standard MIT text.
+[x] 2. No `_native.pyi` stub despite `py.typed`, so type checkers see an untyped module.
+[ ] 3. `numpy` is declared in the workspace but unused. Use `PyReadonlyArray1` for NumPy input. Currently `Vec<f64>` copies everything - check this to ensure we are using Numpy input.
+
+
+### Minor Issues
+[x] 1. `batch.rs` guards results with a mutex. A `JoinSet` returning (index, result) is simpler and lock-free.
+[x] 2. SMA’s running sum accumulates drift on long series. Consider periodic recompute or Kahan summation.
+[x] 3. `pyta-engine` declares `thiserror` but doesn’t use it.
+[x] 4. `test-suite.sh` runs Rust only (no `cargo fmt --check`, no `pytest`) and calls `clear`.
+
+### Script Updates
+[x] 1. Create a script to run benchmark tests on pyta-engine.
+[ ] 2. Generate a summarized report after the Criterion benchmark.
+
+
+> The following TODOs are automated TODOs and may not be applicable.
+
+### Documentation & API Changes/Notes
+1. Pydantic: Agreed, a mandatory dependency is fine if it’s your validation layer. Keep it off the hot path for large arrays, though. Pydantic validating a 1M-element list is slow, and Series::new in Rust already checks emptiness and finiteness. Use Pydantic for structure and parameters (field names, periods, OHLCV shape) and let Rust handle element-level checks.
+
+
 ## Phase 1: Public Python API Architecture
 
 [x] **5. Audit the existing `python/pyta` package**

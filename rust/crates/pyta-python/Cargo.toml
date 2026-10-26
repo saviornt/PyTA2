@@ -11,7 +11,7 @@ name = "_native"
 crate-type = ["cdylib"]
 
 [dependencies]
+numpy = { workspace = true }
 pyo3 = { workspace = true }
 pyta-core = { path = "../pyta-core" }
 pyta-engine = { path = "../pyta-engine" }
-tokio.workspace = true

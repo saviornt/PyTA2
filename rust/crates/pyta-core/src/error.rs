@@ -19,11 +19,14 @@ pub enum PytaError {
     #[error("period {period} exceeds input length {length}")]
     PeriodExceedsLength { period: usize, length: usize },
 
+    #[error("insufficient data: {required} values required, got {length}")]
+    InsufficientData { required: usize, length: usize },
+
     #[error("invalid OHLCV data at index {index}: {reason}")]
     InvalidOhlcv { index: usize, reason: &'static str },
 
     #[error("indicator execution failed before returning a result")]
-    ExecutionFailed
+    ExecutionFailed,
 }
 
 /// Convenience alias for fallible PyTA operations.

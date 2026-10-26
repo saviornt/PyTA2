@@ -34,13 +34,7 @@ fn ohlcv_rejects_mismatched_lengths() {
     let short = Series::new(vec![1.0]).unwrap();
     let long = Series::new(vec![1.0, 2.0]).unwrap();
 
-    let result = Ohlcv::new(
-        short.clone(),
-        long,
-        short.clone(),
-        short.clone(),
-        short,
-    );
+    let result = Ohlcv::new(short.clone(), long, short.clone(), short.clone(), short);
 
     assert_eq!(result, Err(PytaError::LengthMismatch));
 }

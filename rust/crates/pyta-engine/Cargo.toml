@@ -10,6 +10,16 @@ rust-version.workspace = true
 pyta-core = { path = "../pyta-core" }
 pyta-momentum = { path = "../pyta-momentum" }
 pyta-trend = { path = "../pyta-trend" }
-thiserror.workspace = true
 tokio = { workspace = true }
 rayon = { workspace = true }
+
+[[bench]]
+name = "single_call"
+harness = false
+
+[[bench]]
+name = "workloads"
+harness = false
+
+[dev-dependencies]
+criterion = "0.8.2"

@@ -14,7 +14,7 @@ uv run --with maturin maturin develop \
 echo
 echo "==> Running PyTA smoke tests..."
 
-uv run python tests/smoke/smoke_test.py
+uv run python tests/smoke/test_smoke.py
 
 echo
 echo "==> Build and smoke tests completed successfully."
