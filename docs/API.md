@@ -111,7 +111,23 @@ smoothed_rsi = pyta.sma(pyta.rsi(close, period=14), period=5)
 
 ## 7. Errors
 
-PyTA uses built-in exceptions.
+PyTA uses built-in exceptions, and every exception carries a message that explains what went wrong and, where possible, how to fix it. Messages name the offending parameter, value, or position, and state what was expected.
+
+```python
+>>> pyta.sma([1.0, 2.0, 3.0], period=5)
+ValueError: period (5) exceeds the series length (3); sma needs at least 5 values
+
+>>> pyta.sma([1.0, float("nan"), 3.0, 4.0], period=2)
+ValueError: non-finite value (nan) at index 1; only leading NaN values are skipped
+
+>>> pyta.sma(df, period=20)   # df has no recognizable close column
+ValueError: no "close" column found; available columns: ["px", "vol"]. Pass column= to choose one
+
+>>> pyta.sma([1.0, 2.0, 3.0], period="14")
+TypeError: period must be an integer, got str
+```
+
+The examples show the intended style; exact wording may change between releases, so catch the exception type rather than matching message text.
 
 | Exception | Raised for |
 |---|---|
@@ -121,9 +137,9 @@ PyTA uses built-in exceptions.
 
 NumPy integers are accepted as `period`.
 
-## 8. Calling from async code *(planned)*
+## 8. Calling from async code
 
-PyTA's functions are ordinary synchronous calls. The native boundary releases the GIL while Rust calculates, so other Python threads keep running. A Python-level async API is currently deferred.
+PyTA's functions are ordinary synchronous calls. The native boundary releases the GIL while Rust calculates, so other Python threads keep running. A Python-level async API is not planned for now.
 
 ---
 
