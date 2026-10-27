@@ -139,7 +139,6 @@ group.bench_with_input(BenchmarkId::new("series_new", n), &data, |b, d| {
 [ ] **14. Support Pydantic models**
 - Accept Pydantic model instances through their standard serialization interface.
 - Support both Pydantic v2 and any explicitly selected v1 compatibility path, if needed.
-- Avoid requiring Pydantic as a mandatory dependency.
 - Define how nested models and extra fields are treated.
 - Reuse the same normalization and validation rules as dictionaries.
 

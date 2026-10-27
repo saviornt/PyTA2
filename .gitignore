@@ -1,17 +1,27 @@
-# Python virtual environment
+# Python virtual environments
 .venv/
 
-# Cache
+# Python caches and test artifacts
 __pycache__/
 .pytest_cache/
 
+# Ruff caches and artifacts
+/.ruff_cache/
+
 # Rust build artifacts
 /target/
-*.lock
-*.so
 
+# Compiled libraries
+*.so
 *.pyd
 *.dylib
+
+# Python packaging and distribution
 dist/
 *.egg-info/
-fixes/
+
+# Local development and temporary files
+/fixes/
+
+# Lockfiles
+uv.lock
