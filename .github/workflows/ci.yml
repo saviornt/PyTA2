@@ -19,8 +19,51 @@ env:
   RUSTFLAGS: -D warnings
 
 jobs:
+  # Fixes Rust formatting and commits it back when the branch is pushable.
+  # Commits made with GITHUB_TOKEN don't start a new CI run, which is fine
+  # here because a cargo fmt commit changes only whitespace and layout.
+  format:
+    name: Rust formatting
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      # Fork PRs can't be pushed to with GITHUB_TOKEN; those only report.
+      CAN_PUSH: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # On PRs, check out the branch itself, not the merge commit.
+          ref: ${{ github.head_ref || github.ref }}
+
+      - name: Install Rust toolchain
+        run: rustup toolchain install
+
+      - name: Run cargo fmt
+        run: cargo fmt --all
+
+      - name: Commit formatting fixes
+        run: |
+          if git diff --quiet; then
+            echo "Formatting is clean."
+            exit 0
+          fi
+
+          if [[ "$CAN_PUSH" != "true" ]]; then
+            git diff
+            echo "::error::Rust formatting differs. Run 'cargo fmt --all' and push again."
+            exit 1
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "style: cargo fmt"
+          git push
+          echo "::notice::Pushed a 'style: cargo fmt' commit. Pull before your next push."
+
   test:
     name: Test suite
+    needs: format
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -38,10 +81,7 @@ jobs:
           activate-environment: true
 
       - name: Install Python dependencies
-        run: uv sync --locked --extra pandas --no-install-project
-
-      - name: Check Rust formatting
-        run: cargo fmt --all -- --check
+        run: uv sync --extra pandas --no-install-project
 
       - name: Clippy
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
@@ -62,3 +102,4 @@ jobs:
 
       - name: Ruff format
         run: uv run --no-sync ruff format --check python tests
+        

@@ -1,7 +1,7 @@
 use std::hint::black_box;
 use std::time::Duration;
 
-use criterion::{BatchSize, BenchmarkId, Criterion, criterion_group, criterion_main, SamplingMode};
+use criterion::{BatchSize, BenchmarkId, Criterion, SamplingMode, criterion_group, criterion_main};
 use pyta_core::Series;
 use pyta_engine::{IndicatorKind, IndicatorRequest, execute_batch, execute_direct};
 use pyta_trend::sma;

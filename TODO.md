@@ -71,8 +71,8 @@ group.bench_with_input(BenchmarkId::new("series_new", n), &data, |b, d| {
 ### To do
 - [x] Delete the stale `DEV_PLAN.md` and any leftover `pyta_core.md` or old doc folders, so `docs/` holds only `API.md`, `ARCHITECTURE.md`, and `DEVELOPMENT.md`.
 - [x] Finish the Python optimization as noted above.
-- [ ] Fill in `.github/workflows/ci.yml` (currently empty): format check, Clippy, Rust tests, extension build, pytest, Ruff. Reuse the steps in `scripts/test-suite.sh`.
-- [ ] Run `scripts/test-suite.sh` locally and confirm everything passes.
+- [x] Fill in `.github/workflows/ci.yml` (currently empty): format check, Clippy, Rust tests, extension build, pytest, Ruff. Reuse the steps in `scripts/test-suite.sh`.
+- [x] Run `scripts/test-suite.sh` locally and confirm everything passes.
 - [ ] Verify `docs/API.md` against the code: `rsi` default period, `column` aliases, the period range, masked-array handling, and the error table.
 - [ ] Compare the real error messages with the examples in the `API.md` Errors section, then fix the code or the docs.
 - [ ] Verify the Sprint 2–6 acceptance criteria and mark the sprints `✓` in `docs/DEVELOPMENT.md` where they pass.
