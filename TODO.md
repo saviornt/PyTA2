@@ -34,7 +34,7 @@
 ### Python API
 [x] 1. Create the python API to connect to the Rust backend
 [x] 2. Create benchmarks and pytest for testing and optimization
-[ ] 3. Optimization (see note 1)
+[x] 3. Optimization (see note 1)
 
 
 > Note 1: Python layer: a fixed ~3–5 µs per call. The 55–78 µs at 1M is 1–2% of a 4 ms call, which is timing noise, since nothing in the Python layer scales with n. That fixed cost is large next to a 0.2 µs kernel at n=100, but small at realistic sizes. Users with thousands of small series are who the batch API (Sprint 7 in `docs/DEVELOPMENT.md`) is for. The finding is the native boundary at large n. At 1M elements it costs about as much as the calculation itself, 1.2–1.8 ms against 2–3.3 ms for the kernel. The memcpy accounts for at most ~0.3 ms, from the copy column. The rest is unexplained, and the best guess is the finite-value scan in Series::new, since position(|v| !v.is_finite()) exits early and may not vectorize. Fresh-allocation page faults are another possibility.
@@ -69,7 +69,8 @@ group.bench_with_input(BenchmarkId::new("series_new", n), &data, |b, d| {
 - [x] Reset this file.
 
 ### To do
-- [ ] Delete the stale `DEV_PLAN.md` and any leftover `pyta_core.md` or old doc folders, so `docs/` holds only `API.md`, `ARCHITECTURE.md`, and `DEVELOPMENT.md`.
+- [x] Delete the stale `DEV_PLAN.md` and any leftover `pyta_core.md` or old doc folders, so `docs/` holds only `API.md`, `ARCHITECTURE.md`, and `DEVELOPMENT.md`.
+- [x] Finish the Python optimization as noted above.
 - [ ] Fill in `.github/workflows/ci.yml` (currently empty): format check, Clippy, Rust tests, extension build, pytest, Ruff. Reuse the steps in `scripts/test-suite.sh`.
 - [ ] Run `scripts/test-suite.sh` locally and confirm everything passes.
 - [ ] Verify `docs/API.md` against the code: `rsi` default period, `column` aliases, the period range, masked-array handling, and the error table.

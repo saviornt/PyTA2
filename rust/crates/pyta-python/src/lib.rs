@@ -16,29 +16,34 @@ fn to_python_error(error: PytaError) -> PyErr {
 }
 
 /// Executes one indicator request through the Rust engine.
-fn calculate(values: Vec<f64>, period: usize, kind: IndicatorKind) -> PyResult<IndicatorOutput> {
-    let input = Series::new(values).map_err(to_python_error)?;
+fn calculate(input: Series, period: usize, kind: IndicatorKind) -> PyResult<IndicatorOutput> {
     let request = IndicatorRequest::new(kind, input, period);
 
     execute_direct(&request).map_err(to_python_error)
 }
 
-/// Copies the input, releases the GIL, runs the engine, and returns a
-/// NumPy array.
+/// Copies and validates the input, releases the GIL, runs the engine,
+/// and returns a NumPy array.
 ///
-/// The input is copied once (a single memcpy) so the GIL can be
-/// released safely while another Python thread might mutate the
-/// caller's array.
+/// The input is copied once, with validation fused into the copy, so
+/// the GIL can be released safely while another Python thread might
+/// mutate the caller's array.
 fn compute<'py>(
     py: Python<'py>,
     values: PyReadonlyArray1<'py, f64>,
     period: usize,
     kind: IndicatorKind,
 ) -> PyResult<Bound<'py, PyArray1<f64>>> {
-    let data = values.as_array().to_vec();
+    // The Python layer always passes a C-contiguous array; the fallback
+    // only guards direct callers of `_native`.
+    let input = match values.as_slice() {
+        Ok(slice) => Series::from_slice(slice),
+        Err(_) => Series::new(values.as_array().to_vec()),
+    }
+    .map_err(to_python_error)?;
     drop(values);
 
-    let output = py.detach(move || calculate(data, period, kind))?;
+    let output = py.detach(move || calculate(input, period, kind))?;
 
     Ok(output.into_values().into_pyarray(py))
 }

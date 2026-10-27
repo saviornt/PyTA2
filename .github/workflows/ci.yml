@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Cancel superseded runs on the same branch or PR.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+
+jobs:
+  test:
+    name: Test suite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      # Installs the toolchain and components pinned in rust-toolchain.toml.
+      - name: Install Rust toolchain
+        run: rustup toolchain install
+
+      - uses: Swatinem/rust-cache@v2
+
+      # Creates and activates .venv, so PyO3 and maturin use Python 3.15.
+      - uses: astral-sh/setup-uv@v10
+        with:
+          python-version: "3.15"
+          activate-environment: true
+
+      - name: Install Python dependencies
+        run: uv sync --locked --extra pandas --no-install-project
+
+      - name: Check Rust formatting
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+      - name: Rust tests
+        run: cargo test --workspace
+
+      - name: Build Python extension
+        run: >-
+          uv run --no-sync --with maturin maturin develop
+          --manifest-path rust/crates/pyta-python/Cargo.toml
+
+      - name: Pytest
+        run: uv run --no-sync pytest
+
+      - name: Ruff lint
+        run: uv run --no-sync ruff check python tests
+
+      - name: Ruff format
+        run: uv run --no-sync ruff format --check python tests

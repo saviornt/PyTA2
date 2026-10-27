@@ -22,6 +22,3 @@ dist/
 
 # Local development and temporary files
 /fixes/
-
-# Lockfiles
-uv.lock
