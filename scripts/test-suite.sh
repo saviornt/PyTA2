@@ -27,7 +27,15 @@ uv run --with maturin maturin develop \
 echo
 
 echo "==> Running Python tests..."
-uv run pytest
+uv run --extra pandas pytest
+echo
+
+echo "==> Running Python Ruff tests..."
+uv run ruff check python tests
+echo
+
+echo "==> Running Python Ruff format tests..."
+uv run ruff format --check python tests
 echo
 
 echo "==> Testing suite completed."

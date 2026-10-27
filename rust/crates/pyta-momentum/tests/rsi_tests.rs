@@ -74,3 +74,56 @@ fn rsi_returns_zero_when_there_are_no_gains() {
     assert_eq!(result.values()[2], 0.0);
     assert_eq!(result.values()[4], 0.0);
 }
+
+/// Textbook Wilder RSI, used as a check on the optimized kernel.
+fn reference_rsi(prices: &[f64], period: usize) -> Vec<f64> {
+    let n = period as f64;
+    let mut output = vec![f64::NAN; prices.len()];
+    let (mut gain_sum, mut loss_sum) = (0.0, 0.0);
+
+    for i in 1..=period {
+        let change = prices[i] - prices[i - 1];
+        gain_sum += change.max(0.0);
+        loss_sum += (-change).max(0.0);
+    }
+
+    let value = |gain: f64, loss: f64| {
+        if gain == 0.0 {
+            0.0
+        } else if loss == 0.0 {
+            100.0
+        } else {
+            100.0 - 100.0 / (1.0 + gain / loss)
+        }
+    };
+
+    let (mut avg_gain, mut avg_loss) = (gain_sum / n, loss_sum / n);
+    output[period] = value(avg_gain, avg_loss);
+
+    for i in (period + 1)..prices.len() {
+        let change = prices[i] - prices[i - 1];
+        avg_gain = (avg_gain * (n - 1.0) + change.max(0.0)) / n;
+        avg_loss = (avg_loss * (n - 1.0) + (-change).max(0.0)) / n;
+        output[i] = value(avg_gain, avg_loss);
+    }
+
+    output
+}
+
+#[test]
+fn rsi_matches_textbook_formula_on_long_series() {
+    let data: Vec<f64> = (0..50_000)
+        .map(|i| 100.0 + (i as f64 * 0.013).sin() * 20.0 + (i as f64 * 0.31).cos() * 3.0)
+        .collect();
+    let close = Series::new(data.clone()).unwrap();
+
+    let actual = rsi(&close, 14).unwrap();
+    let expected = reference_rsi(&data, 14);
+
+    for (index, (a, e)) in actual.values().iter().zip(&expected).enumerate() {
+        assert!(
+            (a.is_nan() && e.is_nan()) || (a - e).abs() <= 1e-9,
+            "mismatch at {index}: got {a}, expected {e}"
+        );
+    }
+}

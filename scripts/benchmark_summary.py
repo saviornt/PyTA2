@@ -1,100 +1,111 @@
+"""Summarize Criterion results per workload and input size.
 
-"""Summarize Criterion results by request count, strategy, and input size."""
+Reads only the latest run (`new/estimates.json`) and compares the
+sequential, batch, and auto strategies side by side.
+"""
 
 import json
-import re
 from collections import defaultdict
 from pathlib import Path
 
 CRITERION_DIR = Path("target/criterion")
+STRATEGIES = ("sequential", "batch", "auto")
 
-WORKLOAD_REQUESTS = {
-    "1_sma_ds1": 1,
-    "2_rsi_ds1": 1,
-    "3_sma_rsi_ds1": 2,
-    "4_sma_sma_ds1_ds2": 2,
-    "5_rsi_rsi_ds1_ds2": 2,
-    "6_sma_rsi_ds1_ds2": 4,
-}
-
-STRATEGIES = {"sequential", "batch", "auto"}
+# Flag rows where the planner's choice is this much slower than the best arm.
+AUTO_TOLERANCE = 1.10
 
 
-def format_time(ns):
+def format_time(ns: float | None) -> str:
+    if ns is None:
+        return "-"
     if ns >= 1_000_000:
         return f"{ns / 1_000_000:.3f} ms"
     if ns >= 1_000:
         return f"{ns / 1_000:.3f} µs"
-    return f"{ns:.2f} ns"
+    return f"{ns:.1f} ns"
 
 
-def main():
-    # (request count, strategy, input size) -> timing estimates in ns
-    results = defaultdict(list)
+def load_results() -> dict[tuple[str, int], dict[str, float]]:
+    """Maps (workload, input size) to {strategy: time in ns}."""
+    results: dict[tuple[str, int], dict[str, float]] = defaultdict(dict)
 
+    # Layout: <workload>/<strategy>/<size>/new/estimates.json. The sibling
+    # `base` and `change` directories hold the previous run and the relative
+    # change, so they must not be read as timings.
     for path in CRITERION_DIR.rglob("estimates.json"):
-        parts = path.parts
+        parts = path.relative_to(CRITERION_DIR).parts
 
-        workload = next(
-            (part for part in parts if part in WORKLOAD_REQUESTS),
-            None,
-        )
-        strategy = next(
-            (part for part in parts if part in STRATEGIES),
-            None,
-        )
-        size = next(
-            (
-                int(part)
-                for part in parts
-                if re.fullmatch(r"\d+", part)
-                and int(part) in {100, 10_000, 1_000_000}
-            ),
-            None,
-        )
+        if len(parts) != 5 or parts[3] != "new":
+            continue
 
-        if workload is None or strategy is None or size is None:
+        workload, strategy, size, _, _ = parts
+
+        if strategy not in STRATEGIES or not size.isdigit():
             continue
 
         try:
-            estimate = json.loads(path.read_text())
-            mean_ns = estimate["mean"]["point_estimate"]
+            estimates = json.loads(path.read_text())
+            # Criterion prints the slope estimate when it has one.
+            entry = estimates.get("slope") or estimates["mean"]
+            results[(workload, int(size))][strategy] = entry["point_estimate"]
         except (OSError, ValueError, KeyError, TypeError):
             continue
 
-        results[
-            (WORKLOAD_REQUESTS[workload], strategy, size)
-        ].append(mean_ns)
+    return results
+
+
+def main() -> None:
+    results = load_results()
 
     if not results:
         print("No Criterion estimates found.")
         print(f"Expected results beneath: {CRITERION_DIR.resolve()}")
         return
 
-    print("\nCriterion Summary — Average Time per Workload")
-    print("=" * 78)
-    print(
-        f"{'Requests':>8} | {'Input size':>10} | "
-        f"{'Strategy':<10} | {'Avg time':>12} | {'Workloads':>9}"
+    header = (
+        f"{'Workload':<20} {'Size':>9} | {'sequential':>12} {'batch':>12} "
+        f"{'auto':>12} | {'best':<10} {'auto/best':>9}"
     )
-    print("-" * 78)
+    print("\nCriterion Summary — latest run, per workload")
+    print("=" * len(header))
+    print(header)
+    print("-" * len(header))
 
-    for requests in (1, 2, 4):
-        for size in (100, 10_000, 1_000_000):
-            for strategy in ("sequential", "batch", "auto"):
-                samples = results.get((requests, strategy, size), [])
-                if not samples:
-                    continue
+    previous_workload = None
 
-                average_ns = sum(samples) / len(samples)
-                print(
-                    f"{requests:>8} | {size:>10,} | "
-                    f"{strategy:<10} | {format_time(average_ns):>12} | "
-                    f"{len(samples):>9}"
-                )
+    for (workload, size), times in sorted(results.items()):
+        if previous_workload not in (None, workload):
+            print()
+        previous_workload = workload
 
-    print("=" * 78)
-    print("Times are arithmetic means of Criterion workload estimates.")
+        sequential = times.get("sequential")
+        batch = times.get("batch")
+        auto = times.get("auto")
+
+        candidates = {
+            name: value
+            for name, value in (("sequential", sequential), ("batch", batch))
+            if value is not None
+        }
+
+        best_name, ratio_text, flag = "-", "-", ""
+
+        if candidates:
+            best_name = min(candidates, key=candidates.__getitem__)
+
+            if auto is not None:
+                ratio = auto / candidates[best_name]
+                ratio_text = f"{ratio:.2f}x"
+                flag = "  <-- check" if ratio > AUTO_TOLERANCE else ""
+
+        print(
+            f"{workload:<20} {size:>9,} | {format_time(sequential):>12} "
+            f"{format_time(batch):>12} {format_time(auto):>12} | "
+            f"{best_name:<10} {ratio_text:>9}{flag}"
+        )
+
+    print("=" * len(header))
+    print("auto/best: planner's time divided by the faster of sequential/batch.")
 
 
 if __name__ == "__main__":

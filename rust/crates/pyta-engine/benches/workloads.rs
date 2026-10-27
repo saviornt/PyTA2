@@ -15,7 +15,7 @@ use pyta_engine::{
 };
 use tokio::runtime::Builder;
 
-const SIZES: [usize; 3] = [100, 10_000, 1_000_000];
+const SIZES: [usize; 5] = [100, 1_000, 3_000, 10_000, 1_000_000];
 const DS1_SEED: u64 = 0x9E37_79B9_7F4A_7C15;
 const DS2_SEED: u64 = 0xD1B5_4A32_D192_ED03;
 

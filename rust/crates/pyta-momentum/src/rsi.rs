@@ -50,7 +50,8 @@ pub fn rsi(close: &Series, period: usize) -> PytaResult<IndicatorOutput> {
     }
 
     let period_f = period as f64;
-    let prior_weight = (period - 1) as f64;
+    let prior_weight = (period - 1) as f64 / period_f; // weight of the previous average
+    let current_weight = 1.0 / period_f; // weight of the newest change
 
     let mut average_gain = gain_sum / period_f;
     let mut average_loss = loss_sum / period_f;
@@ -64,8 +65,8 @@ pub fn rsi(close: &Series, period: usize) -> PytaResult<IndicatorOutput> {
         let gain = change.max(0.0);
         let loss = (-change).max(0.0);
 
-        average_gain = (average_gain * prior_weight + gain) / period_f;
-        average_loss = (average_loss * prior_weight + loss) / period_f;
+        average_gain = average_gain * prior_weight + gain * current_weight;
+        average_loss = average_loss * prior_weight + loss * current_weight;
 
         output[index] = relative_strength_index(average_gain, average_loss);
     }
@@ -83,6 +84,5 @@ fn relative_strength_index(average_gain: f64, average_loss: f64) -> f64 {
         return 100.0;
     }
 
-    let relative_strength = average_gain / average_loss;
-    100.0 - (100.0 / (1.0 + relative_strength))
+    100.0 * average_gain / (average_gain + average_loss)
 }

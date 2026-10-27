@@ -12,13 +12,13 @@
 
 ### Design conflicts to resolve
 [x] 1. **Output type:** `Vec<Option<f64>>` costs 16 bytes per element plus a copy at the boundary. Consider `Vec<f64>` with NaN internally.
-[ ] 2. RSI period == len error: it reports `PeriodExceedsLength`, but the real problem is that RSI needs period + 1 points. Add an `InsufficientData` variant.
-[ ] 3. Single-call overhead: one call goes through Tokio, a worker, Rayon and a oneshot channel. Benchmark a direct-dispatch fast path.
+[x] 2. RSI period == len error: it reports `PeriodExceedsLength`, but the real problem is that RSI needs period + 1 points. Add an `InsufficientData` variant.
+[x] 3. Single-call overhead: one call goes through Tokio, a worker, Rayon and a oneshot channel. Benchmark a direct-dispatch fast path.
 
 ### Packaging
 [x] 1. LICENSE is not MIT: it’s the X11 text with a non-advertising clause, a leftover “X CONSORTIUM”, and <...> placeholders, while pyproject.toml and Cargo say MIT. Use the standard MIT text.
 [x] 2. No `_native.pyi` stub despite `py.typed`, so type checkers see an untyped module.
-[ ] 3. `numpy` is declared in the workspace but unused. Use `PyReadonlyArray1` for NumPy input. Currently `Vec<f64>` copies everything - check this to ensure we are using Numpy input.
+[x] 3. `numpy` is declared in the workspace but unused. Use `PyReadonlyArray1` for NumPy input. Currently `Vec<f64>` copies everything - check this to ensure we are using Numpy input.
 
 
 ### Minor Issues
@@ -29,10 +29,31 @@
 
 ### Script Updates
 [x] 1. Create a script to run benchmark tests on pyta-engine.
-[ ] 2. Generate a summarized report after the Criterion benchmark.
+[x] 2. Generate a summarized report after the Criterion benchmark.
+
+### Python API
+[x] 1. Create the python API to connect to the Rust backend
+[x] 2. Create benchmarks and pytest for testing and optimization
+[ ] 3. Optimization (see note 1)
 
 
-> The following TODOs are automated TODOs and may not be applicable.
+> Note 1: Python layer: a fixed ~3–5 µs per call. The 55–78 µs at 1M is 1–2% of a 4 ms call, which is timing noise, since nothing in the Python layer scales with n. That fixed cost is large next to a 0.2 µs kernel at n=100, but small at realistic sizes. Users with thousands of small series are who the batch API (TODO #16) is for. The finding is the native boundary at large n. At 1M elements it costs about as much as the calculation itself, 1.2–1.8 ms against 2–3.3 ms for the kernel. The memcpy accounts for at most ~0.3 ms, from the copy column. The rest is unexplained, and the best guess is the finite-value scan in Series::new, since position(|v| !v.is_finite()) exits early and may not vectorize. Fresh-allocation page faults are another possibility.
+> Measuring it: In `single_call.rs`, change `Series::new(data)` to `Series::new(data.clone())` and add the following code inside the loop:
+
+```rust
+group.bench_with_input(BenchmarkId::new("series_new", n), &data, |b, d| {
+    b.iter_batched(
+        || d.clone(),
+        |values| Series::new(values).unwrap(),
+        BatchSize::LargeInput,
+    );
+});
+```
+> then run `cargo bench -p pyta-engine --bench single_call -- series_new`. If the scan is ~1 ms at 1M, speeding it up should be a small, safe change to `input.rs`. If it's small, then look at the allocation and page-fault side instead.
+
+---
+
+> Note 2: The following TODOs are automated TODOs and may not be applicable.
 
 ### Documentation & API Changes/Notes
 1. Pydantic: Agreed, a mandatory dependency is fine if it’s your validation layer. Keep it off the hot path for large arrays, though. Pydantic validating a 1M-element list is slow, and Series::new in Rust already checks emptiness and finiteness. Use Pydantic for structure and parameters (field names, periods, OHLCV shape) and let Rust handle element-level checks.

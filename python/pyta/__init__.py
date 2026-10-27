@@ -1,5 +1,6 @@
 """PyTA: Rust-powered technical analysis indicators."""
 
-from ._native import rsi, sma
+from . import indicators
+from .indicators import rsi, sma
 
-__all__ = ["rsi", "sma"]
+__all__ = ["indicators", "rsi", "sma"]

@@ -28,7 +28,7 @@ pub(crate) fn dispatch(request: &IndicatorRequest) -> PytaResult<IndicatorOutput
 pub(crate) fn estimated_cost_ns(request: &IndicatorRequest) -> f64 {
     let ns_per_element = match request.kind {
         IndicatorKind::Sma => 1.8,
-        IndicatorKind::Rsi => 5.5,
+        IndicatorKind::Rsi => 3.0,
     };
 
     request.input.len() as f64 * ns_per_element
