@@ -75,7 +75,9 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       # Creates and activates .venv, so PyO3 and maturin use Python 3.15.
-      - uses: astral-sh/setup-uv@v10
+      # setup-uv publishes no moving major tag (no `v10`), so pin the commit
+      # of a release, as its README does; update both together.
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
           python-version: "3.15"
           activate-environment: true
