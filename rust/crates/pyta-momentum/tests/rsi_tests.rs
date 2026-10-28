@@ -1,3 +1,5 @@
+//! RSI kernel: formula, warm-up, edge cases and magnitude limits.
+
 use pyta_common::MAX_ABS_INPUT;
 use pyta_core::{PytaError, Series};
 use pyta_momentum::rsi;
@@ -174,4 +176,38 @@ fn inputs_that_would_overflow_the_price_change_are_rejected() {
         Series::new(vec![1.0, -MAX_ABS_INPUT.next_up()]),
         Err(PytaError::ValueOutOfRange { index: 1 })
     );
+}
+
+#[test]
+fn rsi_period_one_follows_each_change() {
+    let close = Series::new(vec![10.0, 11.0, 10.5, 10.5, 12.0]).unwrap();
+
+    let result = rsi(&close, 1).unwrap();
+
+    assert!(result.values()[0].is_nan());
+    assert_eq!(&result.values()[1..], [100.0, 0.0, 0.0, 100.0]);
+}
+
+#[test]
+fn rsi_period_of_length_minus_one_gives_one_value() {
+    let close = Series::new(vec![10.0, 11.0, 10.0, 12.0]).unwrap();
+
+    let result = rsi(&close, 3).unwrap();
+
+    // Gains 1 + 2, losses 1: RSI = 100 * 3 / (3 + 1).
+    assert!(result.values()[..3].iter().all(|value| value.is_nan()));
+    assert!((result.values()[3] - 75.0).abs() < 1e-12);
+}
+
+#[test]
+fn rsi_of_tiny_values_matches_rsi_of_their_scaled_up_copy() {
+    let base = [1.0, 3.0, 2.0, 5.0, 4.0, 4.5, 6.0];
+    let tiny: Vec<f64> = base.iter().map(|value| value * 1e-300).collect();
+
+    let tiny = rsi(&Series::new(tiny).unwrap(), 3).unwrap();
+    let base = rsi(&Series::new(base.to_vec()).unwrap(), 3).unwrap();
+
+    for (a, b) in tiny.values().iter().zip(base.values()).skip(3) {
+        assert!((a - b).abs() < 1e-9, "{a} vs {b}");
+    }
 }

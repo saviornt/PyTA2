@@ -1,8 +1,10 @@
 """Trend indicator: SMA (single call and batch)."""
 
-from .. import _native
-from .._api import run, run_batch
-from .._validation import CLOSE
+from typing import Any
+
+from pyta import _native
+from pyta._api import run, run_batch
+from pyta._validation import CLOSE
 
 
 def sma[T](data: T, period: int, *, column: str | None = None) -> T:
@@ -36,7 +38,9 @@ def sma[T](data: T, period: int, *, column: str | None = None) -> T:
     return run(_native.sma, "sma", data, period, column, default_column=CLOSE)
 
 
-def sma_batch[D: (list, dict)](datasets: D, period: int, *, column: str | None = None) -> D:
+def sma_batch[D: (list[Any], dict[Any, Any])](
+    datasets: D, period: int, *, column: str | None = None
+) -> D:
     """Simple Moving Average of many datasets.
 
     See `pyta.sma` for the calculation and the accepted containers.

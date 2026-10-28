@@ -10,4 +10,8 @@ rust-version.workspace = true
 pyta-core = { path = "../pyta-core" }
 
 [dev-dependencies]
+proptest = { workspace = true }
 pyta-common = { path = "../pyta-common" }
+
+[lints]
+workspace = true

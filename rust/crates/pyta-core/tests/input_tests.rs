@@ -1,3 +1,5 @@
+//! Series and OHLCV validation.
+
 use pyta_common::MAX_ABS_INPUT;
 use pyta_core::{Ohlcv, PytaError, Series};
 

@@ -29,13 +29,19 @@ No options. Steps, in order:
 | 4 | `cargo test --workspace` | |
 | 5 | Build Python extension | `maturin develop` (debug build) |
 | 6 | Smoke test | `tests/smoke/test_smoke.py` |
-| 7 | pytest | With the pandas extra |
+| 7 | pytest | With the pandas extra. Strict markers and config, warnings as errors, and branch coverage of `pyta` with a floor (`--cov-fail-under` in `pyproject.toml`) |
 | 8 | Ruff lint | `ruff check python tests` |
 | 9 | Ruff format check | `ruff format --check python tests` |
+| 10 | Type check | `pyright` in strict mode on `python/` |
+| 11 | Stub check | `python -m mypy.stubtest pyta._native`: `_native.pyi` matches the compiled module |
+| 12 | `cargo nextest run` | Optional: skipped if `cargo-nextest` is not installed |
+| 13 | `cargo llvm-cov` | Optional: Rust line and region coverage; skipped if `cargo-llvm-cov` is not installed. Uses rustup's `llvm-tools` component, or else the system `llvm-cov`/`llvm-profdata` |
 
-Every step runs even if an earlier one fails, so one run shows everything that is broken. The exit status is non-zero if any step failed.
+Every step runs even if an earlier one fails, so one run shows everything that is broken. The exit status is non-zero if any step failed. A skipped optional step does not fail the run.
 
-**Report:** `tests/results/test-suite_YYYY-MM-DD_HH-MM-SS.txt`. The top has the result, duration, commit and whether the tree has uncommitted changes, tool versions, a step table with timings, and Rust and Python test counts.
+The optional tools are in the Arch repositories: `sudo pacman -S cargo-nextest cargo-llvm-cov`. `cargo-deny` (licenses and advisories, `deny.toml`) runs as its own CI job; locally, `cargo deny check licenses advisories`.
+
+**Report:** `tests/results/test-suite_YYYY-MM-DD_HH-MM-SS.txt`. The top has the result, duration, commit and whether the tree has uncommitted changes, tool versions, a step table with timings, Rust and Python test counts, and Python and Rust coverage.
 
 > Step 1 changes files. If it reports a fix, review the diff before committing.
 

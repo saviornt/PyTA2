@@ -1,3 +1,5 @@
+//! SMA kernel: formula, warm-up, edge cases and magnitude limits.
+
 use pyta_common::MAX_ABS_INPUT;
 use pyta_core::{PytaError, Series};
 use pyta_trend::sma;
@@ -148,4 +150,27 @@ fn inputs_that_would_overflow_the_window_sum_are_rejected() {
         Series::new(vec![1.0, MAX_ABS_INPUT.next_up()]),
         Err(PytaError::ValueOutOfRange { index: 1 })
     );
+}
+
+#[test]
+fn sma_of_a_flat_series_is_flat() {
+    let input = Series::new(vec![42.5; 50]).unwrap();
+
+    let result = sma(&input, 7).unwrap();
+
+    assert!(result.values()[6..].iter().all(|value| *value == 42.5));
+}
+
+#[test]
+fn sma_of_tiny_values_keeps_their_scale() {
+    let input = Series::new(vec![1e-300, 2e-300, 3e-300, 4e-300]).unwrap();
+
+    let result = sma(&input, 2).unwrap();
+
+    for (got, want) in result.values()[1..]
+        .iter()
+        .zip([1.5e-300, 2.5e-300, 3.5e-300])
+    {
+        assert!((got - want).abs() <= 1e-15 * want, "{got} vs {want}");
+    }
 }

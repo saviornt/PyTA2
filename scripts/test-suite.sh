@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # Runs every PyTA check and writes a timestamped report to tests/results/.
+# cargo-nextest and cargo-llvm-cov are optional: their steps are skipped,
+# not failed, when the tools are not installed.
 #
 # The report has a summary at the top and the full output of every step
 # below it. Rust formatting is fixed first (like CI), then checked.
@@ -49,6 +51,8 @@ run_step() {
     if [[ $status -ne 0 ]]; then
         STATUSES+=("FAIL")
         FAILED=$((FAILED + 1))
+    elif grep -q '^skipped' "$STEP_NOTE"; then
+        STATUSES+=("SKIP (not installed)")
     elif [[ -s "$STEP_NOTE" ]]; then
         STATUSES+=("PASS ($(cat "$STEP_NOTE"))")
     else
@@ -71,6 +75,33 @@ fix_rust_formatting() {
     echo "fixed $changed place(s)" > "$STEP_NOTE"
 }
 
+# optional_cargo <subcommand> <args...>: runs `cargo <subcommand>` if that
+# tool is installed, and otherwise records the step as skipped.
+optional_cargo() {
+    local tool=$1
+
+    if ! cargo "$tool" --version > /dev/null 2>&1; then
+        echo "cargo-$tool is not installed; skipped (see scripts/README.md)."
+        echo "skipped" > "$STEP_NOTE"
+        return 0
+    fi
+
+    cargo "$@"
+}
+
+# Rust coverage with cargo-llvm-cov. Without rustup's llvm-tools component,
+# it uses the system LLVM tools (the same major version as rustc's LLVM).
+rust_coverage() {
+    if [[ -z "${LLVM_COV:-}" ]] && ! rustup component list --installed 2>/dev/null | grep -q llvm-tools \
+        && command -v llvm-cov > /dev/null && command -v llvm-profdata > /dev/null; then
+        export LLVM_COV LLVM_PROFDATA
+        LLVM_COV="$(command -v llvm-cov)"
+        LLVM_PROFDATA="$(command -v llvm-profdata)"
+    fi
+
+    optional_cargo llvm-cov --workspace --summary-only
+}
+
 run_step "Rust formatting (cargo fmt --all)" fix_rust_formatting
 run_step "Rust formatting check" cargo fmt --all -- --check
 run_step "Clippy" cargo clippy --workspace --all-targets --all-features -- -D warnings
@@ -81,6 +112,10 @@ run_step "Smoke test" uv run python tests/smoke/test_smoke.py
 run_step "Python tests (pytest)" uv run --extra pandas pytest --color=no
 run_step "Ruff lint" uv run ruff check python tests
 run_step "Ruff format check" uv run ruff format --check python tests
+run_step "Type check (Pyright, strict)" uv run pyright
+run_step "Stub check (stubtest)" uv run python -m mypy.stubtest pyta._native
+run_step "Rust tests (nextest, optional)" optional_cargo nextest run --workspace --no-fail-fast
+run_step "Rust coverage (llvm-cov, optional)" rust_coverage
 
 # ---- Report -----------------------------------------------------------
 
@@ -141,6 +176,12 @@ fi
     echo "-----------"
     echo "Rust:   $(rust_test_counts "$(log_of 3)")"
     echo "Python: $(pytest_counts "$(log_of 6)")"
+    echo
+    echo "Coverage"
+    echo "--------"
+    echo "Python: $(grep -E '^TOTAL' "$(log_of 6)" | awk '{print $NF}') (branch; floor in pyproject.toml)"
+    rust_total="$(grep -E '^TOTAL' "$(log_of 12)" | awk '{print $10 " of lines, " $4 " of regions"}')"
+    echo "Rust:   ${rust_total:-not measured (cargo-llvm-cov not installed)}"
     echo
     echo
     echo "FULL RESULTS"

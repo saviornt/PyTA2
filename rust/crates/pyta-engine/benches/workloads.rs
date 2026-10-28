@@ -133,9 +133,7 @@ fn workloads(c: &mut Criterion) {
         .build()
         .expect("failed to build Tokio runtime");
 
-    let cores = std::thread::available_parallelism()
-        .map(usize::from)
-        .unwrap_or(1);
+    let cores = std::thread::available_parallelism().map_or(1, usize::from);
     eprintln!("available_parallelism = {cores}");
 
     for workload in WORKLOADS {

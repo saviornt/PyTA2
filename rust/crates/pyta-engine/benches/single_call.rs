@@ -1,3 +1,5 @@
+//! Cost of each stage of one indicator call, from the raw kernel up to the engine.
+
 use std::hint::black_box;
 use std::time::Duration;
 

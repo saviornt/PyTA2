@@ -10,6 +10,11 @@ use crate::requests::IndicatorRequest;
 ///
 /// A panic inside the kernel is caught, logged at ERROR (target
 /// `pyta::engine`), and reported as `PytaError::ExecutionFailed`.
+///
+/// # Errors
+///
+/// The kernel's own error for invalid parameters (for example a period
+/// longer than the series), or `ExecutionFailed` if it panicked.
 pub fn execute_direct(request: &IndicatorRequest) -> PytaResult<IndicatorOutput> {
     run_caught(request, || dispatch(request))
 }

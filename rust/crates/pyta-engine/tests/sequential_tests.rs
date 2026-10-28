@@ -1,3 +1,5 @@
+//! Sequential and parallel execution give identical results.
+
 use pyta_core::Series;
 use pyta_engine::{
     IndicatorKind, IndicatorRequest, IndicatorResult, IndicatorStatus, execute_batch,

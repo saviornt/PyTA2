@@ -14,7 +14,7 @@ PyTA is a TA-Lib replacement: a Python API that cleans/validates user data and a
 ## Commands
 
 ```bash
-./scripts/test-suite.sh      # fmt (auto-fix) + fmt check, Clippy, cargo test, build ext, smoke, pytest, ruff; report in tests/results/
+./scripts/test-suite.sh      # fmt, Clippy, cargo test, build ext, smoke, pytest+coverage, ruff, pyright, stubtest, optional nextest/llvm-cov; report in tests/results/
 ./scripts/benchmark.sh --single|--batch|--all [--rust|--python] [--indicator NAME] [--quick]   # report in benches/results/ (quiet machine; see scripts/README.md)
 
 # Build/install the extension into .venv (required before pytest sees Rust changes)
@@ -45,7 +45,7 @@ Key rules that span files:
 - **Per-indicator modules.** Each indicator has `python/pyta/indicators/<name>.py` (single + batch function) and `rust/crates/pyta-python/src/<name>.rs` (bindings). `pyta/batch.py` and `pyta-python/src/lib.rs` only re-export/register; shared plumbing is in `_api.py` and `single.rs`/`batch.rs`/`error.rs`.
 - **Module naming** must stay consistent: `module-name = "pyta._native"` in `pyproject.toml`, `[lib] name = "_native"`, and the `#[pymodule]` function name. `pyta._native` is internal; its stubs are in `_native.pyi`.
 
-Adding an indicator touches: category crate → engine `IndicatorKind`/dispatch/cost → `pyta-python/src/<name>.rs` + registration in `lib.rs` → `_native.pyi` → `indicators/<name>.py` + exports → `pyta/batch.py` → tests (`tests/python/`, Rust unit/integration, `tests/reference/`) → `docs/API.md`, `docs/indicators/` (per-indicator wiki, one page per indicator), README catalog (the `add-indicator` skill walks through every step).
+Adding an indicator touches: category crate → engine `IndicatorKind`/dispatch/cost → `pyta-python/src/<name>.rs` + registration in `lib.rs` → `_native.pyi` → `indicators/<name>.py` + exports → `pyta/batch.py` → tests (`tests/python/`, Rust unit/integration/proptest, `tests/fixtures/` + `tests/reference/`) → `docs/API.md`, `docs/indicators/` (per-indicator wiki, one page per indicator), README catalog (the `add-indicator` skill walks through every step).
 
 `import pyta` must not import pandas (it is optional and only recognized if the caller already imported it).
 

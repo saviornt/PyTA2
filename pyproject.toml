@@ -20,7 +20,11 @@ pandas = ["pandas>=3.1.0"]
 
 [dependency-groups]
 dev = [
+    "hypothesis>=6.170.13",
+    "mypy>=2.4.1",
+    "pyright>=1.1.414",
     "pytest>=8",
+    "pytest-cov>=7.1.0",
     "ruff>=0.14",
 ]
 
@@ -32,15 +36,30 @@ bindings = "pyo3"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = ["-ra"]
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+    "--cov=pyta",
+    "--cov-report=term-missing:skip-covered",
+    "--cov-fail-under=95",
+]
+filterwarnings = ["error"]
+markers = ["pandas: needs the optional pandas extra"]
+
+[tool.coverage.run]
+branch = true
 
 [tool.ruff]
 line-length = 100
 target-version = "py315"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP"]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF", "PT", "PERF", "C4", "TID"]
 
 [tool.pyright]
 venvPath = "."
 venv = ".venv"
+include = ["python"]
+typeCheckingMode = "strict"
+pythonVersion = "3.15"

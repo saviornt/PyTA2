@@ -43,6 +43,11 @@ fn invalid_value_error(block: &[f64], offset: usize) -> PytaError {
 
 impl Series {
     /// Creates a series after validating its values.
+    ///
+    /// # Errors
+    ///
+    /// `EmptyInput` for no values, `NonFiniteValue` for NaN or infinity, and
+    /// `ValueOutOfRange` for a value beyond [`MAX_ABS_INPUT`].
     pub fn new(values: Vec<f64>) -> PytaResult<Self> {
         if values.is_empty() {
             return Err(PytaError::EmptyInput);
@@ -63,6 +68,10 @@ impl Series {
     /// validated while it is still in cache, so validation costs almost
     /// nothing on top of the copy. Use this when the caller does not own
     /// the data, such as at the Python boundary.
+    ///
+    /// # Errors
+    ///
+    /// The same as [`Series::new`].
     pub fn from_slice(values: &[f64]) -> PytaResult<Self> {
         if values.is_empty() {
             return Err(PytaError::EmptyInput);
@@ -79,14 +88,17 @@ impl Series {
         Ok(Self { values: copy })
     }
 
+    /// The validated values.
     pub fn values(&self) -> &[f64] {
         &self.values
     }
 
+    /// Number of values (never zero).
     pub fn len(&self) -> usize {
         self.values.len()
     }
 
+    /// Always false: a series has at least one value.
     pub fn is_empty(&self) -> bool {
         self.values.is_empty()
     }
@@ -95,14 +107,24 @@ impl Series {
 /// OHLCV market data with aligned columns
 #[derive(Debug, Clone, PartialEq)]
 pub struct Ohlcv {
+    /// Opening prices.
     pub open: Series,
+    /// Highest prices.
     pub high: Series,
+    /// Lowest prices.
     pub low: Series,
+    /// Closing prices.
     pub close: Series,
+    /// Traded volume.
     pub volume: Series,
 }
 
 impl Ohlcv {
+    /// Combines five series of equal length.
+    ///
+    /// # Errors
+    ///
+    /// `LengthMismatch` when the series differ in length.
     pub fn new(
         open: Series,
         high: Series,
@@ -128,10 +150,12 @@ impl Ohlcv {
         })
     }
 
+    /// Number of rows.
     pub fn len(&self) -> usize {
         self.close.len()
     }
 
+    /// Always false: every column has at least one value.
     pub fn is_empty(&self) -> bool {
         self.close.is_empty()
     }

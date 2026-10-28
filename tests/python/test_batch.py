@@ -65,6 +65,7 @@ def test_mixed_containers_each_return_their_own_type():
     assert isinstance(results[4], str)
 
 
+@pytest.mark.pandas
 def test_pandas_dataframe_and_series():
     pd = pytest.importorskip("pandas")
     values = series(20, 4)

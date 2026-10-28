@@ -8,7 +8,8 @@ def test_smoke() -> None:
     sma = pyta.sma(prices, period=3)
     rsi = pyta.rsi(prices, period=3)
 
-    assert sma.dtype == np.float64 and rsi.dtype == np.float64
+    assert sma.dtype == np.float64
+    assert rsi.dtype == np.float64
     assert len(sma) == len(prices), "SMA output length mismatch"
     assert len(rsi) == len(prices), "RSI output length mismatch"
 

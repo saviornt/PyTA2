@@ -11,9 +11,10 @@ import operator
 import re
 import sys
 from collections.abc import Mapping, Sequence
-from typing import Annotated, Any
+from typing import Annotated, Any, cast
 
 import numpy as np
+from numpy.typing import NDArray
 from pydantic import Field, TypeAdapter, ValidationError
 
 from ._types import Float64Array, Prepared
@@ -87,11 +88,11 @@ def normalize(data: object, column: str | None, default_column: str) -> Prepared
     if isinstance(data, str | bytes | bytearray):
         return _from_json(data, column, default_column)
     if isinstance(data, np.ndarray):
-        return _from_array(data, column)
+        return _from_array(cast(NDArray[Any], data), column)
     if isinstance(data, list | tuple):
-        return _from_sequence(data, column)
+        return _from_sequence(cast(Sequence[object], data), column)
     if isinstance(data, Mapping):
-        return _from_mapping(data, column, default_column)
+        return _from_mapping(cast(Mapping[object, object], data), column, default_column)
 
     # pandas is only inspected if the caller has already imported it, so
     # `import pyta` never loads it and a missing pandas is never an error.
@@ -175,7 +176,7 @@ def _reject_column(column: str | None, kind: str) -> None:
 # --- dtype conversion -----------------------------------------------------------------------
 
 
-def _to_float64(values: np.ndarray) -> Float64Array:
+def _to_float64(values: NDArray[Any]) -> Float64Array:
     """Converts a real numeric array to 1-D, C-contiguous float64 without copying if possible."""
     if values.ndim != 1:
         raise ValueError(f"expected a 1-D series, got an array with shape {values.shape}")
@@ -199,16 +200,16 @@ def _to_float64(values: np.ndarray) -> Float64Array:
 # --- containers -----------------------------------------------------------------------------
 
 
-def _from_array(data: np.ndarray, column: str | None) -> Prepared:
+def _from_array(data: NDArray[Any], column: str | None) -> Prepared:
     _reject_column(column, "array")
 
     if isinstance(data, np.ma.MaskedArray):
-        data = data.astype(np.float64).filled(np.nan)
+        data = np.ma.filled(data.astype(np.float64), np.nan)
 
     return Prepared(_to_float64(data), lambda out, _name: out)
 
 
-def _from_sequence(data: list | tuple, column: str | None) -> Prepared:
+def _from_sequence(data: Sequence[object], column: str | None) -> Prepared:
     _reject_column(column, "list/tuple")
 
     try:
@@ -264,9 +265,9 @@ def _from_pandas_frame(pd: Any, data: Any, column: str | None, default_column: s
 def _from_column(value: object, key: object) -> Prepared:
     """Normalizes one column of a dict (list, tuple, array, or Series)."""
     if isinstance(value, np.ndarray):
-        return _from_array(value, None)
+        return _from_array(cast(NDArray[Any], value), None)
     if isinstance(value, list | tuple):
-        return _from_sequence(value, None)
+        return _from_sequence(cast(Sequence[object], value), None)
 
     pd = sys.modules.get("pandas")
     if pd is not None and isinstance(value, pd.Series):
@@ -278,7 +279,9 @@ def _from_column(value: object, key: object) -> Prepared:
     )
 
 
-def _from_mapping(data: Mapping, column: str | None, default_column: str) -> Prepared:
+def _from_mapping(
+    data: Mapping[object, object], column: str | None, default_column: str
+) -> Prepared:
     key = _pick(list(data), column, default_column)
     inner = _from_column(data[key], key)
 
@@ -310,6 +313,7 @@ def _from_json(data: str | bytes | bytearray, column: str | None, default_column
         return text.encode() if as_bytes else text
 
     if isinstance(parsed, list):
+        parsed = cast(list[Any], parsed)
         records = sum(isinstance(row, dict) for row in parsed)
 
         if 0 < records < len(parsed):
@@ -327,6 +331,7 @@ def _from_json(data: str | bytes | bytearray, column: str | None, default_column
         return Prepared(values, lambda out, _name: dump(_nulls(out)))
 
     if isinstance(parsed, dict):  # columns
+        parsed = cast(dict[Any, Any], parsed)
         key = _pick(list(parsed), column, default_column)
 
         if not isinstance(parsed[key], list):

@@ -20,11 +20,7 @@ use crate::error::to_python_error;
 fn available_workers() -> usize {
     static WORKERS: OnceLock<usize> = OnceLock::new();
 
-    *WORKERS.get_or_init(|| {
-        std::thread::available_parallelism()
-            .map(usize::from)
-            .unwrap_or(1)
-    })
+    *WORKERS.get_or_init(|| std::thread::available_parallelism().map_or(1, usize::from))
 }
 
 /// The Rayon pool for parallel batches, created on first use.
@@ -72,11 +68,11 @@ fn pool() -> Arc<ThreadPool> {
 }
 
 /// Runs a batch sequentially or in parallel, as the planner predicts is faster.
-fn run_batch(requests: Vec<IndicatorRequest>) -> Vec<IndicatorResult> {
-    if should_parallelize(&requests, available_workers()) {
-        pool().install(|| execute_parallel(&requests))
+fn run_batch(requests: &[IndicatorRequest]) -> Vec<IndicatorResult> {
+    if should_parallelize(requests, available_workers()) {
+        pool().install(|| execute_parallel(requests))
     } else {
-        execute_sequential(&requests)
+        execute_sequential(requests)
     }
 }
 
@@ -119,7 +115,7 @@ pub(crate) fn compute_batch<'py>(
         }
     }
 
-    let results = py.detach(move || run_batch(requests));
+    let results = py.detach(move || run_batch(&requests));
 
     let mut outputs: Vec<Option<IndicatorOutput>> = (0..total).map(|_| None).collect();
 
