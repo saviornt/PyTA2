@@ -345,17 +345,17 @@ Scripts, CI and docs:
 
 ### Tasks
 
-- [ ] Grow `IndicatorRequest` from a single `Series` to multi-column input: a generic `Columns` type (equal-length columns in the indicator's slot order) replaces the unused `Ohlcv`.
-- [ ] Validate the design with CCI (high, low, close), the first multi-column indicator.
-- [ ] Find each column's role by name, using the existing role and alias rules (`open`, `high`, `low`, `close`, `adj_close`, `volume`; case, whitespace and `. _ -` ignored).
-- [ ] Give each multi-column indicator named slots for the columns it needs. A slot may accept several roles (for example `close` or `adj_close`).
-- [ ] Ignore columns an indicator does not need.
-- [ ] Support an explicit `columns=[...]` override, in any order: each name is assigned to the indicator's slot for its role. An unrecognized name, a duplicate role, or a missing slot raises `ValueError`.
-- [ ] Keep the role registry extensible (not hard-coded to OHLCV), so fundamental roles such as `eps`, `book_value`, `sales`, `dividends`, and `ebitda` can be added for valuation indicators without redesigning it.
-- [ ] Raise a `ValueError` that names the required columns and the available columns when a role cannot be found.
-- [ ] Return results in the input's container type.
-- [ ] Add tests across every supported container, including extra columns and overrides.
-- [ ] Update `API.md` and `ARCHITECTURE.md`.
+- [x] Grow `IndicatorRequest` from a single `Series` to multi-column input: a generic `Columns` type (equal-length columns in the indicator's slot order) replaces the unused `Ohlcv`.
+- [x] Validate the design with CCI (high, low, close), the first multi-column indicator.
+- [x] Find each column's role by name, using the existing role and alias rules (`open`, `high`, `low`, `close`, `adj_close`, `volume`; case, whitespace and `. _ -` ignored).
+- [x] Give each multi-column indicator named slots for the columns it needs. A slot may accept several roles (for example `close` or `adj_close`).
+- [x] Ignore columns an indicator does not need.
+- [x] Support an explicit `columns=[...]` override, in any order: each name is assigned to the indicator's slot for its role. An unrecognized name, a duplicate role, or a missing slot raises `ValueError`.
+- [x] Keep the role registry extensible (not hard-coded to OHLCV), so fundamental roles such as `eps`, `book_value`, `sales`, `dividends`, and `ebitda` can be added for valuation indicators without redesigning it.
+- [x] Raise a `ValueError` that names the required columns and the available columns when a role cannot be found.
+- [x] Return results in the input's container type.
+- [x] Add tests across every supported container, including extra columns and overrides.
+- [x] Update `API.md` and `ARCHITECTURE.md`.
 
 ### Acceptance criteria
 
