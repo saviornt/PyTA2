@@ -34,3 +34,4 @@ results/
 .coverage
 .coverage.*
 .hypothesis/
+.mypy_cache/
