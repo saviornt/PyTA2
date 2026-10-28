@@ -37,15 +37,24 @@ PyTA/
 │   └── pyta/
 │       ├── __init__.py             # Public exports
 │       ├── _api.py                 # Shared execution boundary
-│       ├── batch.py                # pyta.batch namespace; re-exports only
 │       ├── _native.pyi             # Type stubs for the extension
 │       ├── _types.py               # Internal types
 │       ├── _validation.py          # Normalization and validation
 │       ├── py.typed
+│       ├── trend.py                # pyta.trend namespace; re-exports only
+│       ├── momentum.py             # pyta.momentum namespace; re-exports only
+│       ├── batch/                  # pyta.batch namespaces; re-exports only
+│       │   ├── __init__.py         # pyta.batch.<name>
+│       │   ├── trend.py            # pyta.batch.trend.<name>
+│       │   └── momentum.py         # pyta.batch.momentum.<name>
 │       └── indicators/
-│           ├── __init__.py
-│           ├── sma.py              # sma() and sma_batch()
-│           └── rsi.py              # rsi() and rsi_batch()
+│           ├── __init__.py         # pyta.indicators.<name>
+│           ├── trend/
+│           │   ├── __init__.py
+│           │   └── sma.py          # sma() and sma_batch()
+│           └── momentum/
+│               ├── __init__.py
+│               └── rsi.py          # rsi() and rsi_batch()
 ├── rust/crates/
 │   ├── pyta-common/                # Tunable constants (no logic, no dependencies)
 │   ├── pyta-core/                  # Shared types, validation, errors
@@ -206,8 +215,23 @@ The Python layer is responsible for everything about the user's data. Rust only 
 
 ### Public surface
 
-- `pyta/__init__.py` exports the public API (`sma`, `rsi`, `batch`, `indicators`).
-- `pyta/indicators/` holds one module per indicator (`sma.py`, `rsi.py`). Each module contains that indicator's single-call function and its batch function, with full docstrings, delegating to `_api.run` and `_api.run_batch`. `pyta/batch.py` only re-exports the batch functions as `pyta.batch.<name>`; it holds no logic.
+- `pyta/__init__.py` exports the public API (`sma`, `rsi`, `batch`, `indicators`, and the category namespaces `trend`, `momentum`).
+- `pyta/indicators/<category>/` holds one module per indicator (`trend/sma.py`, `momentum/rsi.py`). Each module contains that indicator's single-call function and its batch function, with full docstrings, delegating to `_api.run` and `_api.run_batch`.
+- Everything else only re-exports, so every import style reaches the same function object (`pyta.trend.sma is pyta.indicators.sma is pyta.sma`): the category `__init__.py`, `pyta/indicators/__init__.py`, the thin top-level `pyta/<category>.py` (a real module, because `import pyta.trend` cannot import an attribute), and the `pyta/batch/` package (`pyta.batch.<name>` and `pyta.batch.<category>.<name>`, both the indicator's `<name>_batch`). None holds logic.
+- Function names shadow their module names (`pyta.indicators.trend.sma` is the function), so code that needs the module imports from it: `from pyta.indicators.trend.sma import sma_batch`.
+
+### Adding a category
+
+A category has one name used everywhere: the Rust crate `pyta-<category>`, the Python subpackage `pyta/indicators/<category>/`, and the user docs `docs/indicators/<category>/`. Add a category with its first indicator, never empty:
+
+1. `pyta/indicators/<category>/__init__.py`: docstring naming the category and its planned members; re-exports each indicator's single-call function; sorted `__all__`. One module per indicator beside it.
+2. `pyta/indicators/__init__.py`: import the subpackage and its functions; add the category and the names to the sorted `__all__`.
+3. `pyta/<category>.py`: re-exports from `pyta.indicators.<category>`; sorted `__all__`.
+4. `pyta/batch/<category>.py`: `from pyta.indicators.<category>.<name> import <name>_batch as <name>`; sorted `__all__`. `pyta/batch/__init__.py` imports the category and its names and lists them in `__all__`.
+5. `pyta/__init__.py`: import the category module and add it to `__all__`.
+6. `tests/python/test_namespaces.py`: add each indicator to `INDICATORS` and its documented paths to `DOCUMENTED_PATHS`. Its convention test checks the steps above for every subpackage it finds.
+
+Adding a category or an indicator only adds names; no existing import path changes.
 
 ### Private modules
 
@@ -328,8 +352,8 @@ Every step runs even if one fails, and the report is written to `tests/results/t
 | Supported input containers or column rules | `python/pyta/_validation.py` |
 | Result container restoration | `python/pyta/_validation.py` (`Prepared`) |
 | The shared call path for indicators | `python/pyta/_api.py` |
-| A public indicator function | `python/pyta/indicators/` |
-| Public exports | `python/pyta/__init__.py` |
+| A public indicator function | `python/pyta/indicators/<category>/<name>.py` |
+| Public exports and category namespaces | `python/pyta/__init__.py`, `indicators/__init__.py`, `indicators/<category>/__init__.py`, `pyta/<category>.py`, `pyta/batch/` (see [Adding a category](#adding-a-category)) |
 | Packaging or build configuration | `pyproject.toml`, `Cargo.toml` |
 
 ## 11. Naming conventions

@@ -1,4 +1,4 @@
-"""Momentum indicator: RSI (single call and batch)."""
+"""RSI, a momentum indicator (single call and batch)."""
 
 from typing import Any
 

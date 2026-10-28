@@ -30,6 +30,13 @@ pyta.rsi(close, period=14)
 # [nan, ... 14 times ..., 70.46, 66.25]
 ```
 
+RSI is also in the momentum namespace; both names are the same function:
+
+```python
+pyta.momentum.rsi(close, period=14)  # same as pyta.rsi
+from pyta.momentum import rsi
+```
+
 ```python
 pyta.rsi(df)                                # period defaults to 14
 pyta.rsi(df, period=9, column="adj close")  # a shorter period, on the adjusted close
@@ -39,6 +46,7 @@ Many datasets in one call:
 
 ```python
 results = pyta.batch.rsi([df1, df2, df3], period=14)   # list of results, in order
+pyta.batch.momentum.rsi([df1, df2, df3])               # same as pyta.batch.rsi
 ```
 
 ## Parameters

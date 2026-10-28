@@ -13,7 +13,7 @@ An indicator is done only when, in the words of `docs/DEVELOPMENT.md`, "its corr
 
 - Read the `pyta-tooling` skill (LSP registration, Context7 rules).
 - Check the indicator is not already there: `IndicatorKind` in `rust/crates/pyta-engine/src/requests.rs` and the README "Indicators" tables.
-- **Copy from the code, not from this skill.** Open the most recently added indicator's files (at the time of writing, RSI) and follow them. Sprints 7.5 (tests and fixtures), 8 (category namespaces), 9 (OHLCV input) and 10 (multi-output) change the layout; where the code and this skill disagree, the code wins, and say so in the report so the skill can be updated.
+- **Copy from the code, not from this skill.** Open the most recently added indicator's files (at the time of writing, RSI) and follow them. Sprints 9 (OHLCV input) and 10 (multi-output) change the layout; where the code and this skill disagree, the code wins, and say so in the report so the skill can be updated.
 - Commit only on worktree branches, never on `main`; never push. The maintainer reviews, merges into `main` locally and pushes.
 
 ## Step 1: Spec, then stop
@@ -60,14 +60,22 @@ Then measure: run `./scripts/benchmark.sh --single --rust --quick` (all indicato
 
 ## Step 6: Python package
 
-- `python/pyta/indicators/<name>.py`: copy `rsi.py`. Module docstring names the category. The single function delegates to `_api.run(_native.<name>, "<name>", data, period, column, default_column=<ROLE>)` and the batch function to `_api.run_batch(...)`. Default `period` = TA-Lib's default when it has a standard one (RSI 14); required otherwise (SMA). Docstrings follow `rsi.py`: Args, Returns (output name `<name>_<period>`), Raises. No formula code in Python.
-- Exports, each with a sorted `__all__`: `python/pyta/indicators/__init__.py`, `python/pyta/__init__.py`, and `python/pyta/batch.py` (`from .indicators.<name> import <name>_batch as <name>`).
-- If Sprint 8's category namespaces exist (`pyta.trend`, `pyta.momentum`, ...), add it to its category there and under `pyta.batch` too.
+- `python/pyta/indicators/<category>/<name>.py`: copy `momentum/rsi.py`. Module docstring names the indicator and its category. The single function delegates to `_api.run(_native.<name>, "<name>", data, period, column, default_column=<ROLE>)` and the batch function to `_api.run_batch(...)`. Default `period` = TA-Lib's default when it has a standard one (RSI 14); required otherwise (SMA). Docstrings follow `rsi.py`: Args, Returns (output name `<name>_<period>`), Raises. No formula code in Python.
+- Exports, each a re-export with a sorted `__all__`, so every style is the same function object (`pyta.<category>.<name> is pyta.<name>`):
+  - `python/pyta/indicators/<category>/__init__.py`: `from pyta.indicators.<category>.<name> import <name>`; move the indicator from "planned" to "available" in its docstring.
+  - `python/pyta/indicators/__init__.py`: `from pyta.indicators.<category> import <name>`.
+  - `python/pyta/<category>.py`: `from pyta.indicators.<category> import <name>`.
+  - `python/pyta/batch/<category>.py`: `from pyta.indicators.<category>.<name> import <name>_batch as <name>`.
+  - `python/pyta/batch/__init__.py`: `from pyta.batch.<category> import <name>`.
+  - `python/pyta/__init__.py`: `from .indicators import <name>`.
+- **New category** (the indicator is its first): follow `docs/ARCHITECTURE.md` §5 "Adding a category": create the subpackage, `pyta/<category>.py` and `pyta/batch/<category>.py`, and add the category to the `__all__` of `pyta`, `pyta.indicators` and `pyta.batch`. Use the same name as the crate `pyta-<category>` and `docs/indicators/<category>/`.
 
 ## Step 7: Python tests
 
 - `tests/python/test_<name>.py`: values against the fixture, the default period, warm-up length, error types and messages (`pytest.raises(..., match=...)`), and chaining with another indicator. If the older `test_trend.py`/`test_momentum.py` still exist, still use a per-indicator file (the Sprint 7.5 layout).
 - `tests/python/test_batch.py`: add the name to every `@pytest.mark.parametrize("name", [...])` list.
+- `tests/python/test_namespaces.py`: add `"<name>": "<category>"` to `INDICATORS` and its six paths (`pyta.<name>`, `pyta.<category>.<name>`, `pyta.indicators.<name>`, `pyta.indicators.<category>.<name>`, `pyta.batch.<name>`, `pyta.batch.<category>.<name>`) to `DOCUMENTED_PATHS`; the convention test then checks the exports and the wiki page.
+- `tests/python/test_import.py`: the expected `__all__` lists gain the name (and the category, if new).
 - `tests/smoke/test_smoke.py`: one call checking dtype, length and warm-up.
 - `tests/reference/test_<name>_reference.py`: the published example from `tests/fixtures/`, the same fixture the Rust test reads.
 

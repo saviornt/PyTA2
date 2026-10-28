@@ -1,6 +1,12 @@
-"""Indicator functions, one module per indicator."""
+"""Indicator functions in category subpackages, one module per indicator.
 
-from .rsi import rsi
-from .sma import sma
+`pyta.indicators.<category>.<name>` is the module path; every indicator function
+is also re-exported here and at the top level, so `pyta.indicators.sma`,
+`pyta.trend.sma` and `pyta.sma` are the same function.
+"""
 
-__all__ = ["rsi", "sma"]
+from pyta.indicators import momentum, trend
+from pyta.indicators.momentum import rsi
+from pyta.indicators.trend import sma
+
+__all__ = ["momentum", "rsi", "sma", "trend"]

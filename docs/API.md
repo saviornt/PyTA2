@@ -21,9 +21,20 @@ rsi = pyta.rsi(close, period=3)
 | Style | Example | Status |
 |---|---|---|
 | Short-hand | `pyta.sma(...)` | Available |
-| By category | `pyta.trend.sma(...)`, `pyta.momentum.rsi(...)` | *Planned* |
+| By category | `pyta.trend.sma(...)`, `pyta.momentum.rsi(...)` | Available |
 
-Both styles call the same implementation. Each indicator lives in its own module under `pyta.indicators` (for example `sma.py`, holding both the single call and the batch call); exposing category namespaces as `pyta.trend` and `pyta.momentum` is planned. `pyta._native` is internal and not part of the API.
+```python
+import pyta
+from pyta.momentum import rsi
+
+pyta.trend.sma(close, period=3)          # same function as pyta.sma
+rsi(close, period=3)                     # same function as pyta.rsi
+pyta.batch.trend.sma([close], period=3)  # same function as pyta.batch.sma
+```
+
+Both styles are the same function object (`pyta.trend.sma is pyta.sma`), so they give identical results; use whichever reads better. `import pyta` loads every namespace, and `import pyta.trend` or `from pyta.momentum import rsi` work on their own. The categories are `trend` and `momentum`; volatility, volume and valuation get their namespaces with their first indicator, and adding a category never changes an existing import.
+
+Each indicator lives in its own module in a category subpackage, `pyta.indicators.<category>.<name>` (for example `pyta/indicators/trend/sma.py`, holding both the single call and the batch call). `pyta.indicators.sma` is the function, not the module; to reach the module itself use `from pyta.indicators.trend.sma import ...`. `pyta._native` is internal and not part of the API.
 
 ## 3. Indicators
 
@@ -172,7 +183,7 @@ Apply one indicator to many datasets in a single call. The engine decides intern
 results = pyta.batch.sma(datasets, period=14)
 ```
 
-- `pyta.batch` mirrors the top-level indicator functions (`pyta.batch.sma`, `pyta.batch.rsi`), with the same names and parameters. One call applies one indicator.
+- `pyta.batch` mirrors the top-level indicator functions (`pyta.batch.sma`, `pyta.batch.rsi`), with the same names and parameters, and the category namespaces too (`pyta.batch.trend.sma is pyta.batch.sma`). One call applies one indicator.
 - `datasets` can be a **list** or a **mapping** (for example, ticker to data); anything else raises `TypeError`. Each dataset can be any supported container, and the result has the same shape and order as the input, with each result in its own input's container type. An empty list or mapping returns an empty one.
 - `period` and `column` are shared by every dataset. An invalid `period` or `column` raises, because it affects the whole call.
 - **A failure never cancels the others.** Each dataset gets a result. A dataset that fails is represented by the exception that explains why, in the same position or under the same key, so you can see which dataset failed and the reason. This covers malformed datasets (unsupported type, missing column, a `NaN` after the first valid value) as well as calculation errors (such as a period longer than the series). Fix the dataset and call again.

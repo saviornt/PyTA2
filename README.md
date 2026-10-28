@@ -40,6 +40,7 @@ close = np.array([10.0, 11.0, 12.0, 13.0, 12.0, 14.0])
 
 sma = pyta.sma(close, period=3)
 rsi = pyta.rsi(close, period=3)
+rsi = pyta.momentum.rsi(close, period=3)  # by category: the same function as pyta.rsi
 ```
 
 Outputs have the same length as the input, with `NaN` for the warm-up period. Indicators accept the same container types as inputs and can be chained:

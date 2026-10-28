@@ -5,8 +5,8 @@ import sys
 
 import pyta
 import pytest
-from pyta.indicators.rsi import rsi_batch
-from pyta.indicators.sma import sma_batch
+from pyta.indicators.momentum.rsi import rsi_batch
+from pyta.indicators.trend.sma import sma_batch
 
 
 def _run(code: str) -> str:
@@ -29,17 +29,30 @@ def test_import_works_when_pandas_is_missing() -> None:
 
 
 def test_top_level_exports() -> None:
-    assert sorted(pyta.__all__) == ["batch", "indicators", "rsi", "sma"]
+    assert sorted(pyta.__all__) == ["batch", "indicators", "momentum", "rsi", "sma", "trend"]
 
 
-@pytest.mark.parametrize("module", [pyta, pyta.indicators, pyta.batch])
+@pytest.mark.parametrize(
+    "module",
+    [
+        pyta,
+        pyta.indicators,
+        pyta.batch,
+        pyta.trend,
+        pyta.momentum,
+        pyta.batch.trend,
+        pyta.batch.momentum,
+    ],
+)
 def test_every_exported_name_exists(module: object) -> None:
     for name in module.__all__:  # type: ignore[attr-defined]
         assert hasattr(module, name), name
 
 
 def test_indicator_and_batch_namespaces_list_the_same_indicators() -> None:
-    assert sorted(pyta.indicators.__all__) == sorted(pyta.batch.__all__) == ["rsi", "sma"]
+    expected = ["momentum", "rsi", "sma", "trend"]
+
+    assert sorted(pyta.indicators.__all__) == sorted(pyta.batch.__all__) == expected
 
 
 def test_short_names_are_the_indicator_functions() -> None:
