@@ -16,8 +16,41 @@ license = "MIT"
 rust-version = "1.99.1"
 
 [workspace.dependencies]
+env_logger = "0.11"
+log = "0.4"
+proptest = "1.12"
 numpy = "0.30"
 pyo3 = "0.30"
 rayon = "1.12"
 thiserror = "2"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync"] }
+# Every crate opts in with `[lints] workspace = true`.
+[workspace.lints.rust]
+unsafe_code = "deny"
+missing_docs = "warn"
+
+# A curated subset of Clippy's pedantic group: lints that catch real issues or
+# keep the code uniform, without the noisy ones (casts in cost estimates,
+# float comparisons in tests, `must_use` on every function).
+[workspace.lints.clippy]
+cloned_instead_of_copied = "warn"
+doc_markdown = "warn"
+explicit_iter_loop = "warn"
+if_not_else = "warn"
+implicit_clone = "warn"
+inefficient_to_string = "warn"
+items_after_statements = "warn"
+manual_let_else = "warn"
+map_unwrap_or = "warn"
+match_same_arms = "warn"
+missing_errors_doc = "warn"
+missing_panics_doc = "warn"
+needless_pass_by_value = "warn"
+redundant_closure_for_method_calls = "warn"
+redundant_else = "warn"
+semicolon_if_nothing_returned = "warn"
+single_match_else = "warn"
+trivially_copy_pass_by_ref = "warn"
+uninlined_format_args = "warn"
+unnecessary_wraps = "warn"
+unreadable_literal = "warn"

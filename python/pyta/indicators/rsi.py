@@ -1,8 +1,10 @@
 """Momentum indicator: RSI (single call and batch)."""
 
-from .. import _native
-from .._api import run, run_batch
-from .._validation import CLOSE
+from typing import Any
+
+from pyta import _native
+from pyta._api import run, run_batch
+from pyta._validation import CLOSE
 
 
 def rsi[T](data: T, period: int = 14, *, column: str | None = None) -> T:
@@ -36,7 +38,9 @@ def rsi[T](data: T, period: int = 14, *, column: str | None = None) -> T:
     return run(_native.rsi, "rsi", data, period, column, default_column=CLOSE)
 
 
-def rsi_batch[D: (list, dict)](datasets: D, period: int = 14, *, column: str | None = None) -> D:
+def rsi_batch[D: (list[Any], dict[Any, Any])](
+    datasets: D, period: int = 14, *, column: str | None = None
+) -> D:
     """Relative Strength Index of many datasets.
 
     See `pyta.rsi` for the calculation and the accepted containers.

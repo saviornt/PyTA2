@@ -6,6 +6,7 @@ process can still run batches, which matters for users of `multiprocessing`
 with the `fork` start method.
 """
 
+import logging
 import multiprocessing
 import sys
 
@@ -47,3 +48,42 @@ def test_forked_child_can_run_a_parallel_batch(warm_parent):
 
     assert child.exitcode == 0
     assert queue.get(timeout=5) is True
+
+
+class _ListHandler(logging.Handler):
+    def __init__(self) -> None:
+        super().__init__()
+        self.records: list[tuple[str, str]] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.records.append((record.name, record.getMessage()))
+
+
+def _logging_child(queue: multiprocessing.Queue[list[tuple[str, str]]]) -> None:
+    handler = _ListHandler()
+    logger = logging.getLogger("pyta")
+    logger.addHandler(handler)
+    logger.setLevel(logging.DEBUG)
+
+    pyta.batch.sma(_large_batch(), period=5)
+    queue.put(handler.records)
+
+
+@pytest.mark.filterwarnings("ignore::DeprecationWarning")
+def test_forked_child_logs_the_pool_rebuild() -> None:
+    # Starts the Rayon pool in the parent, so the child must rebuild it.
+    pyta.batch.sma(_large_batch(), period=5)
+
+    context = multiprocessing.get_context("fork")
+    queue = context.Queue()
+    child = context.Process(target=_logging_child, args=(queue,))
+    child.start()
+    records = queue.get(timeout=30)
+    child.join(timeout=30)
+
+    assert child.exitcode == 0
+    names = [name for name, _ in records]
+    assert names == ["pyta.planner", "pyta.bridge", "pyta.bridge"]
+    assert records[0][1].endswith(": parallel")
+    assert records[1][1].startswith("rebuilding the worker pool after fork")
+    assert records[2][1].startswith("started the worker pool with ")

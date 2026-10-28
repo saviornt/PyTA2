@@ -1,0 +1,16 @@
+# SMA, period 5: the worked example in StockCharts ChartSchool, "Moving Averages - Simple and
+# Exponential", section "Simple Moving Average Formulas" ("Daily Closing Prices:
+# 11,12,13,14,15,16,17"; 5-day SMA 13, 14, 15).
+# source: https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-overlays/moving-averages-simple-and-exponential
+# retrieved: 2026-10-28
+# period: 5
+# tolerance: 1e-12
+# Empty expected values are the warm-up (NaN).
+label,input,expected
+day 1,11,
+day 2,12,
+day 3,13,
+day 4,14,
+day 5,15,13
+day 6,16,14
+day 7,17,15

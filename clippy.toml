@@ -1,0 +1,2 @@
+# Words that are names, not code, so `doc_markdown` leaves them unquoted.
+doc-valid-idents = ["PyTA", "PyO3", "NumPy", "StockCharts", "ChartSchool", "RustSec", ".."]

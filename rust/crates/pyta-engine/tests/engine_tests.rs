@@ -1,3 +1,5 @@
+//! Engine execution: ordering, error isolation and the async front door.
+
 use pyta_core::{PytaError, Series};
 use pyta_engine::{IndicatorKind, IndicatorRequest, IndicatorStatus, execute_batch};
 

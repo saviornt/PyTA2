@@ -1,6 +1,6 @@
 [package]
 name = "pyta-engine"
-description = "Asynchronous calculation engine for PyTA indicators"
+description = "Calculation engine for PyTA indicators: dispatch, planner and batch execution"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -16,6 +16,7 @@ pyta-common = { path = "../pyta-common" }
 pyta-core = { path = "../pyta-core" }
 pyta-momentum = { path = "../pyta-momentum" }
 pyta-trend = { path = "../pyta-trend" }
+log = { workspace = true }
 tokio = { workspace = true }
 rayon = { workspace = true }
 
@@ -29,3 +30,7 @@ harness = false
 
 [dev-dependencies]
 criterion = "0.8.2"
+env_logger = { workspace = true }
+
+[lints]
+workspace = true

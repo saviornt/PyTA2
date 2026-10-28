@@ -1,3 +1,5 @@
+//! `IndicatorOutput` accessors.
+
 use pyta_core::IndicatorOutput;
 
 #[test]

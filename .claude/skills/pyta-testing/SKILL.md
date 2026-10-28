@@ -19,7 +19,7 @@ Use the targeted commands while iterating, then the full suite once at the end. 
 
 ## The full suite
 
-`./scripts/test-suite.sh` (no options) runs nine steps and never stops early, so one run shows everything broken:
+`./scripts/test-suite.sh` (no options) runs thirteen steps and never stops early, so one run shows everything broken:
 
 1. `cargo fmt --all` (fixes formatting in place, as CI does)
 2. `cargo fmt --all -- --check`
@@ -27,11 +27,15 @@ Use the targeted commands while iterating, then the full suite once at the end. 
 4. `cargo test --workspace`
 5. building the extension (debug)
 6. the smoke test
-7. pytest with the pandas extra
+7. pytest with the pandas extra (strict markers and config, warnings as errors, branch coverage of `pyta` with the floor in `pyproject.toml`)
 8. Ruff lint
 9. Ruff format check
+10. Pyright, strict, on `python/`
+11. `mypy.stubtest pyta._native` (stubs match the compiled module)
+12. `cargo nextest run` (optional; SKIP when not installed)
+13. `cargo llvm-cov` (optional; SKIP when not installed)
 
-The report is `tests/results/test-suite_<date>_<time>.txt`: result, duration, commit, dirty-tree flag, tool versions, a step table with timings, and Rust and Python test counts, then each step's full output.
+The report is `tests/results/test-suite_<date>_<time>.txt`: result, duration, commit, dirty-tree flag, tool versions, a step table with timings, Rust and Python test counts, and Python and Rust coverage, then each step's full output.
 
 - Read the step table first, then only the failing steps' output.
 - **Compare the test counts with the previous report.** A count that drops without a deleted test means tests stopped being collected.
@@ -46,8 +50,10 @@ The report is `tests/results/test-suite_<date>_<time>.txt`: result, duration, co
 | Private helpers | `#[cfg(test)] mod tests` in the source file | Only for what integration tests cannot reach |
 | Engine ordering, error isolation, planner | `rust/crates/pyta-engine/tests/`, `planner.rs` unit tests | Parallel and sequential paths must give identical results |
 | Public Python API | `tests/python/` | Containers, NaN policy, parameters, errors, batch, columns, fork safety, import rules |
-| Per-indicator Python numerics | `tests/python/test_<name>.py` | The Sprint 7.5 layout; replaces the empty `test_trend.py` / `test_momentum.py` |
-| Published reference values | `tests/reference/test_<name>_reference.py` plus `tests/fixtures/` | Fixture cites its source; the Rust tests read the same fixture |
+| Per-indicator Python numerics | `tests/python/test_<name>.py` | Like `test_sma.py`, `test_rsi.py` |
+| Python properties | `tests/python/test_properties.py` | `hypothesis` |
+| Kernel invariants | `rust/crates/<crate>/tests/property_tests.rs` | `proptest` |
+| Published reference values | `tests/fixtures/<name>_<period>_<source>.csv`, read by `tests/reference/test_<name>_reference.py` and `rust/crates/<crate>/tests/reference_tests.rs` | Fixture cites its source and tolerance; Rust reads it through `rust/test-support/reference.rs` |
 | Build and import | `tests/smoke/test_smoke.py` | Fast; keep it small |
 
 Benchmarks never go in tests: no timing assertions anywhere (see `pyta-benchmarks`).
@@ -59,16 +65,16 @@ Benchmarks never go in tests: no timing assertions anywhere (see `pyta-benchmark
 - Errors are compared exactly: `assert_eq!(rsi(&close, 3), Err(PytaError::InsufficientData { required: 4, length: 3 }));`.
 - Exact values only where the arithmetic is exact (100.0 for an RSI with no losses); otherwise compare within a tolerance and state it (`1e-9` relative, or the reference's printed precision).
 - Check warm-up positions explicitly: the first `k` values are `NaN` and the next is finite.
-- Property tests (`proptest`, once Sprint 7.5 adds it): output length equals input length, exact warm-up count, value bounds (RSI in [0, 100], SMA within its window's min and max).
+- Property tests (`proptest`, in `tests/property_tests.rs`): output length equals input length, exact warm-up count, value bounds (RSI in [0, 100], SMA within its window's min and max).
 
 ## Writing Python tests
 
 - Plain pytest functions; `@pytest.mark.parametrize` for the same check across indicators or containers (see `tests/python/test_batch.py`).
-- pandas is optional: get it with `pd = pytest.importorskip("pandas")` inside the test, never a module-level import. `import pyta` must not import pandas.
+- pandas is optional: mark the test `@pytest.mark.pandas` and get it with `pd = pytest.importorskip("pandas")` inside the test, never a module-level import. `import pyta` must not import pandas.
 - Errors: `with pytest.raises(ValueError, match="...")`, matching the part of the message a user relies on.
 - Floats: `np.testing.assert_allclose` with an explicit `rtol`; NaN positions with `np.isnan`.
 - Test through the public API (`pyta.<name>`, `pyta.batch.<name>`); call `pyta._native` only in tests that are about the native boundary.
-- Property tests (`hypothesis`, once Sprint 7.5 adds it): containers round-trip their type, leading NaN carries through, output length matches.
+- Property tests (`hypothesis`, in `test_properties.py`): containers round-trip their type, leading NaN carries through, output length matches.
 
 ## Reference tests
 

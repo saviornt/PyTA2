@@ -230,3 +230,23 @@ PyTA does not depend on any data provider. It accepts the data types that provid
 ## 13. Indicator catalog
 
 See the [README](../README.md#indicators) for implemented and planned indicators, and [`docs/indicators/`](indicators/) for one page per implemented indicator. Every indicator will follow the conventions in this document.
+
+## 14. Logging
+
+PyTA logs through Python's standard `logging`, including the messages from its Rust engine, so one configuration controls both. The library is silent until you configure logging: it adds only a `NullHandler` to the `pyta` logger and never sets levels or handlers.
+
+```python
+import logging, pyta
+logging.basicConfig(level=logging.WARNING)
+logging.getLogger("pyta").setLevel(logging.DEBUG)   # show PyTA's DEBUG records
+```
+
+| Logger | Language | Records |
+|---|---|---|
+| `pyta.api` | Python | DEBUG: each failed dataset in a batch, with its key or index and the reason. WARNING: one summary per batch with failures ("2 of 3 datasets failed") |
+| `pyta.validation` | Python | DEBUG: which column was chosen for a role (`using column 'Adj Close' for 'adjusted close'`) |
+| `pyta.planner` | Rust | DEBUG: each batch's scheduling choice, with request count, workers, and estimated sequential and parallel times |
+| `pyta.bridge` | Rust | DEBUG: the worker pool starting, and being rebuilt in a forked child |
+| `pyta.engine` | Rust | ERROR: a calculation that panicked (a bug; the call fails with `RuntimeError`) |
+
+There is no INFO output in normal operation. Single calls log nothing from Rust. Rust records carry their Rust file and line (`record.filename == "planner.rs"`). Level changes take effect on the next batch call.

@@ -268,9 +268,9 @@ Rust:
 - [x] Fill `pyta-core/tests/error_tests.rs`.
 - [x] Add edge cases per kernel: `period` of 1 and of the series length, huge, tiny and flat values.
 - [x] Test that `execute_parallel` and `execute_sequential` give identical results.
-- [x] Add reference tests from published worked examples (StockCharts SMA-5 and RSI-14), stored under `tests/fixtures/` with their sources cited and read by both the Rust and Python tests.
+- [x] Add reference tests from published worked examples (StockCharts SMA-5, SMA-10 and RSI-14), stored under `tests/fixtures/` with their sources cited and read by both the Rust and Python tests.
 - [x] Add `cargo nextest` and `cargo llvm-cov` as optional steps in `scripts/test-suite.sh`.
-- [x] Add `cargo deny` (licenses and advisories) as a CI job.
+- [ ] Add `cargo deny` (licenses and advisories) as a CI job. *(`deny.toml` passes locally with `cargo deny check licenses advisories`; the CI job has not run yet: it runs on the next push.)*
 
 Python:
 
@@ -284,7 +284,8 @@ Python:
 
 Scripts, CI and docs:
 
-- [x] Update `scripts/test-suite.sh` and `scripts/README.md`; CI mirrors the test suite.
+- [x] Update `scripts/test-suite.sh` and `scripts/README.md`.
+- [ ] CI mirrors the test suite. *(`ci.yml` updated; not yet run on GitHub.)*
 - [x] Update `ARCHITECTURE.md` (tests and quality checks).
 
 ### Tasks: unified logging (7.5b)
@@ -293,10 +294,10 @@ Scripts, CI and docs:
 - [x] Add Python loggers (`pyta.api`, `pyta.validation`) for validation and batch handling.
 - [x] Add a `NullHandler` to the `pyta` logger; never configure handlers or levels.
 - [x] Apply the level policy: DEBUG for the planner's choice, the worker pool starting or being rebuilt after `fork()`, column resolution and each failed dataset; WARNING for one summary per batch with failures; ERROR for a kernel panic caught by `catch_unwind`; no INFO in normal operation.
-- [x] Keep logging out of kernels and per-element loops: log from the calling thread at the boundary, behind a level check.
+- [x] Keep logging out of kernels and per-element loops: log from the calling thread at the boundary, behind a level check. *(Exception: a kernel panic inside a parallel batch logs at ERROR from its worker; panics are bugs.)*
 - [x] Keep `pyta-common` and the kernel crates free of `pyo3`; `env_logger` is a dev-dependency for benchmarks.
 - [x] Test with pytest `caplog` (Rust and Python messages, levels, silence by default, only a `NullHandler`), in a forked child, and in Rust (the planner logs its choice).
-- [x] Performance gate: single-call cost with logging disabled stays within noise of the baseline.
+- [x] Performance gate: single-call cost with logging disabled stays within noise of the baseline. *(Same-session A/B against `main`, 2026-10-28: `--single --python` and `--batch --python` twice each, plus an interleaved best-of-5 microbenchmark: single and batch calls within ±0.6%.)*
 - [x] Document logging in `ARCHITECTURE.md`, `API.md` and the README.
 
 ### Acceptance criteria

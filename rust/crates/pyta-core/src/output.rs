@@ -9,10 +9,12 @@ pub struct IndicatorOutput {
 }
 
 impl IndicatorOutput {
+    /// Wraps calculated values (`NaN` where there is no result).
     pub fn new(values: Vec<f64>) -> Self {
         Self { values }
     }
 
+    /// The calculated values.
     pub fn values(&self) -> &[f64] {
         &self.values
     }
@@ -22,10 +24,12 @@ impl IndicatorOutput {
         self.values
     }
 
+    /// Number of values (always the input length).
     pub fn len(&self) -> usize {
         self.values.len()
     }
 
+    /// Whether there are no values.
     pub fn is_empty(&self) -> bool {
         self.values.is_empty()
     }

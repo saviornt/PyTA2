@@ -124,14 +124,16 @@ fn build_requests(
 }
 
 fn workloads(c: &mut Criterion) {
+    // Engine log records go to stderr only when RUST_LOG asks for them (for
+    // example RUST_LOG=pyta::planner=debug); otherwise logging stays off.
+    let _ = env_logger::try_init();
+
     let runtime = Builder::new_multi_thread()
         .enable_all()
         .build()
         .expect("failed to build Tokio runtime");
 
-    let cores = std::thread::available_parallelism()
-        .map(usize::from)
-        .unwrap_or(1);
+    let cores = std::thread::available_parallelism().map_or(1, usize::from);
     eprintln!("available_parallelism = {cores}");
 
     for workload in WORKLOADS {

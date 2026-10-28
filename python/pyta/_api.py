@@ -1,13 +1,16 @@
 """Shared execution boundary between the public API and the native module."""
 
+import logging
 from collections.abc import Callable, Mapping
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
 from ._native import MAX_ABS_INPUT
 from ._types import Float64Array, Prepared
 from ._validation import normalize, validate_period
+
+_log = logging.getLogger("pyta.api")
 
 type NativeIndicator = Callable[[Float64Array, int], Float64Array]
 type NativeBatchIndicator = Callable[[list[Float64Array], int], list[Float64Array | Exception]]
@@ -18,7 +21,7 @@ def run(
     label: str,
     data: object,
     period: object,
-    column: str | None,
+    column: object,
     default_column: str,
 ) -> Any:
     """Validates inputs, runs one single-series indicator, and restores the container.
@@ -112,7 +115,7 @@ def run_batch(
     label: str,
     datasets: object,
     period: object,
-    column: str | None,
+    column: object,
     default_column: str,
 ) -> Any:
     """Runs one indicator over many datasets and returns results in the same shape.
@@ -126,18 +129,22 @@ def run_batch(
     if column is not None and not isinstance(column, str):
         raise TypeError(f"column must be a str or None, got {type(column).__name__}")
 
+    items: list[Any]
+
     if isinstance(datasets, Mapping):
-        keys: list[Any] | None = list(datasets)
-        items = list(datasets.values())
+        mapping = cast(Mapping[Any, Any], datasets)
+        keys: list[Any] | None = list(mapping)
+        items = list(mapping.values())
     elif isinstance(datasets, list):
         keys = None
-        items = datasets
+        items = cast(list[Any], datasets)
     else:
         raise TypeError(
             f"datasets must be a list or a mapping of datasets, got {type(datasets).__name__}"
         )
 
     outcomes: list[Any] = [None] * len(items)
+    failed = 0
     pending: list[tuple[int, Prepared, int]] = []
     arrays: list[Float64Array] = []
 
@@ -148,6 +155,7 @@ def run_batch(
             first, valid = _trim(prepared.values)
         except (TypeError, ValueError) as error:
             outcomes[position] = error
+            failed += 1
             continue
 
         pending.append((position, prepared, first))
@@ -158,8 +166,28 @@ def run_batch(
     for (position, prepared, first), result in zip(pending, results, strict=True):
         if isinstance(result, BaseException):
             outcomes[position] = result
+            failed += 1
         else:
             padded = _pad(result, first, prepared.values.shape[0])
             outcomes[position] = prepared.restore(padded, f"{label}_{period}")
 
+    if failed:
+        _log_failures(label, outcomes, keys, failed)
+
     return outcomes if keys is None else dict(zip(keys, outcomes, strict=True))
+
+
+def _log_failures(label: str, outcomes: list[Any], keys: list[Any] | None, failed: int) -> None:
+    """Logs each failed dataset at DEBUG and one WARNING summary for the batch."""
+    if _log.isEnabledFor(logging.DEBUG):
+        for position, outcome in enumerate(outcomes):
+            if isinstance(outcome, BaseException):
+                name = position if keys is None else repr(keys[position])
+                _log.debug("%s: dataset %s failed: %s", label, name, outcome)
+
+    _log.warning(
+        "%s: %d of %d datasets failed; each failure is returned in its place",
+        label,
+        failed,
+        len(outcomes),
+    )

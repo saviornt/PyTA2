@@ -13,7 +13,7 @@ PyTA is Rust (Cargo workspace, PyO3 bindings) plus Python (uv, Pydantic, NumPy).
 | --- | --- | --- |
 | karellen-lsp-mcp | Yes: the default for references, call trees and diagnostics. Follow the `lsp-navigation` skill. | Register the repo root twice: `language="rust"` with `["rust-analyzer"]`, and `language="python"` with `["pyright-langserver", "--stdio"]`. |
 | Context7 | Sparingly: follow the `context7-budget` skill. | Libraries and versions below. |
-| Finance and market-data connectors | No. PyTA computes indicators; it does not fetch data. | Reference values come from `tests/reference/`, not an API. |
+| Finance and market-data connectors | No. PyTA computes indicators; it does not fetch data. | Reference values come from `tests/fixtures/`, not an API. |
 
 ## LSP in this repo
 
@@ -29,7 +29,7 @@ Versions are pinned in `Cargo.lock` and `uv.lock`; read them there. The installe
 
 Worth a lookup when local source does not settle it: PyO3 and rust-numpy (APIs change a lot between minor versions; PyO3 ships `guide/` in its crate source, so check that first), maturin build configuration, Pydantic validators, Criterion configuration, new Python 3.15 or Rust 1.99 features.
 
-Not worth a lookup: indicator formulas or TA-Lib behaviour (use `tests/reference/`, the TA-Lib source, or `deep-research`), Rayon and NumPy basics, anything in `docs/`.
+Not worth a lookup: indicator formulas or TA-Lib behaviour (use `tests/fixtures/`, the TA-Lib source, or `deep-research`), Rayon and NumPy basics, anything in `docs/`.
 
 ## Skills
 

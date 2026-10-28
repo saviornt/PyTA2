@@ -45,6 +45,7 @@ def test_non_contiguous_and_read_only_arrays() -> None:
     assert_series(pyta.sma(frozen, period=3))
 
 
+@pytest.mark.pandas
 def test_series_keeps_index_and_is_named_after_the_indicator() -> None:
     pd = pytest.importorskip("pandas")
     index = pd.date_range("2026-01-02", periods=6, freq="D")
@@ -57,6 +58,7 @@ def test_series_keeps_index_and_is_named_after_the_indicator() -> None:
     assert_series(result)
 
 
+@pytest.mark.pandas
 def test_series_with_nullable_dtype_treats_na_as_a_gap() -> None:
     pd = pytest.importorskip("pandas")
 
@@ -65,6 +67,7 @@ def test_series_with_nullable_dtype_treats_na_as_a_gap() -> None:
     assert_series(result, np.concatenate([[np.nan], SMA_3]))
 
 
+@pytest.mark.pandas
 def test_dataframe_returns_a_dataframe_with_the_indicator_column() -> None:
     pd = pytest.importorskip("pandas")
     index = pd.date_range("2026-01-02", periods=6, freq="D")
@@ -84,6 +87,7 @@ def test_dataframe_returns_a_dataframe_with_the_indicator_column() -> None:
     assert_series(chosen["sma_3"], np.array([np.nan, np.nan, 2.0, 3.0, 4.0, 5.0]))
 
 
+@pytest.mark.pandas
 def test_dataframe_column_selection_errors() -> None:
     pd = pytest.importorskip("pandas")
 
@@ -270,7 +274,7 @@ def test_errors_never_leak_library_internals() -> None:
     with pytest.raises(TypeError, match="mixes records and numbers"):
         pyta.sma('[{"close": 1.0}, 2.0]', period=1)
 
-    with pytest.raises(ValueError, match="nested sequences$"):
+    with pytest.raises(ValueError, match=r"nested sequences$"):
         pyta.sma([1.0, [2.0, 3.0]], period=1)
 
 

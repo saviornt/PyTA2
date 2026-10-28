@@ -38,7 +38,6 @@ PyTA/
 │       ├── __init__.py             # Public exports
 │       ├── _api.py                 # Shared execution boundary
 │       ├── batch.py                # pyta.batch namespace; re-exports only
-│       ├── _async.py               # Placeholder; deferred
 │       ├── _native.pyi             # Type stubs for the extension
 │       ├── _types.py               # Internal types
 │       ├── _validation.py          # Normalization and validation
@@ -54,8 +53,10 @@ PyTA/
 │   ├── pyta-trend/                 # Trend indicators
 │   ├── pyta-momentum/              # Momentum indicators
 │   └── pyta-python/                # PyO3 bridge (pyta._native)
+├── rust/test-support/reference.rs  # Reads tests/fixtures/ for the Rust reference tests
 ├── scripts/                        # test-suite.sh, benchmark.sh, benchmark_summary.py, README.md
 ├── tests/
+│   ├── fixtures/                   # Published reference examples (CSV, sources cited)
 │   ├── python/                     # Public-API tests
 │   ├── reference/                  # Comparisons with trusted references
 │   ├── results/                    # Timestamped test-suite reports
@@ -187,6 +188,16 @@ Adding an `IndicatorKind` fails to compile until it has a dispatch arm and a cos
 - Single calls use `execute_direct`; batch calls use the planner, then `execute_sequential` or `execute_parallel` (see §6).
 - Parallel batches run on PyTA's own Rayon pool (`batch.rs`), built on first use and rebuilt in a forked child, because a child process does not inherit its parent's worker threads and work sent to an inherited pool would wait forever. `tests/python/test_fork.py` covers this.
 
+### Logging across Rust and Python
+
+Python's `logging` is PyTA's one logging system; users configure it once and see Rust and Python records in one stream (API.md §14).
+
+- **Rust** uses the `log` macros with targets `pyta::engine`, `pyta::planner` and `pyta::bridge`. `pyta-python/src/log_bridge.rs` is the `log` logger: installed in the `#[pymodule]`, it hands each record to the Python logger of the same dotted name (`pyta.planner`), keeping the Rust file and line. It stands in for `pyo3-log`, whose latest release (0.13.4) supports PyO3 below 0.30 only.
+- **Python** uses `pyta.api` (batch failures) and `pyta.validation` (column resolution). `pyta/__init__.py` adds a `NullHandler` to `pyta` and nothing else.
+- **Levels.** DEBUG: the planner's choice, the worker pool starting or rebuilt after `fork()`, column resolution, each failed dataset. WARNING: one summary per batch with failures. ERROR: a kernel panic caught by `catch_unwind` (`execute_direct`). No INFO.
+- **Cost.** `log`'s global maximum level is set from the Python loggers when the module loads and refreshed at the start of each batch call (three cached `isEnabledFor` calls); with DEBUG off every Rust statement costs one atomic load. Single calls do no logging work. Records that pass take the GIL, so logging stays out of kernels and per-element loops: the planner and pool log from the calling thread before work starts, and only a panic logs from a worker.
+- `pyta-common` and the kernel crates have no logging and no PyO3. Rust tests and benchmarks use their own loggers (`env_logger` in the benchmarks, enabled by `RUST_LOG`).
+
 ---
 
 ## 5. Python package
@@ -206,7 +217,6 @@ The Python layer is responsible for everything about the user's data. Rust only 
 | `_validation.py` | `validate_period` and `normalize` for every supported container; column selection |
 | `_types.py` | `Prepared`: a normalized series plus a function that rebuilds the caller's container |
 | `_native.pyi` | Type stubs for the native module |
-| `_async.py` | Placeholder; a Python async API is deferred |
 
 ### Input and output contract
 
@@ -275,12 +285,20 @@ results = pyta.batch.sma(datasets, period=14)
 
 | Location | Purpose |
 |---|---|
-| Rust `#[cfg(test)]` modules and crate `tests/` | Formulas, boundary cases, warm-up, validation, engine ordering and error isolation |
-| `tests/python/` | Public API behavior: containers, NaN policy, parameters, errors |
-| `tests/reference/` | Comparisons against independent reference implementations, with matching conventions |
+| Rust `#[cfg(test)]` modules and crate `tests/` | Formulas, boundary cases, warm-up, validation, engine ordering and error isolation, sequential vs parallel equality, logging (a per-thread capturing logger in `pyta-engine`) |
+| Crate `tests/property_tests.rs` (`proptest`) | Kernel invariants for any input: output length, exact warm-up, SMA within its window's range, RSI in [0, 100], constant input |
+| Crate `tests/reference_tests.rs` | Published worked examples from `tests/fixtures/`, read by `rust/test-support/reference.rs` |
+| `tests/fixtures/` | Published reference examples as CSV (`label,input,expected`), each citing its source, period and tolerance in `#` comments. Shared by Rust and Python |
+| `tests/python/` | Public API behavior: containers, NaN policy, parameters, errors, batch, logging, fork, import surface; per-indicator numerics (`test_sma.py`, `test_rsi.py`); `hypothesis` properties (`test_properties.py`) |
+| `tests/reference/` | The same published examples through the public API |
 | `tests/smoke/` | Quick build-and-run check |
 
-Run everything with `scripts/test-suite.sh`, which fixes Rust formatting (as CI does), then runs the format check, Clippy, Rust tests, the extension build, the smoke test, pytest, and Ruff. Every step runs even if one fails, and the report is written to `tests/results/test-suite_<datetime>.txt` (summary on top, full output below). Benchmarks must not be timing-sensitive assertions in regular tests.
+Quality gates, all in `scripts/test-suite.sh` and mirrored by CI:
+
+- **Rust:** `rustfmt`; Clippy with `-D warnings` and the workspace lints in the root `Cargo.toml` (`unsafe_code` denied, `missing_docs`, a curated `pedantic` subset; every crate opts in with `[lints] workspace = true`; `clippy.toml` lists names such as PyTA that are not code); optional `cargo nextest` and `cargo llvm-cov`. CI also runs `cargo deny` for licenses and advisories (`deny.toml`).
+- **Python:** pytest with `--strict-markers --strict-config`, warnings as errors, a `pandas` marker for tests that need the extra, and `pytest-cov` branch coverage of `pyta` with a floor; Ruff (`E, F, I, UP, B, SIM, RUF, PT, PERF, C4, TID`); Pyright in strict mode on `python/` (chosen over `ty`, which is still a 0.0.x beta); `mypy.stubtest` checks `_native.pyi` against the compiled module.
+
+Every step runs even if one fails, and the report is written to `tests/results/test-suite_<datetime>.txt` (summary on top, full output below). Benchmarks must not be timing-sensitive assertions in regular tests.
 
 ## 9. Benchmarks
 
