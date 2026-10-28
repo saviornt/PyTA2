@@ -4,9 +4,19 @@ use proptest::prelude::*;
 use pyta_core::Series;
 use pyta_momentum::rsi;
 
+/// Prices of ordinary size, mixed with tiny ones and exact repeats, which
+/// make the average loss negligible next to the average gain (or zero).
+fn price() -> impl Strategy<Value = f64> {
+    prop_oneof![
+        4 => -1.0e6..1.0e6_f64,
+        1 => -1.0e-290..1.0e-290_f64,
+        1 => Just(0.0),
+    ]
+}
+
 /// A series of 2 to 300 prices and a period that leaves at least one RSI value.
 fn series_and_period() -> impl Strategy<Value = (Vec<f64>, usize)> {
-    prop::collection::vec(-1.0e6..1.0e6_f64, 2..300).prop_flat_map(|values| {
+    prop::collection::vec(price(), 2..300).prop_flat_map(|values| {
         let length = values.len();
         (Just(values), 1..length)
     })

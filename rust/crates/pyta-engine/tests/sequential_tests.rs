@@ -3,7 +3,7 @@
 use pyta_core::Series;
 use pyta_engine::{
     IndicatorKind, IndicatorRequest, IndicatorResult, IndicatorStatus, execute_batch,
-    execute_sequential,
+    execute_parallel, execute_sequential,
 };
 
 fn request(kind: IndicatorKind, len: usize, period: usize) -> IndicatorRequest {
@@ -59,4 +59,33 @@ async fn sequential_matches_concurrent_results_and_errors() {
     assert!(sequential[2].is_error());
     assert!(sequential[3].is_error());
     assert!(sequential[4].is_error());
+}
+
+#[test]
+fn parallel_matches_sequential_on_a_multi_thread_pool() {
+    // Mixed sizes, periods and failures, enough to be split across workers.
+    let requests: Vec<_> = (0..64)
+        .map(|i| {
+            let kind = if i % 2 == 0 {
+                IndicatorKind::Sma
+            } else {
+                IndicatorKind::Rsi
+            };
+            let period = if i % 7 == 0 { 5_000 } else { 3 + i % 20 };
+            request(kind, 200 + 37 * i, period)
+        })
+        .collect();
+    let pool = rayon::ThreadPoolBuilder::new()
+        .num_threads(4)
+        .build()
+        .unwrap();
+
+    let sequential = execute_sequential(&requests);
+    let parallel = pool.install(|| execute_parallel(&requests));
+
+    assert_eq!(sequential.len(), parallel.len());
+    for (left, right) in sequential.iter().zip(&parallel) {
+        assert_same(left, right);
+    }
+    assert!(sequential.iter().any(IndicatorResult::is_error));
 }

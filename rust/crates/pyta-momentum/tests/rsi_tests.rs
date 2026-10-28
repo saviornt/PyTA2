@@ -211,3 +211,23 @@ fn rsi_of_tiny_values_matches_rsi_of_their_scaled_up_copy() {
         assert!((a - b).abs() < 1e-9, "{a} vs {b}");
     }
 }
+
+#[test]
+fn rsi_never_rounds_above_one_hundred() {
+    // Found by Hypothesis: a negligible loss after a gain gave 100.00000000000001.
+    let close = Series::new(vec![
+        -0.335_937_5,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        -2.110_475_695_148_140_2e-299,
+    ])
+    .unwrap();
+
+    let result = rsi(&close, 5).unwrap();
+
+    assert!(result.values()[5..].iter().all(|value| *value == 100.0));
+}

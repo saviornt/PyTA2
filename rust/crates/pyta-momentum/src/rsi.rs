@@ -84,5 +84,8 @@ fn relative_strength_index(average_gain: f64, average_loss: f64) -> f64 {
         return 100.0;
     }
 
-    100.0 * average_gain / (average_gain + average_loss)
+    // The ratio first: it is at most 1 (the sum is at least `average_gain`),
+    // so the result never rounds above 100. `100.0 * gain / sum` could, when
+    // `average_loss` is negligible next to `average_gain`.
+    100.0 * (average_gain / (average_gain + average_loss))
 }
