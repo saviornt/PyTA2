@@ -3,9 +3,11 @@ import json
 import numpy as np
 import pyta
 import pytest
+from ohlcv_data import Ohlcv
 
 
 def series(n: int, seed: int) -> list[float]:
+    """A synthetic random walk, for sizes the real fixture does not have."""
     rng = np.random.default_rng(seed)
     return (100.0 + np.cumsum(rng.uniform(-1.0, 1.0, n))).tolist()
 
@@ -15,8 +17,14 @@ def same(got, want):
 
 
 @pytest.mark.parametrize("name", ["sma", "rsi"])
-def test_list_matches_single_calls_in_order(name):
-    datasets = [series(n, n) for n in (30, 50, 200, 40)]
+def test_list_matches_single_calls_in_order(name, ohlcv: Ohlcv):
+    # Each real column, at a different length, so positions cannot be swapped silently.
+    datasets = [
+        ohlcv.open[:30].tolist(),
+        ohlcv.high[:50].tolist(),
+        ohlcv.close.tolist(),
+        ohlcv.volume[-40:].tolist(),
+    ]
     expected = [getattr(pyta, name)(d, period=5) for d in datasets]
 
     results = getattr(pyta.batch, name)(datasets, period=5)
@@ -36,18 +44,21 @@ def test_large_batch_matches_single_calls():
         np.testing.assert_array_equal(got, pyta.sma(data, period=20))
 
 
-def test_mapping_keeps_keys_and_order():
-    datasets = {"AAPL": series(30, 1), "MSFT": series(30, 2), "GOOG": series(30, 3)}
+def test_mapping_keeps_keys_and_order(ohlcv: Ohlcv):
+    # One real dataset per quarter, keyed by quarter, in non-sorted order.
+    quarters = {"2025Q3": slice(-126, -63), "2025Q1": slice(-252, -189), "2025Q4": slice(-63, None)}
+    datasets = {key: ohlcv.close[part].tolist() for key, part in quarters.items()}
 
     results = pyta.batch.sma(datasets, period=5)
 
     assert isinstance(results, dict)
-    assert list(results) == ["AAPL", "MSFT", "GOOG"]
-    same(results["MSFT"], pyta.sma(datasets["MSFT"], period=5))
+    assert list(results) == ["2025Q3", "2025Q1", "2025Q4"]
+    for key, values in datasets.items():
+        same(results[key], pyta.sma(values, period=5))
 
 
-def test_mixed_containers_each_return_their_own_type():
-    values = series(20, 7)
+def test_mixed_containers_each_return_their_own_type(ohlcv: Ohlcv):
+    values = ohlcv.close.tolist()
     datasets = [
         values,
         tuple(values),
@@ -63,6 +74,12 @@ def test_mixed_containers_each_return_their_own_type():
     assert isinstance(results[2], np.ndarray)
     assert list(results[3]) == ["sma_3"]
     assert isinstance(results[4], str)
+
+    expected = pyta.sma(np.array(values), period=3)
+    for got in (results[0], results[1], results[2], results[3]["sma_3"]):
+        same(np.asarray(got, dtype=np.float64), expected)
+    from_json = [np.nan if v is None else v for v in json.loads(results[4])]
+    same(np.array(from_json), expected)
 
 
 @pytest.mark.pandas

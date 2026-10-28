@@ -73,6 +73,7 @@ Benchmarks never go in tests: no timing assertions anywhere (see `pyta-benchmark
 - pandas is optional: mark the test `@pytest.mark.pandas` and get it with `pd = pytest.importorskip("pandas")` inside the test, never a module-level import. `import pyta` must not import pandas.
 - Errors: `with pytest.raises(ValueError, match="...")`, matching the part of the message a user relies on.
 - Floats: `np.testing.assert_allclose` with an explicit `rtol`; NaN positions with `np.isnan`.
+- Realistic input: take the `ohlcv` fixture (`tests/conftest.py`; 300 real SPY sessions as read-only arrays, `.columns()`, `.lists()`, `.dates`) and compare with an independent result such as `rolling_mean` from `tests/ohlcv_data.py`. Keep small hand-checked arrays for exact known values and for tests about one specific value (NaN, infinity, limits, error messages).
 - Test through the public API (`pyta.<name>`, `pyta.batch.<name>`); call `pyta._native` only in tests that are about the native boundary.
 - Property tests (`hypothesis`, in `test_properties.py`): containers round-trip their type, leading NaN carries through, output length matches.
 

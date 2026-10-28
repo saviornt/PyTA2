@@ -3,6 +3,7 @@
 import numpy as np
 import pyta
 import pytest
+from ohlcv_data import Ohlcv, rolling_mean
 
 
 def test_known_values() -> None:
@@ -35,14 +36,22 @@ def test_flat_series_gives_a_flat_average() -> None:
     assert (result[9:] == 7.25).all()
 
 
-def test_matches_a_naive_rolling_mean() -> None:
-    rng = np.random.default_rng(7)
-    values = rng.normal(100.0, 5.0, 2_000)
+@pytest.mark.parametrize("period", [5, 20, 50, 200])
+def test_matches_a_rolling_mean_of_real_closes(ohlcv: Ohlcv, period: int) -> None:
+    result = pyta.sma(ohlcv.close, period=period)
 
-    result = pyta.sma(values, period=20)
-    expected = np.convolve(values, np.ones(20) / 20, mode="valid")
+    np.testing.assert_allclose(
+        result, rolling_mean(ohlcv.close, period), rtol=1e-12, equal_nan=True
+    )
 
-    np.testing.assert_allclose(result[19:], expected, rtol=1e-12)
+
+@pytest.mark.parametrize("column", ["open", "high", "low", "volume"])
+def test_matches_a_rolling_mean_of_every_real_column(ohlcv: Ohlcv, column: str) -> None:
+    values = ohlcv.columns()[column]
+
+    np.testing.assert_allclose(
+        pyta.sma(values, period=20), rolling_mean(values, 20), rtol=1e-12, equal_nan=True
+    )
 
 
 def test_chained_sma_skips_the_inner_warm_up() -> None:

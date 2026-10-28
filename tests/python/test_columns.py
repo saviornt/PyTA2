@@ -5,6 +5,7 @@ import json
 import numpy as np
 import pyta
 import pytest
+from ohlcv_data import Ohlcv, rolling_mean
 from pyta._validation import ADJ_CLOSE, CLOSE, HIGH, LOW, OPEN, VOLUME, normalize
 
 CLOSES = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]
@@ -130,3 +131,51 @@ def test_batch_applies_aliases_to_every_dataset() -> None:
 
     for result in results:
         np.testing.assert_array_equal(result["sma_2"], [np.nan, 1.5, 2.5, 3.5, 4.5, 5.5])
+
+
+# --- a full real OHLCV input ----------------------------------------------------------------
+
+
+def test_full_ohlcv_dict_uses_close_by_default(ohlcv: Ohlcv) -> None:
+    result = pyta.sma({"date": ohlcv.dates, **ohlcv.lists()}, period=20)
+
+    np.testing.assert_allclose(
+        result["sma_20"], rolling_mean(ohlcv.close, 20), rtol=1e-12, equal_nan=True
+    )
+
+
+@pytest.mark.parametrize(
+    ("column", "role"),
+    [("open", OPEN), ("High", HIGH), ("low", LOW), ("Close", CLOSE), ("vol", VOLUME)],
+)
+def test_full_ohlcv_dict_gives_each_role_on_request(ohlcv: Ohlcv, column: str, role: str) -> None:
+    result = pyta.sma(ohlcv.columns(), period=20, column=column)
+
+    np.testing.assert_allclose(
+        result["sma_20"], rolling_mean(ohlcv.columns()[role], 20), rtol=1e-12, equal_nan=True
+    )
+
+
+@pytest.mark.pandas
+def test_provider_style_dataframe_finds_each_role(ohlcv: Ohlcv) -> None:
+    pd = pytest.importorskip("pandas")
+    # Spelled the way yfinance returns them, including an adjusted close.
+    frame = pd.DataFrame(
+        {
+            "Open": ohlcv.open,
+            "High": ohlcv.high,
+            "Low": ohlcv.low,
+            "Close": ohlcv.close,
+            "Adj Close": ohlcv.close * 0.98,
+            "Volume": ohlcv.volume,
+        },
+        index=pd.DatetimeIndex(ohlcv.dates),
+    )
+
+    by_default = pyta.rsi(frame)
+    adjusted = pyta.sma(frame, period=20, column="adjusted close")
+
+    np.testing.assert_array_equal(by_default["rsi_14"], pyta.rsi(ohlcv.close))
+    np.testing.assert_allclose(
+        adjusted["sma_20"], rolling_mean(ohlcv.close * 0.98, 20), rtol=1e-12, equal_nan=True
+    )
