@@ -334,8 +334,8 @@ Scripts, CI and docs:
 - Importing the whole package or a single category both work.
 - Adding a category does not change existing imports.
 
-**Retrospective:**  
-**Sprint completion:** ☐
+**Retrospective:** *Worked:* category subpackages with thin re-exports, so `pyta.trend.sma`, `pyta.indicators.sma` and `pyta.sma` are one function object and nothing was duplicated; `git mv` kept each module's history; `test_namespaces.py` guards the layout rule, the documented import paths and the no-pandas import, so a new category cannot quietly break them; the first sprint run in its own worktree and merged locally after review. *Didn't:* the branch started behind `main` and had to catch up before work began; `main` moved during review, so the merge needed `--no-ff` instead of a fast-forward; CI did not run before the merge; `import pyta.indicators.trend.sma as m` binds the function rather than the module, because they share a name (documented, not fixed). *Next:* Sprint 9 multi-column (OHLCV) input; start each task's worktree from the current `main`, and push to let CI run before closing a sprint.  
+**Sprint completion:** ✓
 
 ---
 

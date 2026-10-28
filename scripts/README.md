@@ -8,8 +8,27 @@ Two scripts run everything: `test-suite.sh` checks correctness and `benchmark.sh
 | `benchmark.sh` | All benchmarks; report in `benches/results/` |
 | `benchmark_summary.py` | Helper: turns Criterion output into tables (called by `benchmark.sh`) |
 | `activate_venv.sh` | Convenience for fish: `source scripts/activate_venv.sh` |
+| `merge_into_main.sh` | Maintainer only: merges a reviewed worktree branch into `main` (never pushes) |
 
 Run the scripts from anywhere; they find the project root themselves. They need `cargo`, `uv`, and `python3` on the path.
+
+---
+
+## `merge_into_main.sh`
+
+```bash
+./scripts/merge_into_main.sh [BRANCH] [--test] [--clean] [--yes]
+```
+
+For the maintainer, after reviewing a worktree branch; Claude never runs it. Run it from the main checkout or from any worktree; it always merges in the main checkout.
+
+- With no `BRANCH`, it finds the worktrees whose branch has commits that `main` lacks. One is merged directly; for several it asks which.
+- It fast-forwards if `main` has not moved, and otherwise makes a merge commit with no editor.
+- It refuses to start if the main checkout is not on `main`, has uncommitted changes to tracked files, or is mid-merge. It warns if the worktree has uncommitted changes, which the merge does not include.
+- It shows the branch's commits and asks before merging (`--yes` skips the question).
+- `--test` runs `test-suite.sh` on the merged `main`. `--clean` then removes the worktree and deletes its branch.
+- On conflicts it stops: resolve them and `git commit`, or `git merge --abort`.
+- It never pushes; run `git push` when ready.
 
 ---
 

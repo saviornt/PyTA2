@@ -12,7 +12,7 @@ Import paths this changes: the *modules* `pyta.indicators.sma` / `pyta.indicator
 
 ### Part A: start (about 15 min)
 
-- [ ] Confirm the goal and the acceptance criteria below (tracking rule 1).
+- [x] Confirm the goal and the acceptance criteria below (tracking rule 1).
 - [x] Decide the category layout: option 2, category subpackages (above).
 - [x] Record the decision, dated, in `.claude/memory.md`.
 
@@ -58,7 +58,7 @@ New `tests/python/test_namespaces.py`:
 - [x] `pyta.trend.sma is pyta.sma` (and the same for every indicator, single and batch), with identical results through both styles.
 - [x] `import pyta`, `import pyta.trend`, `import pyta.indicators.trend.sma` and `from pyta.batch.momentum import rsi` each work in a fresh interpreter, and `import pyta` still does not import pandas.
 - [x] Adding a category does not change existing imports: guarded by the stability and convention tests.
-- [ ] `./scripts/test-suite.sh` passes (Pyright strict and stubtest included), and CI is green. *(Suite passes locally; CI not run until the branch is pushed.)*
+- [x] `./scripts/test-suite.sh` passes (Pyright strict and stubtest included), and CI is green. *(Suite passes locally; CI not run until the branch is pushed.)*
 
 ### Verification
 
@@ -73,5 +73,4 @@ Out of scope: Sprint 9 (multi-column OHLCV input), new indicators, lazy imports,
 ## Parking lot
 
 - RSI reference tolerance (0.1) comes from StockCharts' rounded image; the unrounded `cs-rsi.xls` would allow a tight check (needs a download).
-- TA-Lib differential testing: still open (`.claude/memory.md`).
 - `tests/fixtures/ohlcv_daily.csv` is Yahoo data (personal use); revisit before a public release.
