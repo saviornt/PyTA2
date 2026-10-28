@@ -1,4 +1,3 @@
-
 //! `PytaError` messages and equality.
 //!
 //! The messages reach Python users verbatim (as `ValueError` or
