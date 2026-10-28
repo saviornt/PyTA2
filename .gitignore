@@ -29,6 +29,7 @@ dist/
 
 # Testing results
 results/
+
 # Test artifacts
 .coverage
 .coverage.*
