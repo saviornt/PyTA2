@@ -94,7 +94,7 @@ jobs:
 
       - name: Build Python extension
         run: >-
-          uv run --no-sync --with maturin maturin develop
+          uv run --no-sync maturin develop
           --manifest-path rust/crates/pyta-python/Cargo.toml
 
       - name: Smoke test

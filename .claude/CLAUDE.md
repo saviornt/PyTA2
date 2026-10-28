@@ -18,7 +18,7 @@ PyTA is a TA-Lib replacement: a Python API that cleans/validates user data and a
 ./scripts/benchmark.sh --single|--batch|--all [--rust|--python] [--indicator NAME] [--quick]   # report in benches/results/ (quiet machine; see scripts/README.md)
 
 # Build/install the extension into .venv (required before pytest sees Rust changes)
-uv run --with maturin maturin develop --manifest-path rust/crates/pyta-python/Cargo.toml
+uv run maturin develop --manifest-path rust/crates/pyta-python/Cargo.toml
 
 cargo test --workspace
 cargo test -p pyta-trend sma                          # one Rust test (filter by name)

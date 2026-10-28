@@ -107,7 +107,7 @@ run_step "Rust formatting check" cargo fmt --all -- --check
 run_step "Clippy" cargo clippy --workspace --all-targets --all-features -- -D warnings
 run_step "Rust tests" cargo test --workspace
 run_step "Build Python extension" \
-    uv run --with maturin maturin develop --manifest-path rust/crates/pyta-python/Cargo.toml
+    uv run maturin develop --manifest-path rust/crates/pyta-python/Cargo.toml
 run_step "Smoke test" uv run python tests/smoke/test_smoke.py
 run_step "Python tests (pytest)" uv run --extra pandas pytest --color=no
 run_step "Ruff lint" uv run ruff check python tests

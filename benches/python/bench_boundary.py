@@ -10,7 +10,7 @@ Compare `native` with the Criterion `direct` result for the same size to see
 the Rust boundary cost (input copy, GIL release, output array).
 
 Build the extension in release mode first, or the numbers are meaningless:
-    uv run --with maturin maturin develop --release \
+    uv run maturin develop --release \
         --manifest-path rust/crates/pyta-python/Cargo.toml
 
 Run:

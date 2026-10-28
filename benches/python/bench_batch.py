@@ -10,7 +10,7 @@ what a user sees. Speedup below 1.0 means the batch call is slower; expect that
 for many tiny datasets, where per-dataset Python cost dominates the kernel.
 
 Build the extension in release mode first, or the numbers are meaningless:
-    uv run --with maturin maturin develop --release \
+    uv run maturin develop --release \
         --manifest-path rust/crates/pyta-python/Cargo.toml
 
 Run:

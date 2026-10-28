@@ -27,7 +27,7 @@ PyTA will be published to PyPI once the major indicators are complete and stable
 ```bash
 git clone https://github.com/saviornt/PyTA2
 cd PyTA2
-uv run --with maturin maturin develop --manifest-path rust/crates/pyta-python/Cargo.toml
+uv run maturin develop --manifest-path rust/crates/pyta-python/Cargo.toml
 ```
 
 ## Usage

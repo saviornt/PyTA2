@@ -81,6 +81,6 @@ Then measure: run `./scripts/benchmark.sh --single --rust --quick` (all indicato
 
 ## Step 9: Verify and report
 
-1. `uv run --with maturin maturin develop --manifest-path rust/crates/pyta-python/Cargo.toml`
+1. `uv run maturin develop --manifest-path rust/crates/pyta-python/Cargo.toml`
 2. `./scripts/test-suite.sh`, and fix until it passes (its report lands in `tests/results/`).
 3. Report: the files changed by layer, the test-suite result, the provisional cost constant and the benchmark to confirm it, any place the code and this skill disagreed, and any decision the spec left open.

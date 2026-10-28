@@ -162,7 +162,7 @@ PY_BATCH_IDX=-1
 if [[ $RUN_PYTHON -eq 1 ]]; then
     # The Python numbers are only meaningful with a release build.
     run_step "Build Python extension (release)" \
-        uv run --with maturin maturin develop --release \
+        uv run maturin develop --release \
         --manifest-path rust/crates/pyta-python/Cargo.toml
 fi
 

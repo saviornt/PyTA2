@@ -13,7 +13,7 @@ description: How to test PyTA - which command answers which question, the full s
 | Does one Rust crate or test pass? | `cargo test -p <crate> <name_filter>` |
 | Does one Python test pass? | `uv run pytest tests/python/<file>.py::<test>` |
 | All Python tests, including pandas ones | `uv run --extra pandas pytest` |
-| Python tests after a Rust change | rebuild first: `uv run --with maturin maturin develop --manifest-path rust/crates/pyta-python/Cargo.toml` |
+| Python tests after a Rust change | rebuild first: `uv run maturin develop --manifest-path rust/crates/pyta-python/Cargo.toml` |
 
 Use the targeted commands while iterating, then the full suite once at the end. The suite is the only thing that counts as "tests pass".
 
