@@ -10,11 +10,11 @@ from pathlib import Path
 import numpy as np
 import pyta
 
-OHLCV = Path(__file__).resolve().parents[1] / "fixtures" / "ohlcv_spy_daily.csv"
+OHLCV = Path(__file__).resolve().parents[1] / "fixtures" / "ohlcv_daily.csv"
 
 
 def load_ohlcv() -> dict[str, list[str] | list[float]]:
-    """Reads the SPY fixture into a dict of columns: date, open, high, low, close, volume."""
+    """Reads the OHLCV Daily fixture into a dict of columns: date, open, high, low, close, volume."""
     lines = [line for line in OHLCV.read_text().splitlines() if not line.startswith("#")]
     rows = list(csv.DictReader(lines))
     data: dict[str, list[str] | list[float]] = {"date": [row["date"] for row in rows]}

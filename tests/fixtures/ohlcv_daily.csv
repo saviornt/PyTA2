@@ -1,12 +1,3 @@
-# Daily OHLCV for SPY (SPDR S&P 500 ETF Trust): 300 trading sessions, 2024-10-21 to 2025-12-31.
-# source: Yahoo Finance, fetched with yfinance 1.7.0: Ticker("SPY").history(start="2024-09-01",
-#   end="2026-01-01", auto_adjust=False), last 300 rows
-# retrieved: 2026-10-28
-# Prices are unadjusted (not split- or dividend-adjusted), in US dollars, rounded to cents;
-# volume is shares traded. Dates are US Eastern trading days.
-# Used as realistic input (smoke test), not as reference values: 300 sessions cover the
-# longest planned lookback (the 200-day SMA of the Mayer Multiple) with 100 values to spare.
-# Yahoo Finance data is for personal use; check its terms before redistributing this file.
 date,open,high,low,close,volume
 2024-10-21,583.85,584.85,580.60,583.63,36439000
 2024-10-22,581.05,584.50,580.38,583.32,34183800
