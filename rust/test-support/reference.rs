@@ -3,8 +3,10 @@
 //! Included by the kernel crates' reference tests with `#[path]`, so the
 //! Rust and Python tests check the same files. Each fixture is a CSV file
 //! whose `#` comment lines cite the source and give `period:` and
-//! `tolerance:`; its columns are `label,input,expected`, with an empty
-//! `expected` for warm-up rows (NaN).
+//! `tolerance:`; its columns are `label`, one or more input columns, and
+//! `expected`, with an empty `expected` for warm-up rows (NaN). A
+//! single-column example names its input column `input`; a multi-column one
+//! names each column by role (`high,low,close`), in the indicator's slot order.
 
 use std::path::Path;
 
@@ -12,7 +14,11 @@ use std::path::Path;
 pub struct Reference {
     pub period: usize,
     pub tolerance: f64,
+    /// The first input column (the only one for a single-column example).
     pub input: Vec<f64>,
+    /// Every input column, in the file's order.
+    #[allow(dead_code, reason = "single-column reference tests read only `input`")]
+    pub columns: Vec<Vec<f64>>,
     pub expected: Vec<f64>,
 }
 
@@ -26,7 +32,7 @@ pub fn load(name: &str) -> Reference {
 
     let mut period = None;
     let mut tolerance = None;
-    let mut input = Vec::new();
+    let mut columns: Vec<Vec<f64>> = Vec::new();
     let mut expected = Vec::new();
 
     for line in text.lines() {
@@ -40,12 +46,21 @@ pub fn load(name: &str) -> Reference {
         }
 
         let fields: Vec<&str> = line.split(',').collect();
-        if line.is_empty() || fields[1] == "input" {
+        if line.is_empty() {
+            continue;
+        }
+        let [_label, inputs @ .., last] = &fields[..] else {
+            panic!("row has too few fields: {line}");
+        };
+        if *last == "expected" {
+            columns = vec![Vec::new(); inputs.len()];
             continue;
         }
 
-        input.push(fields[1].parse().expect("input is a number"));
-        expected.push(match fields[2] {
+        for (column, field) in columns.iter_mut().zip(inputs) {
+            column.push(field.parse().expect("input is a number"));
+        }
+        expected.push(match *last {
             "" => f64::NAN,
             value => value.parse().expect("expected is a number or empty"),
         });
@@ -54,7 +69,8 @@ pub fn load(name: &str) -> Reference {
     Reference {
         period: period.expect("fixture has a period"),
         tolerance: tolerance.expect("fixture has a tolerance"),
-        input,
+        input: columns[0].clone(),
+        columns,
         expected,
     }
 }

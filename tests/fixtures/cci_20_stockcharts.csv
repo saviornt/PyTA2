@@ -1,0 +1,41 @@
+# CCI, period 20: the Microsoft (MSFT) spreadsheet example in StockCharts ChartSchool,
+# "Commodity Channel Index (CCI)", section "Calculation" (image "cci-1-msftsheet.png":
+# High, Low, Close and 20-day CCI columns, 24-Aug-10 to 5-Oct-10).
+# source: https://chartschool.stockcharts.com/table-of-contents/technical-indicators-and-overlays/technical-indicators/commodity-channel-index-cci
+# retrieved: 2026-10-28
+# period: 20
+# Published prices and CCI values are both rounded to cents; the CCI was computed from
+# unrounded prices, so the CCI of the published prices differs by up to 0.197.
+# tolerance: 0.25
+# Empty expected values are the warm-up (NaN).
+label,high,low,close,expected
+24-Aug-10,24.20,23.85,23.89,
+25-Aug-10,24.07,23.72,23.95,
+26-Aug-10,24.04,23.64,23.67,
+27-Aug-10,23.87,23.37,23.78,
+30-Aug-10,23.67,23.46,23.50,
+31-Aug-10,23.59,23.18,23.32,
+1-Sep-10,23.80,23.40,23.75,
+2-Sep-10,23.80,23.57,23.79,
+3-Sep-10,24.30,24.05,24.14,
+7-Sep-10,24.15,23.77,23.81,
+8-Sep-10,24.05,23.60,23.78,
+9-Sep-10,24.06,23.84,23.86,
+10-Sep-10,23.88,23.64,23.70,
+13-Sep-10,25.14,23.94,24.96,
+14-Sep-10,25.20,24.74,24.88,
+15-Sep-10,25.07,24.77,24.96,
+16-Sep-10,25.22,24.90,25.18,
+17-Sep-10,25.37,24.93,25.07,
+20-Sep-10,25.36,24.96,25.27,
+21-Sep-10,25.26,24.93,25.00,102.31
+22-Sep-10,24.82,24.21,24.46,30.74
+23-Sep-10,24.44,24.21,24.28,6.55
+24-Sep-10,24.65,24.43,24.62,33.30
+27-Sep-10,24.84,24.44,24.58,34.95
+28-Sep-10,24.75,24.20,24.53,13.84
+29-Sep-10,24.51,24.25,24.35,-10.75
+30-Sep-10,24.68,24.21,24.34,-11.58
+1-Oct-10,24.67,24.15,24.23,-29.35
+4-Oct-10,23.84,23.63,23.76,-129.36
+5-Oct-10,24.30,23.76,24.20,-73.07

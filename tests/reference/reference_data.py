@@ -1,8 +1,10 @@
 """Reads the published reference examples in `tests/fixtures/`.
 
 Each fixture is a CSV file whose `#` comment lines cite the source and give
-`period:` and `tolerance:`; its columns are `label,input,expected`, with an
-empty `expected` for warm-up rows (NaN). The Rust tests read the same files.
+`period:` and `tolerance:`; its columns are `label`, one or more input columns
+and `expected`, with an empty `expected` for warm-up rows (NaN). A single-column
+example names its input `input`; a multi-column one names each column by role
+(`high,low,close`), in the indicator's slot order. The Rust tests read the same files.
 """
 
 import csv
@@ -23,6 +25,7 @@ class Reference:
     period: int
     tolerance: float
     input: NDArray[np.float64]
+    columns: dict[str, NDArray[np.float64]]
     expected: NDArray[np.float64]
 
 
@@ -40,11 +43,14 @@ def load(name: str) -> Reference:
             rows.append(line)
 
     table = list(csv.DictReader(rows))
+    names = [name for name in table[0] if name not in ("label", "expected")]
+    columns = {name: np.array([float(row[name]) for row in table]) for name in names}
 
     return Reference(
         source=meta["source"],
         period=int(meta["period"]),
         tolerance=float(meta["tolerance"]),
-        input=np.array([float(row["input"]) for row in table]),
+        input=columns[names[0]],
+        columns=columns,
         expected=np.array([float(row["expected"] or "nan") for row in table]),
     )

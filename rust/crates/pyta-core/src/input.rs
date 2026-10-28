@@ -1,4 +1,4 @@
-// Numeric series and OHLCV input structures
+// Validated input: one series, or several aligned columns
 
 use pyta_common::{MAX_ABS_INPUT, VALIDATION_BLOCK_LEN};
 
@@ -104,59 +104,54 @@ impl Series {
     }
 }
 
-/// OHLCV market data with aligned columns
+/// Several validated series of equal length, in an indicator's slot order.
+///
+/// Multi-column indicators (for example CCI: high, low, close) take their
+/// input as `Columns`. The type knows nothing about roles: the Python layer
+/// matches columns to the indicator's slots and passes them in slot order,
+/// so a new role (such as a fundamental) needs no new Rust type.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Ohlcv {
-    /// Opening prices.
-    pub open: Series,
-    /// Highest prices.
-    pub high: Series,
-    /// Lowest prices.
-    pub low: Series,
-    /// Closing prices.
-    pub close: Series,
-    /// Traded volume.
-    pub volume: Series,
+pub struct Columns {
+    columns: Vec<Series>,
 }
 
-impl Ohlcv {
-    /// Combines five series of equal length.
+impl Columns {
+    /// Combines series of equal length.
     ///
     /// # Errors
     ///
-    /// `LengthMismatch` when the series differ in length.
-    pub fn new(
-        open: Series,
-        high: Series,
-        low: Series,
-        close: Series,
-        volume: Series,
-    ) -> PytaResult<Self> {
-        let length = open.len();
+    /// `EmptyInput` for no columns, and `LengthMismatch` when the series
+    /// differ in length.
+    pub fn new(columns: Vec<Series>) -> PytaResult<Self> {
+        let Some(first) = columns.first() else {
+            return Err(PytaError::EmptyInput);
+        };
+        let rows = first.len();
 
-        if [high.len(), low.len(), close.len(), volume.len()]
-            .iter()
-            .any(|&candidate| candidate != length)
-        {
+        if columns.iter().any(|column| column.len() != rows) {
             return Err(PytaError::LengthMismatch);
         }
 
-        Ok(Self {
-            open,
-            high,
-            low,
-            close,
-            volume,
-        })
+        Ok(Self { columns })
     }
 
-    /// Number of rows.
+    /// The columns, in slot order.
+    pub fn columns(&self) -> &[Series] {
+        &self.columns
+    }
+
+    /// Number of columns (never zero).
+    pub fn width(&self) -> usize {
+        self.columns.len()
+    }
+
+    /// Number of rows, the length of every column (never zero).
     pub fn len(&self) -> usize {
-        self.close.len()
+        self.columns[0].len()
     }
 
     /// Always false: every column has at least one value.
     pub fn is_empty(&self) -> bool {
-        self.close.is_empty()
+        self.columns[0].is_empty()
     }
 }

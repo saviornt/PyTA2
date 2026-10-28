@@ -10,3 +10,12 @@ pub const SMA_NS_PER_ELEMENT: f64 = 1.8;
 
 /// Relative Strength Index, in nanoseconds per input element.
 pub const RSI_NS_PER_ELEMENT: f64 = 3.0;
+
+/// Commodity Channel Index, in nanoseconds per input row, excluding the
+/// window passes (see [`CCI_NS_PER_WINDOW_VALUE`]).
+pub const CCI_NS_PER_ELEMENT: f64 = 1.0;
+
+/// Commodity Channel Index, in nanoseconds per row and per unit of
+/// `period`: every row sums its window and takes its mean deviation, so
+/// the cost is O(rows * period).
+pub const CCI_NS_PER_WINDOW_VALUE: f64 = 0.7;

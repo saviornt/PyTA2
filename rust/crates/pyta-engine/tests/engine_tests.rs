@@ -1,6 +1,6 @@
 //! Engine execution: ordering, error isolation and the async front door.
 
-use pyta_core::{PytaError, Series};
+use pyta_core::{Columns, PytaError, Series};
 use pyta_engine::{IndicatorKind, IndicatorRequest, IndicatorStatus, execute_batch};
 
 const NAN: f64 = f64::NAN;
@@ -165,4 +165,85 @@ async fn batch_results_keep_original_indices() {
         assert_eq!(result.index, expected_index);
         assert!(result.is_success());
     }
+}
+
+fn columns_request(kind: IndicatorKind, columns: &[&[f64]], period: usize) -> IndicatorRequest {
+    let columns = columns
+        .iter()
+        .map(|values| Series::new(values.to_vec()).unwrap())
+        .collect();
+
+    IndicatorRequest::with_columns(kind, Columns::new(columns).unwrap(), period)
+}
+
+fn error_of(result: &pyta_engine::IndicatorResult) -> &PytaError {
+    match &result.status {
+        IndicatorStatus::Error(error) => error,
+        IndicatorStatus::Success(_) => panic!("expected request {} to fail", result.index),
+    }
+}
+
+#[tokio::test]
+async fn multi_column_requests_run_beside_single_column_ones() {
+    // Typical prices 1, 2, 3, 7: CCI(3) is 100 twice (see the kernel tests).
+    let requests = vec![
+        columns_request(
+            IndicatorKind::Cci,
+            &[&[3.0, 6.0, 9.0, 21.0], &[0.0; 4], &[0.0; 4]],
+            3,
+        ),
+        request(IndicatorKind::Sma, vec![10.0, 20.0, 30.0], 2),
+        columns_request(
+            IndicatorKind::Cci,
+            &[&[1.0, 2.0], &[1.0, 2.0], &[1.0, 2.0]],
+            0,
+        ),
+        columns_request(
+            IndicatorKind::Cci,
+            &[&[1.0, 2.0], &[1.0, 2.0], &[1.0, 2.0]],
+            3,
+        ),
+    ];
+
+    let results = execute_batch(requests).await;
+
+    match &results[0].status {
+        IndicatorStatus::Success(output) => {
+            let values = output.values();
+            assert!(values[..2].iter().all(|value| value.is_nan()));
+            assert!(values[2..].iter().all(|value| (value - 100.0).abs() < 1e-9));
+        }
+        IndicatorStatus::Error(error) => panic!("expected CCI success, got {error:?}"),
+    }
+    assert!(results[1].is_success());
+    assert_eq!(*error_of(&results[2]), PytaError::InvalidPeriod);
+    assert_eq!(
+        *error_of(&results[3]),
+        PytaError::InsufficientData {
+            required: 3,
+            length: 2,
+        }
+    );
+}
+
+#[tokio::test]
+async fn input_with_the_wrong_number_of_columns_is_an_error() {
+    let requests = vec![
+        request(IndicatorKind::Cci, vec![1.0, 2.0, 3.0], 2),
+        columns_request(IndicatorKind::Cci, &[&[1.0, 2.0], &[1.0, 2.0]], 2),
+        columns_request(IndicatorKind::Sma, &[&[1.0, 2.0], &[1.0, 2.0]], 2),
+        // One column is a valid single-column input.
+        columns_request(IndicatorKind::Sma, &[&[10.0, 20.0, 30.0]], 2),
+    ];
+
+    let results = execute_batch(requests).await;
+
+    let expected = [(3, 1), (3, 2), (1, 2)];
+    for (result, (expected, actual)) in results.iter().zip(expected) {
+        assert_eq!(
+            *error_of(result),
+            PytaError::ColumnCount { expected, actual }
+        );
+    }
+    assert!(results[3].is_success());
 }

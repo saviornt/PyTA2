@@ -56,13 +56,13 @@ pub enum PytaError {
         length: usize,
     },
 
-    /// OHLCV rows are inconsistent (for example high below low).
-    #[error("invalid OHLCV data at index {index}: {reason}")]
-    InvalidOhlcv {
-        /// Position of the offending row.
-        index: usize,
-        /// What is wrong with it.
-        reason: &'static str,
+    /// A request has the wrong number of input columns for its indicator.
+    #[error("expected {expected} input columns, got {actual}")]
+    ColumnCount {
+        /// The number of columns the indicator takes.
+        expected: usize,
+        /// The number of columns given.
+        actual: usize,
     },
 
     /// The calculation panicked; this is a bug in PyTA.

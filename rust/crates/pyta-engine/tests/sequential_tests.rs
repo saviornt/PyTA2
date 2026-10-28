@@ -1,6 +1,6 @@
 //! Sequential and parallel execution give identical results.
 
-use pyta_core::Series;
+use pyta_core::{Columns, Series};
 use pyta_engine::{
     IndicatorKind, IndicatorRequest, IndicatorResult, IndicatorStatus, execute_batch,
     execute_parallel, execute_sequential,
@@ -10,6 +10,21 @@ fn request(kind: IndicatorKind, len: usize, period: usize) -> IndicatorRequest {
     let values = (0..len).map(|i| (i as f64 * 0.7).sin() + 10.0).collect();
 
     IndicatorRequest::new(kind, Series::new(values).unwrap(), period)
+}
+
+/// A CCI request on high, low and close made from one wave.
+fn cci_request(len: usize, period: usize) -> IndicatorRequest {
+    let column = |offset: f64| {
+        Series::new(
+            (0..len)
+                .map(|i| (i as f64 * 0.7).sin() + 10.0 + offset)
+                .collect(),
+        )
+        .unwrap()
+    };
+    let columns = Columns::new(vec![column(0.5), column(-0.5), column(0.0)]).unwrap();
+
+    IndicatorRequest::with_columns(IndicatorKind::Cci, columns, period)
 }
 
 fn assert_same(left: &IndicatorResult, right: &IndicatorResult) {
@@ -88,4 +103,30 @@ fn parallel_matches_sequential_on_a_multi_thread_pool() {
         assert_same(left, right);
     }
     assert!(sequential.iter().any(IndicatorResult::is_error));
+}
+
+#[test]
+fn parallel_matches_sequential_on_multi_column_requests() {
+    // CCI mixed with single-column requests, including failures.
+    let requests: Vec<_> = (0..48)
+        .map(|i| match i % 3 {
+            0 => cci_request(100 + 29 * i, if i % 9 == 0 { 5_000 } else { 2 + i % 20 }),
+            1 => request(IndicatorKind::Sma, 100 + 29 * i, 3 + i % 20),
+            _ => request(IndicatorKind::Rsi, 100 + 29 * i, 3 + i % 20),
+        })
+        .collect();
+    let pool = rayon::ThreadPoolBuilder::new()
+        .num_threads(4)
+        .build()
+        .unwrap();
+
+    let sequential = execute_sequential(&requests);
+    let parallel = pool.install(|| execute_parallel(&requests));
+
+    assert_eq!(sequential.len(), parallel.len());
+    for (left, right) in sequential.iter().zip(&parallel) {
+        assert_same(left, right);
+    }
+    assert!(sequential[0].is_error());
+    assert!(sequential[3].is_success());
 }

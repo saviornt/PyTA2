@@ -1,7 +1,7 @@
-//! Series and OHLCV validation.
+//! Series and multi-column validation.
 
 use pyta_common::MAX_ABS_INPUT;
-use pyta_core::{Ohlcv, PytaError, Series};
+use pyta_core::{Columns, PytaError, Series};
 
 #[test]
 fn series_accepts_valid_values() {
@@ -111,11 +111,36 @@ fn out_of_range_message_names_the_index_and_limit() {
 }
 
 #[test]
-fn ohlcv_rejects_mismatched_lengths() {
+fn columns_keep_slot_order() {
+    let high = Series::new(vec![3.0, 4.0]).unwrap();
+    let low = Series::new(vec![1.0, 2.0]).unwrap();
+
+    let columns = Columns::new(vec![high.clone(), low.clone()]).unwrap();
+
+    assert_eq!(columns.columns(), &[high, low]);
+    assert_eq!(columns.width(), 2);
+    assert_eq!(columns.len(), 2);
+    assert!(!columns.is_empty());
+}
+
+#[test]
+fn columns_reject_mismatched_lengths() {
     let short = Series::new(vec![1.0]).unwrap();
     let long = Series::new(vec![1.0, 2.0]).unwrap();
 
-    let result = Ohlcv::new(short.clone(), long, short.clone(), short.clone(), short);
+    let result = Columns::new(vec![short.clone(), long, short]);
 
     assert_eq!(result, Err(PytaError::LengthMismatch));
+}
+
+#[test]
+fn columns_reject_no_columns() {
+    assert_eq!(Columns::new(Vec::new()), Err(PytaError::EmptyInput));
+}
+
+#[test]
+fn a_single_column_is_valid() {
+    let series = Series::new(vec![1.0, 2.0]).unwrap();
+
+    assert_eq!(Columns::new(vec![series]).unwrap().width(), 1);
 }

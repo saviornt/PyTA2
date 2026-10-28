@@ -11,4 +11,6 @@ mod test_log;
 pub use batch::{execute_batch, execute_parallel, execute_sequential};
 pub use execution::execute_direct;
 pub use planner::should_parallelize;
-pub use requests::{IndicatorKind, IndicatorRequest, IndicatorResult, IndicatorStatus};
+pub use requests::{
+    IndicatorInput, IndicatorKind, IndicatorRequest, IndicatorResult, IndicatorStatus,
+};

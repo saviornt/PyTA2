@@ -69,3 +69,66 @@ proptest! {
         }
     }
 }
+
+/// High, low and close columns of 1 to 300 rows (high at or above low) and
+/// a period that leaves at least one CCI value.
+fn columns_and_period() -> impl Strategy<Value = ([Vec<f64>; 3], usize)> {
+    prop::collection::vec((-1.0e6..1.0e6_f64, 0.0..1.0e3_f64, 0.0..=1.0_f64), 1..300).prop_flat_map(
+        |rows| {
+            let length = rows.len();
+            let low: Vec<f64> = rows.iter().map(|(low, _, _)| *low).collect();
+            let high: Vec<f64> = rows.iter().map(|(low, range, _)| low + range).collect();
+            let close = rows
+                .iter()
+                .map(|(low, range, at)| low + range * at)
+                .collect();
+            (Just([high, low, close]), 1..=length)
+        },
+    )
+}
+
+fn cci_of(columns: &[Vec<f64>; 3], period: usize) -> Vec<f64> {
+    let [high, low, close] = columns.clone().map(|values| Series::new(values).unwrap());
+
+    pyta_momentum::cci(&high, &low, &close, period)
+        .unwrap()
+        .into_values()
+}
+
+proptest! {
+    #[test]
+    fn cci_output_length_and_warm_up_are_exact((columns, period) in columns_and_period()) {
+        let output = cci_of(&columns, period);
+
+        prop_assert_eq!(output.len(), columns[0].len());
+        prop_assert!(output[..period - 1].iter().all(|value| value.is_nan()));
+        prop_assert!(output[period - 1..].iter().all(|value| value.is_finite()));
+    }
+
+    #[test]
+    fn cci_is_bounded_by_the_window_length((columns, period) in columns_and_period()) {
+        // The deviations from the mean sum to zero, so the others sum to
+        // -(TP - mean) and the absolute deviations to at least 2|TP - mean|:
+        // the mean deviation is at least 2|TP - mean| / period, and
+        // |CCI| <= period / (2 * 0.015).
+        let bound = period as f64 / 0.03 * (1.0 + 1e-9);
+
+        for value in &cci_of(&columns, period)[period - 1..] {
+            prop_assert!(value.abs() <= bound, "{} outside ±{}", value, bound);
+        }
+    }
+
+    #[test]
+    fn cci_is_invariant_under_a_shift_and_a_positive_scale(
+        (columns, period) in columns_and_period(),
+        scale in 1.0e-2..1.0e2_f64,
+        shift in -1.0e3..1.0e3_f64,
+    ) {
+        let moved = columns.clone().map(|values| values.iter().map(|v| v * scale + shift).collect());
+
+        for (a, b) in cci_of(&columns, period).iter().zip(cci_of(&moved, period)).skip(period - 1) {
+            // A window that is flat within rounding may read 0 on one side only.
+            prop_assert!((a - b).abs() <= 1.0e-4 * (1.0 + a.abs()) || *a == 0.0 || b == 0.0, "{} vs {}", a, b);
+        }
+    }
+}

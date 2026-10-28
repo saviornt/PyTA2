@@ -17,7 +17,7 @@ use pyta_common::{
     FEW_REQUEST_COUNTS, FEW_REQUEST_SIZES, LARGE_INPUT_LEN, LARGE_SAMPLE_SIZE, MANY_DATASET_COUNTS,
     MANY_DATASET_SIZES, SAMPLE_SIZE, WORKLOAD_SIZES,
 };
-use pyta_core::Series;
+use pyta_core::{Columns, Series};
 use pyta_engine::{
     IndicatorKind, IndicatorRequest, execute_batch, execute_parallel, execute_sequential,
     should_parallelize,
@@ -81,8 +81,26 @@ const WORKLOADS: &[Workload] = &[
 
 fn period(kind: IndicatorKind) -> usize {
     match kind {
+        IndicatorKind::Cci | IndicatorKind::Rsi => 14,
         IndicatorKind::Sma => 20,
-        IndicatorKind::Rsi => 14,
+    }
+}
+
+/// A request for `kind` on `close`. Multi-column indicators get high and
+/// low made by offsetting `close`, in their slot order.
+fn request(kind: IndicatorKind, close: Series) -> IndicatorRequest {
+    let offset = |by: f64| {
+        Series::new(close.values().iter().map(|value| value + by).collect())
+            .expect("offset prices are finite")
+    };
+
+    match kind {
+        IndicatorKind::Cci => {
+            let columns = Columns::new(vec![offset(0.5), offset(-0.5), close])
+                .expect("columns have equal lengths");
+            IndicatorRequest::with_columns(kind, columns, period(kind))
+        }
+        IndicatorKind::Rsi | IndicatorKind::Sma => IndicatorRequest::new(kind, close, period(kind)),
     }
 }
 
@@ -118,7 +136,7 @@ fn build_requests(
                 Dataset::Two => two,
             };
 
-            IndicatorRequest::new(kind, series.clone(), period(kind))
+            request(kind, series.clone())
         })
         .collect()
 }
@@ -218,7 +236,11 @@ fn many_datasets(c: &mut Criterion) {
         .build()
         .expect("failed to build Tokio runtime");
 
-    for (kind, label) in [(IndicatorKind::Sma, "sma"), (IndicatorKind::Rsi, "rsi")] {
+    for (kind, label) in [
+        (IndicatorKind::Sma, "sma"),
+        (IndicatorKind::Rsi, "rsi"),
+        (IndicatorKind::Cci, "cci"),
+    ] {
         for count in MANY_DATASET_COUNTS {
             let mut group = c.benchmark_group(format!("many_{label}_x{count}"));
 
@@ -234,7 +256,7 @@ fn many_datasets(c: &mut Criterion) {
                 let requests: Vec<IndicatorRequest> = (0..count)
                     .map(|i| {
                         let series = random_walk(DS1_SEED.wrapping_add(i as u64), size);
-                        IndicatorRequest::new(kind, series, period(kind))
+                        request(kind, series)
                     })
                     .collect();
 
@@ -313,7 +335,7 @@ fn few_requests(c: &mut Criterion) {
                     .map(|i| {
                         let kind = kinds[i % kinds.len()];
                         let series = random_walk(DS1_SEED.wrapping_add(i as u64), size);
-                        IndicatorRequest::new(kind, series, period(kind))
+                        request(kind, series)
                     })
                     .collect();
 

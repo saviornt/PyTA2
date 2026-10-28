@@ -8,5 +8,5 @@ pub mod input;
 pub mod output;
 
 pub use error::{PytaError, PytaResult};
-pub use input::{Ohlcv, Series};
+pub use input::{Columns, Series};
 pub use output::IndicatorOutput;

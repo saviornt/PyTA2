@@ -37,11 +37,11 @@ fn messages_name_the_problem_and_the_values_involved() {
             "not enough data: at least 15 values are required, got 3",
         ),
         (
-            PytaError::InvalidOhlcv {
-                index: 2,
-                reason: "high is below low",
+            PytaError::ColumnCount {
+                expected: 3,
+                actual: 1,
             },
-            "invalid OHLCV data at index 2: high is below low",
+            "expected 3 input columns, got 1",
         ),
         (
             PytaError::ExecutionFailed,
