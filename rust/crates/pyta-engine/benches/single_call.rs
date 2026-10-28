@@ -19,6 +19,10 @@ const INDICATORS: [(&str, IndicatorKind, Kernel, usize); 2] = [
 ];
 
 fn single_call(c: &mut Criterion) {
+    // Engine log records go to stderr only when RUST_LOG asks for them (for
+    // example RUST_LOG=pyta::planner=debug); otherwise logging stays off.
+    let _ = env_logger::try_init();
+
     // Built once, like the OnceLock runtime in pyta-python.
     let runtime = Builder::new_multi_thread().enable_all().build().unwrap();
 

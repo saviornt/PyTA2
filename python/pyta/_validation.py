@@ -6,6 +6,7 @@ result. Element-level checks (finite, non-empty) stay in Rust.
 """
 
 import json
+import logging
 import operator
 import re
 import sys
@@ -16,6 +17,8 @@ import numpy as np
 from pydantic import Field, TypeAdapter, ValidationError
 
 from ._types import Float64Array, Prepared
+
+_log = logging.getLogger("pyta.validation")
 
 _MAX_PERIOD = 2**31 - 1
 _PERIOD = TypeAdapter(Annotated[int, Field(ge=1, le=_MAX_PERIOD)])
@@ -149,7 +152,9 @@ def _pick(keys: Sequence[object], column: str | None, default_column: str) -> ob
 
     for candidate in (wanted, *(_ROLE_ALIASES[role] if role else ())):
         if candidate in lookup:
-            return lookup[candidate]
+            key = lookup[candidate]
+            _log.debug("using column %r for %r", key, default_column if column is None else column)
+            return key
 
     available = ", ".join(repr(key) for key in keys)
 

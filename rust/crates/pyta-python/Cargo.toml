@@ -11,6 +11,7 @@ name = "_native"
 crate-type = ["cdylib"]
 
 [dependencies]
+log = { workspace = true }
 numpy = { workspace = true }
 pyo3 = { workspace = true }
 pyta-common = { path = "../pyta-common" }

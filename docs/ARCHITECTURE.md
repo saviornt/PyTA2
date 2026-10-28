@@ -187,6 +187,16 @@ Adding an `IndicatorKind` fails to compile until it has a dispatch arm and a cos
 - Single calls use `execute_direct`; batch calls use the planner, then `execute_sequential` or `execute_parallel` (see §6).
 - Parallel batches run on PyTA's own Rayon pool (`batch.rs`), built on first use and rebuilt in a forked child, because a child process does not inherit its parent's worker threads and work sent to an inherited pool would wait forever. `tests/python/test_fork.py` covers this.
 
+### Logging across Rust and Python
+
+Python's `logging` is PyTA's one logging system; users configure it once and see Rust and Python records in one stream (API.md §14).
+
+- **Rust** uses the `log` macros with targets `pyta::engine`, `pyta::planner` and `pyta::bridge`. `pyta-python/src/log_bridge.rs` is the `log` logger: installed in the `#[pymodule]`, it hands each record to the Python logger of the same dotted name (`pyta.planner`), keeping the Rust file and line. It stands in for `pyo3-log`, whose latest release (0.13.4) supports PyO3 below 0.30 only.
+- **Python** uses `pyta.api` (batch failures) and `pyta.validation` (column resolution). `pyta/__init__.py` adds a `NullHandler` to `pyta` and nothing else.
+- **Levels.** DEBUG: the planner's choice, the worker pool starting or rebuilt after `fork()`, column resolution, each failed dataset. WARNING: one summary per batch with failures. ERROR: a kernel panic caught by `catch_unwind` (`execute_direct`). No INFO.
+- **Cost.** `log`'s global maximum level is set from the Python loggers when the module loads and refreshed at the start of each batch call (three cached `isEnabledFor` calls); with DEBUG off every Rust statement costs one atomic load. Single calls do no logging work. Records that pass take the GIL, so logging stays out of kernels and per-element loops: the planner and pool log from the calling thread before work starts, and only a panic logs from a worker.
+- `pyta-common` and the kernel crates have no logging and no PyO3. Rust tests and benchmarks use their own loggers (`env_logger` in the benchmarks, enabled by `RUST_LOG`).
+
 ---
 
 ## 5. Python package

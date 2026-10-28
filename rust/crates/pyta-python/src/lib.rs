@@ -1,11 +1,13 @@
 //! Native Python extension module: `pyta._native`.
 //!
 //! This file only declares the modules and registers their functions with
-//! Python. Shared plumbing lives in `error`, `single`, and `batch`; each
+//! Python. Shared plumbing lives in `error`, `single`, `batch`, and
+//! `log_bridge` (Rust `log` records to Python `logging`); each
 //! indicator's bindings live in a file named after it.
 
 mod batch;
 mod error;
+mod log_bridge;
 mod rsi;
 mod single;
 mod sma;
@@ -14,6 +16,7 @@ use pyo3::prelude::*;
 
 #[pymodule]
 fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    log_bridge::init(m.py());
     m.add("MAX_ABS_INPUT", pyta_common::MAX_ABS_INPUT)?;
     m.add_function(wrap_pyfunction!(sma::sma, m)?)?;
     m.add_function(wrap_pyfunction!(sma::sma_batch, m)?)?;

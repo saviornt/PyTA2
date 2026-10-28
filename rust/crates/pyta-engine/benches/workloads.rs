@@ -124,6 +124,10 @@ fn build_requests(
 }
 
 fn workloads(c: &mut Criterion) {
+    // Engine log records go to stderr only when RUST_LOG asks for them (for
+    // example RUST_LOG=pyta::planner=debug); otherwise logging stays off.
+    let _ = env_logger::try_init();
+
     let runtime = Builder::new_multi_thread()
         .enable_all()
         .build()

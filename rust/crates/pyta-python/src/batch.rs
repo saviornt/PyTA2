@@ -46,7 +46,11 @@ fn pool() -> Arc<ThreadPool> {
     }
 
     // Dropping the parent's pool would wait for threads that do not exist.
-    if let Some(stale) = slot.take() {
+    if let Some((parent, stale)) = slot.take() {
+        log::debug!(
+            target: "pyta::bridge",
+            "rebuilding the worker pool after fork (parent process {parent}, child {pid})"
+        );
         std::mem::forget(stale);
     }
 
@@ -58,6 +62,11 @@ fn pool() -> Arc<ThreadPool> {
             .expect("failed to start the PyTA worker pool"),
     );
     *slot = Some((pid, Arc::clone(&pool)));
+    log::debug!(
+        target: "pyta::bridge",
+        "started the worker pool with {} threads",
+        pool.current_num_threads()
+    );
 
     pool
 }
@@ -82,6 +91,10 @@ pub(crate) fn compute_batch<'py>(
     period: usize,
     kind: IndicatorKind,
 ) -> PyResult<Bound<'py, PyList>> {
+    // Picks up logging levels changed since the last call, so the planner and
+    // pool records below are skipped cheaply when DEBUG is off.
+    crate::log_bridge::refresh_max_level(py);
+
     let total = datasets.len();
     let mut failures: Vec<Option<PytaError>> = (0..total).map(|_| None).collect();
     let mut positions = Vec::with_capacity(total);

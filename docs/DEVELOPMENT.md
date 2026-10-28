@@ -263,41 +263,41 @@
 
 Rust:
 
-- [x] Add `[workspace.lints]` (`unsafe_code` denied, `missing_docs`, a curated Clippy `pedantic` subset); every crate opts in. Fix what it flags.
-- [x] Add `proptest` invariants to `pyta-trend` and `pyta-momentum`: output length, exact warm-up, SMA within its window's range, RSI in [0, 100], constant input.
-- [x] Fill `pyta-core/tests/error_tests.rs`.
-- [x] Add edge cases per kernel: `period` of 1 and of the series length, huge, tiny and flat values.
-- [x] Test that `execute_parallel` and `execute_sequential` give identical results.
-- [x] Add reference tests from published worked examples (StockCharts SMA-5 and RSI-14), stored under `tests/fixtures/` with their sources cited and read by both the Rust and Python tests.
-- [x] Add `cargo nextest` and `cargo llvm-cov` as optional steps in `scripts/test-suite.sh`.
-- [x] Add `cargo deny` (licenses and advisories) as a CI job.
+- [ ] Add `[workspace.lints]` (`unsafe_code` denied, `missing_docs`, a curated Clippy `pedantic` subset); every crate opts in. Fix what it flags.
+- [ ] Add `proptest` invariants to `pyta-trend` and `pyta-momentum`: output length, exact warm-up, SMA within its window's range, RSI in [0, 100], constant input.
+- [ ] Fill `pyta-core/tests/error_tests.rs`.
+- [ ] Add edge cases per kernel: `period` of 1 and of the series length, huge, tiny and flat values.
+- [ ] Test that `execute_parallel` and `execute_sequential` give identical results.
+- [ ] Add reference tests from published worked examples (StockCharts SMA-5 and RSI-14), stored under `tests/fixtures/` with their sources cited and read by both the Rust and Python tests.
+- [ ] Add `cargo nextest` and `cargo llvm-cov` as optional steps in `scripts/test-suite.sh`.
+- [ ] Add `cargo deny` (licenses and advisories) as a CI job.
 
 Python:
 
-- [x] pytest: `--strict-markers --strict-config`, warnings as errors, a `pandas` marker, and `pytest-cov` with a coverage floor on the `pyta` package.
-- [x] Add `hypothesis` tests for containers and the NaN policy.
-- [x] Broaden Ruff to `B, SIM, RUF, PT, PERF, C4, TID` and fix what it flags.
-- [x] Type-check `python/` with Pyright in strict mode (chosen over `ty`, which is still a 0.0.x beta).
-- [x] Check `_native.pyi` against the compiled module with `mypy.stubtest`.
-- [x] Replace the empty `test_trend.py` and `test_momentum.py` with `test_sma.py` and `test_rsi.py`.
-- [x] Fill `test_import.py` and the reference tests.
+- [ ] pytest: `--strict-markers --strict-config`, warnings as errors, a `pandas` marker, and `pytest-cov` with a coverage floor on the `pyta` package.
+- [ ] Add `hypothesis` tests for containers and the NaN policy.
+- [ ] Broaden Ruff to `B, SIM, RUF, PT, PERF, C4, TID` and fix what it flags.
+- [ ] Type-check `python/` with Pyright in strict mode (chosen over `ty`, which is still a 0.0.x beta).
+- [ ] Check `_native.pyi` against the compiled module with `mypy.stubtest`.
+- [ ] Replace the empty `test_trend.py` and `test_momentum.py` with `test_sma.py` and `test_rsi.py`.
+- [ ] Fill `test_import.py` and the reference tests.
 
 Scripts, CI and docs:
 
-- [x] Update `scripts/test-suite.sh` and `scripts/README.md`; CI mirrors the test suite.
-- [x] Update `ARCHITECTURE.md` (tests and quality checks).
+- [ ] Update `scripts/test-suite.sh` and `scripts/README.md`; CI mirrors the test suite.
+- [ ] Update `ARCHITECTURE.md` (tests and quality checks).
 
 ### Tasks: unified logging (7.5b)
 
-- [x] Rust uses the `log` macros (targets `pyta::engine`, `pyta::planner`, `pyta::bridge`), forwarded to the Python loggers `pyta.engine`, `pyta.planner` and `pyta.bridge` by `pyta-python/src/log_bridge.rs`, installed in the `#[pymodule]`. (`pyo3-log` does not support PyO3 0.30 yet; the bridge stands in for it.)
-- [x] Add Python loggers (`pyta.api`, `pyta.validation`) for validation and batch handling.
-- [x] Add a `NullHandler` to the `pyta` logger; never configure handlers or levels.
-- [x] Apply the level policy: DEBUG for the planner's choice, the worker pool starting or being rebuilt after `fork()`, column resolution and each failed dataset; WARNING for one summary per batch with failures; ERROR for a kernel panic caught by `catch_unwind`; no INFO in normal operation.
-- [x] Keep logging out of kernels and per-element loops: log from the calling thread at the boundary, behind a level check.
-- [x] Keep `pyta-common` and the kernel crates free of `pyo3`; `env_logger` is a dev-dependency for benchmarks.
-- [x] Test with pytest `caplog` (Rust and Python messages, levels, silence by default, only a `NullHandler`), in a forked child, and in Rust (the planner logs its choice).
-- [x] Performance gate: single-call cost with logging disabled stays within noise of the baseline.
-- [x] Document logging in `ARCHITECTURE.md`, `API.md` and the README.
+- [ ] Rust uses the `log` macros (targets `pyta::engine`, `pyta::planner`, `pyta::bridge`), forwarded to the Python loggers `pyta.engine`, `pyta.planner` and `pyta.bridge` by `pyta-python/src/log_bridge.rs`, installed in the `#[pymodule]`. (`pyo3-log` does not support PyO3 0.30 yet; the bridge stands in for it.)
+- [ ] Add Python loggers (`pyta.api`, `pyta.validation`) for validation and batch handling.
+- [ ] Add a `NullHandler` to the `pyta` logger; never configure handlers or levels.
+- [ ] Apply the level policy: DEBUG for the planner's choice, the worker pool starting or being rebuilt after `fork()`, column resolution and each failed dataset; WARNING for one summary per batch with failures; ERROR for a kernel panic caught by `catch_unwind`; no INFO in normal operation.
+- [ ] Keep logging out of kernels and per-element loops: log from the calling thread at the boundary, behind a level check.
+- [ ] Keep `pyta-common` and the kernel crates free of `pyo3`; `env_logger` is a dev-dependency for benchmarks.
+- [ ] Test with pytest `caplog` (Rust and Python messages, levels, silence by default, only a `NullHandler`), in a forked child, and in Rust (the planner logs its choice).
+- [ ] Performance gate: single-call cost with logging disabled stays within noise of the baseline.
+- [ ] Document logging in `ARCHITECTURE.md`, `API.md` and the README.
 
 ### Acceptance criteria
 

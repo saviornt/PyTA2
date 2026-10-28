@@ -1,5 +1,6 @@
 """Shared execution boundary between the public API and the native module."""
 
+import logging
 from collections.abc import Callable, Mapping
 from typing import Any
 
@@ -8,6 +9,8 @@ import numpy as np
 from ._native import MAX_ABS_INPUT
 from ._types import Float64Array, Prepared
 from ._validation import normalize, validate_period
+
+_log = logging.getLogger("pyta.api")
 
 type NativeIndicator = Callable[[Float64Array, int], Float64Array]
 type NativeBatchIndicator = Callable[[list[Float64Array], int], list[Float64Array | Exception]]
@@ -162,4 +165,34 @@ def run_batch(
             padded = _pad(result, first, prepared.values.shape[0])
             outcomes[position] = prepared.restore(padded, f"{label}_{period}")
 
+    _log_failures(label, outcomes, keys)
+
     return outcomes if keys is None else dict(zip(keys, outcomes, strict=True))
+
+
+def _log_failures(label: str, outcomes: list[Any], keys: list[Any] | None) -> None:
+    """Logs each failed dataset at DEBUG and, if any failed, one WARNING summary."""
+    # Successful batches skip the scan below when WARNING is off too.
+    if not _log.isEnabledFor(logging.WARNING):
+        return
+
+    failed = [
+        (position, outcome)
+        for position, outcome in enumerate(outcomes)
+        if isinstance(outcome, BaseException)
+    ]
+
+    if not failed:
+        return
+
+    if _log.isEnabledFor(logging.DEBUG):
+        for position, error in failed:
+            name = position if keys is None else repr(keys[position])
+            _log.debug("%s: dataset %s failed: %s", label, name, error)
+
+    _log.warning(
+        "%s: %d of %d datasets failed; each failure is returned in its place",
+        label,
+        len(failed),
+        len(outcomes),
+    )

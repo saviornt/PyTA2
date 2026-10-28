@@ -16,6 +16,8 @@ license = "MIT"
 rust-version = "1.99.1"
 
 [workspace.dependencies]
+env_logger = "0.11"
+log = "0.4"
 numpy = "0.30"
 pyo3 = "0.30"
 rayon = "1.12"
