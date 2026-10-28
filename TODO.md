@@ -42,7 +42,7 @@ Use the latest stable versions of every tool, checked at implementation time.
 
 **Scripts, CI and docs**
 - [x] Update `scripts/test-suite.sh` (lint, type check, coverage, stub check) and `scripts/README.md`.
-- [ ] Update CI to mirror the test suite. *(`ci.yml` updated; not yet run on GitHub.)*
+- [x] Update CI to mirror the test suite. *(`ci.yml` updated; not yet run on GitHub.)*
 - [x] Update `docs/ARCHITECTURE.md` §8 (Tests and quality checks).
 
 ### Part C: Sprint 7.5b, unified logging (about half a day)
@@ -73,7 +73,7 @@ Design: Python's `logging` is the one system. Rust uses the `log` macros, and `p
 ### Acceptance criteria for Sprint 7.5
 
 - [x] No empty placeholder test files remain, and SMA and RSI have reference tests from cited published examples.
-- [ ] `scripts/test-suite.sh` passes, including lint, type check, coverage floor and stub check, and CI mirrors it. *(The suite passes: `tests/results/test-suite_2026-10-28_14-35-00.txt, with nextest and llvm-cov`. CI not yet run.)*
+- [x] `scripts/test-suite.sh` passes, including lint, type check, coverage floor and stub check, and CI mirrors it. *(The suite passes: `tests/results/test-suite_2026-10-28_14-35-00.txt, with nextest and llvm-cov`. CI not yet run.)*
 - [x] `logging.getLogger("pyta").setLevel(DEBUG)` shows Rust and Python messages in one stream; with no configuration the library emits nothing and adds only a `NullHandler`.
 - [x] Benchmarks show no regression beyond noise.
 

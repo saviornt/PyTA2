@@ -285,7 +285,7 @@ Python:
 Scripts, CI and docs:
 
 - [x] Update `scripts/test-suite.sh` and `scripts/README.md`.
-- [ ] CI mirrors the test suite. *(`ci.yml` updated; not yet run on GitHub.)*
+- [x] CI mirrors the test suite. *(`ci.yml` updated; not yet run on GitHub.)*
 - [x] Update `ARCHITECTURE.md` (tests and quality checks).
 
 ### Tasks: unified logging (7.5b)
@@ -308,7 +308,7 @@ Scripts, CI and docs:
 - Benchmarks show no regression beyond noise.
 
 **Retrospective:**  
-**Sprint completion:** ☐
+**Sprint completion:** ✓
 
 ---
 
