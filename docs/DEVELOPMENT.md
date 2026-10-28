@@ -285,7 +285,7 @@ Python:
 Scripts, CI and docs:
 
 - [x] Update `scripts/test-suite.sh` and `scripts/README.md`.
-- [ ] CI mirrors the test suite. *(`ci.yml` updated; not yet run on GitHub.)*
+- [x] CI mirrors the test suite.
 - [x] Update `ARCHITECTURE.md` (tests and quality checks).
 
 ### Tasks: unified logging (7.5b)
@@ -307,8 +307,8 @@ Scripts, CI and docs:
 - `logging.getLogger("pyta").setLevel(DEBUG)` shows Rust and Python messages in one stream; with no configuration the library emits nothing and adds only a `NullHandler`.
 - Benchmarks show no regression beyond noise.
 
-**Retrospective:**  
-**Sprint completion:** ☐
+**Retrospective:** *Worked:* one logging system for Rust and Python at no measurable cost (same-session A/B against `main`, within ±0.6%); property tests earned their place at once, when Hypothesis found RSI rounding to `100.00000000000001`; published reference examples stored once in `tests/fixtures/` and checked by both languages; real SPY OHLCV as test input. *Didn't:* the sprint was first ticked done with almost nothing built, because two sessions shared one checkout (now one worktree per task); CI broke twice on things a local run could not show (a `setup-uv` tag that does not exist, and `uv run --with maturin` installing into a throwaway environment); StockCharts publishes its examples only as rounded images, so the RSI reference needs a 0.1 tolerance. *Next:* Sprint 8 category namespaces, with the test suite and CI as the gate for every change.  
+**Sprint completion:** ✓
 
 ---
 
