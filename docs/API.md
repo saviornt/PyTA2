@@ -113,7 +113,10 @@ pyta.sma(df, period=20, column="adjusted close") # the "Adj Close" column
 | Leading `NaN` | Skipped, then re-padded as `NaN` in the output |
 | `NaN` after the first valid value | `ValueError`, naming the index |
 | `inf` / `-inf` | `ValueError`, naming the index |
+| Finite value larger in magnitude than `1e290` | `ValueError`, naming the index |
 | Empty input, or only `NaN` | `ValueError` |
+
+The `1e290` limit keeps every intermediate sum finite: near `float64`'s maximum (about `1.8e308`), a window sum or a price change could overflow and turn a valid result into `inf` or `NaN`. With the limit, `NaN` in a result only ever marks a warm-up position. Market data is many orders of magnitude below it.
 
 Skipping leading `NaN` lets you chain indicators, because one indicator's warm-up period passes cleanly into the next:
 
@@ -150,7 +153,7 @@ The examples show the current wording, which may change between releases, so cat
 | Exception | Raised for |
 |---|---|
 | `TypeError` | Unsupported container or dtype (strings, booleans, complex numbers), DataFrames with MultiIndex columns, non-integer `period` (including `bool`), non-string `column`, JSON of the wrong shape (including arrays that mix records and numbers) |
-| `ValueError` | `period` outside `1` to `2**31 - 1`, period larger than the series (`sma`) or fewer than `period + 1` values (`rsi`), empty input or input with no valid values, a non-finite value after the first valid value, multidimensional or ragged input, invalid JSON, a missing or ambiguous column, `column=` on input without columns |
+| `ValueError` | `period` outside `1` to `2**31 - 1`, period larger than the series (`sma`) or fewer than `period + 1` values (`rsi`), empty input or input with no valid values, a non-finite value after the first valid value, a value larger in magnitude than `1e290`, multidimensional or ragged input, invalid JSON, a missing or ambiguous column, `column=` on input without columns |
 | `RuntimeError` | An internal calculation failure |
 
 NumPy integers are accepted as `period`.

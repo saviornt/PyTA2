@@ -30,7 +30,7 @@ def sma[T](data: T, period: int, *, column: str | None = None) -> T:
 
     Raises:
         TypeError: Unsupported input type, dtype, or period type.
-        ValueError: Invalid period, empty or non-finite input, or a period
+        ValueError: Invalid period, empty, non-finite or out-of-range input, or a period
             larger than the series.
     """
     return run(_native.sma, "sma", data, period, column, default_column=CLOSE)

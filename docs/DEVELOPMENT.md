@@ -250,8 +250,64 @@
 - Users do not need `asyncio` or threads.
 - Batch and single calls share the same Rust kernels and validation.
 
-**Retrospective:**  
+**Retrospective:** *Worked:* benchmarking the scheduling options before committing to one; replacing Tokio with plain Rayon (up to 10x faster, and simpler); the fork test, which caught the inherited-pool hang. *Didn't:* one benchmark arm was biased, so an early comparison favored the wrong option; the planner still misses near the sequential/parallel break-even. *Next:* real tests (reference data, property tests, coverage, type checking) and a logging system, as Sprint 7.5, before Sprint 8 adds more surface.  
 **Sprint completion:** ✓
+
+---
+
+## Sprint 7.5 — Testing foundation and unified logging
+
+**Goal:** Before Sprint 8 adds more surface, bring the tests up to current standards and give PyTA one logging system for its Python and Rust code.
+
+### Tasks: testing to current standards (7.5a)
+
+Rust:
+
+- [x] Add `[workspace.lints]` (`unsafe_code` denied, `missing_docs`, a curated Clippy `pedantic` subset); every crate opts in. Fix what it flags.
+- [x] Add `proptest` invariants to `pyta-trend` and `pyta-momentum`: output length, exact warm-up, SMA within its window's range, RSI in [0, 100], constant input.
+- [x] Fill `pyta-core/tests/error_tests.rs`.
+- [x] Add edge cases per kernel: `period` of 1 and of the series length, huge, tiny and flat values.
+- [x] Test that `execute_parallel` and `execute_sequential` give identical results.
+- [x] Add reference tests from published worked examples (StockCharts SMA-5 and RSI-14), stored under `tests/fixtures/` with their sources cited and read by both the Rust and Python tests.
+- [x] Add `cargo nextest` and `cargo llvm-cov` as optional steps in `scripts/test-suite.sh`.
+- [x] Add `cargo deny` (licenses and advisories) as a CI job.
+
+Python:
+
+- [x] pytest: `--strict-markers --strict-config`, warnings as errors, a `pandas` marker, and `pytest-cov` with a coverage floor on the `pyta` package.
+- [x] Add `hypothesis` tests for containers and the NaN policy.
+- [x] Broaden Ruff to `B, SIM, RUF, PT, PERF, C4, TID` and fix what it flags.
+- [x] Type-check `python/` with Pyright in strict mode (chosen over `ty`, which is still a 0.0.x beta).
+- [x] Check `_native.pyi` against the compiled module with `mypy.stubtest`.
+- [x] Replace the empty `test_trend.py` and `test_momentum.py` with `test_sma.py` and `test_rsi.py`.
+- [x] Fill `test_import.py` and the reference tests.
+
+Scripts, CI and docs:
+
+- [x] Update `scripts/test-suite.sh` and `scripts/README.md`; CI mirrors the test suite.
+- [x] Update `ARCHITECTURE.md` (tests and quality checks).
+
+### Tasks: unified logging (7.5b)
+
+- [x] Rust uses the `log` macros (targets `pyta::engine`, `pyta::planner`, `pyta::bridge`), forwarded to the Python loggers `pyta.engine`, `pyta.planner` and `pyta.bridge` by `pyta-python/src/log_bridge.rs`, installed in the `#[pymodule]`. (`pyo3-log` does not support PyO3 0.30 yet; the bridge stands in for it.)
+- [x] Add Python loggers (`pyta.api`, `pyta.validation`) for validation and batch handling.
+- [x] Add a `NullHandler` to the `pyta` logger; never configure handlers or levels.
+- [x] Apply the level policy: DEBUG for the planner's choice, the worker pool starting or being rebuilt after `fork()`, column resolution and each failed dataset; WARNING for one summary per batch with failures; ERROR for a kernel panic caught by `catch_unwind`; no INFO in normal operation.
+- [x] Keep logging out of kernels and per-element loops: log from the calling thread at the boundary, behind a level check.
+- [x] Keep `pyta-common` and the kernel crates free of `pyo3`; `env_logger` is a dev-dependency for benchmarks.
+- [x] Test with pytest `caplog` (Rust and Python messages, levels, silence by default, only a `NullHandler`), in a forked child, and in Rust (the planner logs its choice).
+- [x] Performance gate: single-call cost with logging disabled stays within noise of the baseline.
+- [x] Document logging in `ARCHITECTURE.md`, `API.md` and the README.
+
+### Acceptance criteria
+
+- No empty placeholder test files remain, and SMA and RSI have reference tests from cited published examples.
+- `scripts/test-suite.sh` passes, including lint, type check, coverage floor and stub check, and CI mirrors it.
+- `logging.getLogger("pyta").setLevel(DEBUG)` shows Rust and Python messages in one stream; with no configuration the library emits nothing and adds only a `NullHandler`.
+- Benchmarks show no regression beyond noise.
+
+**Retrospective:**  
+**Sprint completion:** ☐
 
 ---
 
@@ -259,11 +315,14 @@
 
 **Goal:** Let users call indicators by category or by short-hand name.
 
+> Note: Decide the category layout at the start of this sprint: indicator modules are flat today (`pyta/indicators/sma.py`, `rsi.py`). `pyta/batch.py` becomes a package, so `pyta.batch.trend` and `pyta.batch.momentum` can mirror the category namespaces.
+
 ### Tasks
 
+- [ ] Decide the category layout for the indicator modules.
 - [ ] Expose category namespaces: `pyta.trend` and `pyta.momentum`.
 - [ ] Keep short-hand names (`pyta.sma`) pointing at the same implementation.
-- [ ] Mirror the namespaces under `pyta.batch`.
+- [ ] Mirror the namespaces under `pyta.batch`, turning `pyta/batch.py` into a package (`pyta.batch.trend`, `pyta.batch.momentum`).
 - [ ] Define the convention for adding a new category namespace.
 - [ ] Add tests confirming both styles return identical results.
 - [ ] Update `API.md` to mark the namespaces available.
@@ -286,10 +345,11 @@
 ### Tasks
 
 - [ ] Grow `IndicatorRequest` from a single `Series` to named multi-column input, building on `Ohlcv`.
-- [ ] Detect the container and identify column roles automatically (open, high, low, close, volume).
+- [ ] Find each column's role by name, using the existing role and alias rules (`open`, `high`, `low`, `close`, `adj_close`, `volume`; case, whitespace and `. _ -` ignored).
+- [ ] Give each multi-column indicator named slots for the columns it needs. A slot may accept several roles (for example `close` or `adj_close`).
 - [ ] Ignore columns an indicator does not need.
-- [ ] Support an explicit `columns=[...]` override.
-- [ ] Keep column roles open-ended (not hard-coded to OHLCV), so fundamental roles such as `eps`, `book_value`, `sales`, `dividends`, and `ebitda` can be added for valuation indicators without redesigning the role system.
+- [ ] Support an explicit `columns=[...]` override, in any order: each name is assigned to the indicator's slot for its role. An unrecognized name, a duplicate role, or a missing slot raises `ValueError`.
+- [ ] Keep the role registry extensible (not hard-coded to OHLCV), so fundamental roles such as `eps`, `book_value`, `sales`, `dividends`, and `ebitda` can be added for valuation indicators without redesigning it.
 - [ ] Raise a `ValueError` that names the required columns and the available columns when a role cannot be found.
 - [ ] Return results in the input's container type.
 - [ ] Add tests across every supported container, including extra columns and overrides.

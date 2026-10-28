@@ -162,6 +162,30 @@ def test_infinity_is_rejected() -> None:
         pyta.sma(np.array([np.inf, 10.0, 11.0]), period=2)
 
 
+def test_values_at_the_magnitude_limit_are_accepted() -> None:
+    limit = 1e290
+
+    np.testing.assert_array_equal(pyta.sma([limit, limit, -limit], period=2), [np.nan, limit, 0.0])
+    np.testing.assert_array_equal(pyta.rsi([limit, -limit, limit], period=1), [np.nan, 0.0, 100.0])
+
+
+JUST_ABOVE_LIMIT = float(np.nextafter(1e290, np.inf))
+
+
+@pytest.mark.parametrize("value", [JUST_ABOVE_LIMIT, -JUST_ABOVE_LIMIT, -np.finfo(np.float64).max])
+def test_values_beyond_the_magnitude_limit_are_rejected(value: float) -> None:
+    with pytest.raises(ValueError, match=r"index 1 is too large.* -1e290 and 1e290"):
+        pyta.sma([1.0, value, 3.0], period=2)
+
+    # After a skipped leading NaN run the index is still absolute.
+    with pytest.raises(ValueError, match=r"index 2 is too large.* -1e290 and 1e290"):
+        pyta.rsi(np.array([np.nan, 1.0, value, 3.0]), period=1)
+
+    results = pyta.batch.sma([[1.0, 2.0], [value, 2.0]], period=2)
+    assert isinstance(results[1], ValueError)
+    assert_series(results[0], np.array([np.nan, 1.5]))
+
+
 def test_indicators_can_be_chained() -> None:
     prices = 100.0 + np.sin(np.arange(60) / 3.0)
 

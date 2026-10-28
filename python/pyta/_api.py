@@ -5,6 +5,7 @@ from typing import Any
 
 import numpy as np
 
+from ._native import MAX_ABS_INPUT
 from ._types import Float64Array, Prepared
 from ._validation import normalize, validate_period
 
@@ -65,12 +66,22 @@ def _trim(values: Float64Array) -> tuple[int, Float64Array]:
         raise ValueError("input contains no valid values; every value is NaN or missing")
 
     valid = values[first:]
-    bad = np.flatnonzero(~np.isfinite(valid))
+    # Same test as Rust's validation; false for NaN and infinity too.
+    bad = np.flatnonzero(~(np.abs(valid) <= MAX_ABS_INPUT))
 
     if bad.size:
         # Rust would report an index relative to the trimmed slice.
+        index = first + int(bad[0])
+
+        if np.isfinite(values[index]):
+            limit = f"{MAX_ABS_INPUT:.0e}".replace("e+", "e")
+            raise ValueError(
+                f"value at index {index} is too large in magnitude; "
+                f"values must be between -{limit} and {limit}"
+            )
+
         raise ValueError(
-            f"non-finite value (NaN or infinity) at index {first + int(bad[0])}; "
+            f"non-finite value (NaN or infinity) at index {index}; "
             "only leading NaN values are skipped"
         )
 

@@ -40,3 +40,7 @@ target-version = "py315"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]
+
+[tool.pyright]
+venvPath = "."
+venv = ".venv"

@@ -1,38 +1,43 @@
 // Numeric series and OHLCV input structures
 
-use pyta_common::VALIDATION_BLOCK_LEN;
+use pyta_common::{MAX_ABS_INPUT, VALIDATION_BLOCK_LEN};
 
 use crate::error::{PytaError, PytaResult};
 
-/// A validated, non-empty series of finite numerical values.
+/// A validated, non-empty series of finite values, each at most
+/// [`MAX_ABS_INPUT`] in magnitude.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Series {
     values: Vec<f64>,
 }
 
-/// Returns `true` if every value in `block` is finite.
+/// Returns `true` if every value in `block` is within [`MAX_ABS_INPUT`].
 ///
-/// Branch-free so the compiler can vectorize it. `|x| <= f64::MAX` is
-/// false for infinities and NaN, and it compiles to packed float
+/// Branch-free so the compiler can vectorize it. `|x| <= MAX_ABS_INPUT` is
+/// false for infinities and NaN as well, and it compiles to packed float
 /// compares even on baseline x86-64 (SSE2), which has no 64-bit integer
 /// compare. That makes it faster than checking the exponent bits.
 #[inline]
-fn block_is_finite(block: &[f64]) -> bool {
+fn block_is_valid(block: &[f64]) -> bool {
     block
         .iter()
-        .fold(true, |finite, value| finite & (value.abs() <= f64::MAX))
+        .fold(true, |valid, value| valid & (value.abs() <= MAX_ABS_INPUT))
 }
 
-/// Builds the error for the first non-finite value in a block that failed
-/// [`block_is_finite`]; `offset` is the block's index in the series.
+/// Builds the error for the first invalid value in a block that failed
+/// [`block_is_valid`]; `offset` is the block's index in the series.
 #[cold]
-fn non_finite_error(block: &[f64], offset: usize) -> PytaError {
-    let index = block
+fn invalid_value_error(block: &[f64], offset: usize) -> PytaError {
+    let position = block
         .iter()
-        .position(|value| !value.is_finite())
+        .position(|value| value.is_nan() || value.abs() > MAX_ABS_INPUT)
         .unwrap_or_default();
-    PytaError::NonFiniteValue {
-        index: offset + index,
+    let index = offset + position;
+
+    if block[position].is_finite() {
+        PytaError::ValueOutOfRange { index }
+    } else {
+        PytaError::NonFiniteValue { index }
     }
 }
 
@@ -44,8 +49,8 @@ impl Series {
         }
 
         for (number, block) in values.chunks(VALIDATION_BLOCK_LEN).enumerate() {
-            if !block_is_finite(block) {
-                return Err(non_finite_error(block, number * VALIDATION_BLOCK_LEN));
+            if !block_is_valid(block) {
+                return Err(invalid_value_error(block, number * VALIDATION_BLOCK_LEN));
             }
         }
 
@@ -65,8 +70,8 @@ impl Series {
 
         let mut copy = Vec::with_capacity(values.len());
         for (number, block) in values.chunks(VALIDATION_BLOCK_LEN).enumerate() {
-            if !block_is_finite(block) {
-                return Err(non_finite_error(block, number * VALIDATION_BLOCK_LEN));
+            if !block_is_valid(block) {
+                return Err(invalid_value_error(block, number * VALIDATION_BLOCK_LEN));
             }
             copy.extend_from_slice(block);
         }

@@ -509,6 +509,7 @@ dependencies = [
 name = "pyta-momentum"
 version = "0.2.0"
 dependencies = [
+ "pyta-common",
  "pyta-core",
 ]
 
@@ -518,6 +519,7 @@ version = "0.2.0"
 dependencies = [
  "numpy",
  "pyo3",
+ "pyta-common",
  "pyta-core",
  "pyta-engine",
  "rayon",
@@ -527,6 +529,7 @@ dependencies = [
 name = "pyta-trend"
 version = "0.2.0"
 dependencies = [
+ "pyta-common",
  "pyta-core",
 ]
 

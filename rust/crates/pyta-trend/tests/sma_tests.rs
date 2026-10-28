@@ -1,3 +1,4 @@
+use pyta_common::MAX_ABS_INPUT;
 use pyta_core::{PytaError, Series};
 use pyta_trend::sma;
 
@@ -89,4 +90,62 @@ fn sma_matches_naive_mean_on_long_series() {
             "drift at {index}: got {actual}, expected {naive}"
         );
     }
+}
+
+#[test]
+fn sma_is_exact_at_the_magnitude_limit() {
+    let limit = MAX_ABS_INPUT;
+    let input = Series::new(vec![limit, limit, -limit, -limit, limit]).unwrap();
+
+    let result = sma(&input, 2).unwrap();
+
+    assert_values(result.values(), &[NAN, limit, 0.0, -limit, 0.0]);
+}
+
+#[test]
+fn sma_stays_finite_for_long_windows_at_the_magnitude_limit() {
+    let period = 10_000;
+    let data: Vec<f64> = (0..3 * period)
+        .map(|i| {
+            if i % 3 == 0 {
+                -MAX_ABS_INPUT
+            } else {
+                MAX_ABS_INPUT
+            }
+        })
+        .collect();
+    let input = Series::new(data.clone()).unwrap();
+
+    let result = sma(&input, period).unwrap();
+
+    for index in (period - 1)..data.len() {
+        let actual = result.values()[index];
+        let naive = data[index + 1 - period..=index]
+            .iter()
+            .map(|value| value / period as f64)
+            .sum::<f64>();
+
+        assert!(actual.is_finite(), "non-finite output at {index}");
+        assert!(
+            (actual - naive).abs() <= MAX_ABS_INPUT * 1e-12,
+            "drift at {index}: got {actual}, expected {naive}"
+        );
+    }
+}
+
+#[test]
+fn inputs_that_would_overflow_the_window_sum_are_rejected() {
+    // Before the limit, these returned `inf` and `NaN` after warm-up.
+    assert_eq!(
+        Series::new(vec![f64::MAX, f64::MAX]),
+        Err(PytaError::ValueOutOfRange { index: 0 })
+    );
+    assert_eq!(
+        Series::new(vec![1.0, 1e308, 1e308, -1e308]),
+        Err(PytaError::ValueOutOfRange { index: 1 })
+    );
+    assert_eq!(
+        Series::new(vec![1.0, MAX_ABS_INPUT.next_up()]),
+        Err(PytaError::ValueOutOfRange { index: 1 })
+    );
 }

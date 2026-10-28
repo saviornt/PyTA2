@@ -30,7 +30,7 @@ def rsi[T](data: T, period: int = 14, *, column: str | None = None) -> T:
 
     Raises:
         TypeError: Unsupported input type, dtype, or period type.
-        ValueError: Invalid period, empty or non-finite input, or fewer than
+        ValueError: Invalid period, empty, non-finite or out-of-range input, or fewer than
             `period + 1` values.
     """
     return run(_native.rsi, "rsi", data, period, column, default_column=CLOSE)

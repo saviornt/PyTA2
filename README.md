@@ -56,6 +56,8 @@ result = pyta.sma(df, period=20, column="open")
 result = pyta.sma(df, period=20, column="adj close")
 ```
 
+PyTA logs through Python's standard `logging` (Rust messages included) under the `pyta` logger and is silent unless you configure logging. For example, `logging.getLogger("pyta").setLevel(logging.DEBUG)` shows how batches are scheduled; see [Logging](docs/API.md#10-logging).
+
 ## Indicators
 
 ### Available

@@ -14,6 +14,7 @@ use pyo3::prelude::*;
 
 #[pymodule]
 fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add("MAX_ABS_INPUT", pyta_common::MAX_ABS_INPUT)?;
     m.add_function(wrap_pyfunction!(sma::sma, m)?)?;
     m.add_function(wrap_pyfunction!(sma::sma_batch, m)?)?;
     m.add_function(wrap_pyfunction!(rsi::rsi, m)?)?;

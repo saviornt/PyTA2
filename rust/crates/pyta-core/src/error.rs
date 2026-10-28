@@ -1,4 +1,5 @@
 // Shared error types for invalid input and calculation errors
+use pyta_common::MAX_ABS_INPUT;
 use thiserror::Error;
 
 /// Errors shared across PyTA's Rust crates
@@ -11,6 +12,12 @@ pub enum PytaError {
         "non-finite value (NaN or infinity) at index {index}; only leading NaN values are skipped"
     )]
     NonFiniteValue { index: usize },
+
+    #[error(
+        "value at index {index} is too large in magnitude; values must be between -{limit:e} and {limit:e}",
+        limit = MAX_ABS_INPUT
+    )]
+    ValueOutOfRange { index: usize },
 
     #[error("input series have mismatched lengths")]
     LengthMismatch,

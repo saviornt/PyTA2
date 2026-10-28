@@ -1,3 +1,4 @@
+use pyta_common::MAX_ABS_INPUT;
 use pyta_core::{Ohlcv, PytaError, Series};
 
 #[test]
@@ -52,11 +53,59 @@ fn from_slice_matches_new() {
 }
 
 #[test]
-fn series_accepts_extreme_finite_values() {
-    let values = [f64::MAX, f64::MIN, f64::MIN_POSITIVE, -0.0, 5e-324];
+fn series_accepts_values_up_to_the_magnitude_limit() {
+    let values = [
+        MAX_ABS_INPUT,
+        -MAX_ABS_INPUT,
+        f64::MIN_POSITIVE,
+        -0.0,
+        5e-324,
+    ];
 
     assert!(Series::new(values.to_vec()).is_ok());
     assert!(Series::from_slice(&values).is_ok());
+}
+
+#[test]
+fn series_rejects_finite_values_beyond_the_magnitude_limit() {
+    let just_above = MAX_ABS_INPUT.next_up();
+
+    for value in [just_above, -just_above, f64::MAX, f64::MIN] {
+        // Spans several validation blocks plus a partial tail.
+        for index in [0, 63, 64, 130, 199] {
+            let mut values = vec![1.0; 200];
+            values[index] = value;
+
+            let expected = Err(PytaError::ValueOutOfRange { index });
+            assert_eq!(Series::new(values.clone()), expected);
+            assert_eq!(Series::from_slice(&values), expected);
+        }
+    }
+}
+
+#[test]
+fn series_reports_whichever_invalid_value_comes_first() {
+    let values = [1.0, f64::NAN, f64::MAX];
+    assert_eq!(
+        Series::from_slice(&values),
+        Err(PytaError::NonFiniteValue { index: 1 })
+    );
+
+    let values = [1.0, f64::MAX, f64::NAN];
+    assert_eq!(
+        Series::from_slice(&values),
+        Err(PytaError::ValueOutOfRange { index: 1 })
+    );
+}
+
+#[test]
+fn out_of_range_message_names_the_index_and_limit() {
+    let message = PytaError::ValueOutOfRange { index: 7 }.to_string();
+
+    assert_eq!(
+        message,
+        "value at index 7 is too large in magnitude; values must be between -1e290 and 1e290"
+    );
 }
 
 #[test]

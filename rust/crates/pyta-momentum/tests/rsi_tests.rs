@@ -1,3 +1,4 @@
+use pyta_common::MAX_ABS_INPUT;
 use pyta_core::{PytaError, Series};
 use pyta_momentum::rsi;
 
@@ -126,4 +127,51 @@ fn rsi_matches_textbook_formula_on_long_series() {
             "mismatch at {index}: got {a}, expected {e}"
         );
     }
+}
+
+#[test]
+fn rsi_handles_price_changes_at_the_magnitude_limit() {
+    let limit = MAX_ABS_INPUT;
+    let close = Series::new(vec![limit, -limit, limit]).unwrap();
+
+    let result = rsi(&close, 1).unwrap();
+
+    assert!(result.values()[0].is_nan());
+    assert_eq!(&result.values()[1..], &[0.0, 100.0]);
+}
+
+#[test]
+fn rsi_is_scale_invariant_at_the_magnitude_limit() {
+    let unit: Vec<f64> = (0..5_000)
+        .map(|i| (i as f64 * 0.7).sin() * 0.6 + (i as f64 * 0.05).cos() * 0.4)
+        .collect();
+    let scaled: Vec<f64> = unit.iter().map(|value| value * MAX_ABS_INPUT).collect();
+    assert!(
+        scaled
+            .iter()
+            .any(|value| value.abs() > 0.99 * MAX_ABS_INPUT)
+    );
+
+    let expected = rsi(&Series::new(unit).unwrap(), 14).unwrap();
+    let actual = rsi(&Series::new(scaled).unwrap(), 14).unwrap();
+
+    for (index, (a, e)) in actual.values().iter().zip(expected.values()).enumerate() {
+        assert!(
+            (a.is_nan() && e.is_nan() && index < 14) || (a - e).abs() <= 1e-9,
+            "mismatch at {index}: got {a}, expected {e}"
+        );
+    }
+}
+
+#[test]
+fn inputs_that_would_overflow_the_price_change_are_rejected() {
+    // Before the limit, this returned `NaN` after warm-up.
+    assert_eq!(
+        Series::new(vec![1e308, -1e308, 1e308]),
+        Err(PytaError::ValueOutOfRange { index: 0 })
+    );
+    assert_eq!(
+        Series::new(vec![1.0, -MAX_ABS_INPUT.next_up()]),
+        Err(PytaError::ValueOutOfRange { index: 1 })
+    );
 }

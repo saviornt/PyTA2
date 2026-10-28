@@ -138,9 +138,10 @@ Does not own formulas, scheduling, or Python concerns.
 
 **Numerical conventions**
 
-- Rust is strict: empty input and any non-finite value (`NaN` or infinity) are rejected.
-- Output length always equals input length. Warm-up positions are `NaN`.
-- Rust errors are structured (for example `InvalidPeriod`, `PeriodExceedsLength`, `InsufficientData`, `NonFiniteValue { index }`, `LengthMismatch`, `ExecutionFailed`).
+- Rust is strict: empty input, any non-finite value (`NaN` or infinity), and any value whose magnitude exceeds `MAX_ABS_INPUT` (`1e290`, in `pyta-common`) are rejected by `Series` validation.
+- Output length always equals input length. Warm-up positions are `NaN`, and only warm-up positions: for valid input every other output is finite.
+- `MAX_ABS_INPUT` is what makes that guarantee hold. Kernels may form sums of up to `period` values and differences of two values; with every input at most `1e290` in magnitude, those stay below `f64::MAX` (about `1.8e308`) for any series that fits in memory (at most 2^60 elements). Without it, `sma([f64::MAX, f64::MAX], 2)` returned `inf`. Checking against the limit costs the same as checking for finiteness: it is one compare per value, and it also rejects `NaN` and infinity. A future kernel that squares values (for example a standard deviation) must scale or centre them before squaring, or this limit must be revisited.
+- Rust errors are structured (for example `InvalidPeriod`, `PeriodExceedsLength`, `InsufficientData`, `NonFiniteValue { index }`, `ValueOutOfRange { index }`, `LengthMismatch`, `ExecutionFailed`).
 
 ### Category crates: formulas
 
