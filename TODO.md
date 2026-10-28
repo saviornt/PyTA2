@@ -72,7 +72,6 @@ Out of scope: Sprint 9 (multi-column OHLCV input), new indicators, lazy imports,
 
 ## Parking lot
 
-- `cargo deny` CI job: `docs/DEVELOPMENT.md` Sprint 7.5 still has it unticked. Tick it once a CI run shows the "cargo deny" job green.
 - RSI reference tolerance (0.1) comes from StockCharts' rounded image; the unrounded `cs-rsi.xls` would allow a tight check (needs a download).
 - TA-Lib differential testing: still open (`.claude/memory.md`).
 - `tests/fixtures/ohlcv_daily.csv` is Yahoo data (personal use); revisit before a public release.
