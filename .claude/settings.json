@@ -10,7 +10,7 @@
       "Bash(uv run pytest:*)",
       "Bash(uv run --extra pandas pytest:*)",
       "Bash(uv run ruff:*)",
-      "Bash(uv run --with maturin maturin develop:*)",
+      "Bash(uv run maturin develop:*)",
       "Bash(./scripts/test-suite.sh)",
       "Bash(./scripts/benchmark.sh)",
       "Bash(git status:*)",
