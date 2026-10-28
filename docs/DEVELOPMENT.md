@@ -320,7 +320,7 @@ Scripts, CI and docs:
 
 ### Tasks
 
-- [ ] Decide the category layout for the indicator modules.
+- [x] Decide the category layout for the indicator modules. *(2026-10-28: category subpackages, `pyta/indicators/<category>/<name>.py`, with thin `pyta/<category>.py` re-exports; see `.claude/memory.md`.)*
 - [ ] Expose category namespaces: `pyta.trend` and `pyta.momentum`.
 - [ ] Keep short-hand names (`pyta.sma`) pointing at the same implementation.
 - [ ] Mirror the namespaces under `pyta.batch`, turning `pyta/batch.py` into a package (`pyta.batch.trend`, `pyta.batch.momentum`).
