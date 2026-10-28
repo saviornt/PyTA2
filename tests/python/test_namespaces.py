@@ -1,0 +1,149 @@
+"""Category namespaces: `pyta.<category>.<name>` and the short-hand `pyta.<name>`.
+
+Every style reaches the same function object, and the layout follows one
+convention, so adding a category or an indicator never changes an existing import.
+"""
+
+import importlib
+import operator
+import pkgutil
+import subprocess
+import sys
+from pathlib import Path
+from types import ModuleType
+
+import numpy as np
+import pyta
+import pytest
+from ohlcv_data import Ohlcv
+
+DOCS = Path(__file__).resolve().parents[2] / "docs" / "indicators"
+
+# Indicator name -> its category. Extend with each new indicator.
+INDICATORS = {"sma": "trend", "rsi": "momentum"}
+
+# Documented function paths (README, docs/API.md, docs/indicators/). These must
+# keep resolving: never remove an entry, only add.
+DOCUMENTED_PATHS = [
+    "pyta.sma",
+    "pyta.rsi",
+    "pyta.trend.sma",
+    "pyta.momentum.rsi",
+    "pyta.indicators.sma",
+    "pyta.indicators.rsi",
+    "pyta.indicators.trend.sma",
+    "pyta.indicators.momentum.rsi",
+    "pyta.batch.sma",
+    "pyta.batch.rsi",
+    "pyta.batch.trend.sma",
+    "pyta.batch.momentum.rsi",
+]
+
+
+def _categories() -> list[str]:
+    """The category subpackages found in `pyta/indicators/`."""
+    return sorted(m.name for m in pkgutil.iter_modules(pyta.indicators.__path__) if m.ispkg)
+
+
+def _module(category: str, name: str) -> ModuleType:
+    """The indicator's own module (an attribute lookup would find the function)."""
+    return importlib.import_module(f"pyta.indicators.{category}.{name}")
+
+
+def _run(code: str) -> str:
+    """Runs `code` in a fresh interpreter, so earlier imports do not leak in."""
+    result = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, check=True
+    )
+    return result.stdout.strip()
+
+
+@pytest.mark.parametrize(("name", "category"), INDICATORS.items())
+def test_every_single_call_style_is_the_same_function(name: str, category: str) -> None:
+    function = getattr(_module(category, name), name)
+
+    assert getattr(getattr(pyta, category), name) is function
+    assert getattr(getattr(pyta.indicators, category), name) is function
+    assert getattr(pyta.indicators, name) is function
+    assert getattr(pyta, name) is function
+
+
+@pytest.mark.parametrize(("name", "category"), INDICATORS.items())
+def test_every_batch_style_is_the_same_function(name: str, category: str) -> None:
+    function = getattr(_module(category, name), f"{name}_batch")
+
+    assert getattr(getattr(pyta.batch, category), name) is function
+    assert getattr(pyta.batch, name) is function
+
+
+@pytest.mark.parametrize(("name", "category"), INDICATORS.items())
+def test_both_styles_give_the_same_results(name: str, category: str, ohlcv: Ohlcv) -> None:
+    by_name = getattr(pyta, name)(ohlcv.close, 10)
+    by_category = getattr(getattr(pyta, category), name)(ohlcv.close, 10)
+    np.testing.assert_array_equal(by_category, by_name)
+
+    datasets = [ohlcv.open.tolist(), ohlcv.close[-60:].tolist()]
+    batch_by_name = getattr(pyta.batch, name)(datasets, 10)
+    batch_by_category = getattr(getattr(pyta.batch, category), name)(datasets, 10)
+    for got, want in zip(batch_by_category, batch_by_name, strict=True):
+        np.testing.assert_array_equal(got, want)
+
+
+def test_known_indicators_match_the_package() -> None:
+    names = set(pyta.indicators.__all__) - set(_categories())
+
+    assert names == set(INDICATORS)
+    assert set(INDICATORS.values()) == set(_categories())
+
+
+@pytest.mark.parametrize("category", _categories())
+def test_category_follows_the_convention(category: str) -> None:
+    subpackage = importlib.import_module(f"pyta.indicators.{category}")
+    modules = sorted(m.name for m in pkgutil.iter_modules(subpackage.__path__))
+
+    # One module per indicator, each re-exported by the subpackage.
+    assert sorted(subpackage.__all__) == modules
+    # The top-level and batch namespaces list exactly the subpackage's names.
+    assert sorted(importlib.import_module(f"pyta.{category}").__all__) == modules
+    assert sorted(importlib.import_module(f"pyta.batch.{category}").__all__) == modules
+    # The category is listed by every parent namespace.
+    for parent in (pyta, pyta.indicators, pyta.batch):
+        assert category in parent.__all__
+    # Each indicator has its user doc, and lives in no other category.
+    for name in modules:
+        assert (DOCS / category / f"{name}.md").is_file(), f"{category}/{name}.md"
+        assert INDICATORS[name] == category
+
+
+@pytest.mark.parametrize("namespace", [pyta, pyta.indicators, pyta.batch])
+def test_namespace_exports_are_sorted(namespace: ModuleType) -> None:
+    assert namespace.__all__ == sorted(namespace.__all__)
+
+
+@pytest.mark.parametrize(
+    ("code", "expected"),
+    [
+        ("import pyta.trend; print(pyta.trend.sma([1.0, 2.0], 2))", "[nan, 1.5]"),
+        ("from pyta.momentum import rsi; print(rsi([1.0, 2.0], 1))", "[nan, 100.0]"),
+        ("from pyta.batch.momentum import rsi; print(rsi([[1.0, 2.0]], 1))", "[[nan, 100.0]]"),
+        # `import a.b.sma as m` would bind the function `sma`, so read the module from sys.modules.
+        (
+            "import sys, pyta.indicators.momentum.rsi; "
+            "print(sys.modules['pyta.indicators.momentum.rsi'].rsi_batch([[1.0, 2.0]], 1))",
+            "[[nan, 100.0]]",
+        ),
+    ],
+)
+def test_category_imports_work_in_a_fresh_interpreter(code: str, expected: str) -> None:
+    assert _run(code) == expected
+
+
+def test_category_import_does_not_load_pandas() -> None:
+    assert _run("import sys, pyta.trend; print('pandas' in sys.modules)") == "False"
+
+
+@pytest.mark.parametrize("path", DOCUMENTED_PATHS)
+def test_documented_function_paths_resolve(path: str) -> None:
+    function = operator.attrgetter(path.removeprefix("pyta."))(pyta)
+
+    assert callable(function)

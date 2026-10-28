@@ -1,4 +1,4 @@
-"""Trend indicator: SMA (single call and batch)."""
+"""SMA, a trend indicator (single call and batch)."""
 
 from typing import Any
 

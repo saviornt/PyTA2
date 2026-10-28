@@ -30,6 +30,13 @@ pyta.sma(close, period=5)
 # [nan, nan, nan, nan, 44.1, 44.2, 44.4, 44.66]
 ```
 
+SMA is also in the trend namespace; both names are the same function:
+
+```python
+pyta.trend.sma(close, period=5)      # same as pyta.sma
+from pyta.trend import sma
+```
+
 It works on any supported container and returns the same kind:
 
 ```python
@@ -44,6 +51,7 @@ Many datasets in one call, in parallel when it pays off:
 ```python
 results = pyta.batch.sma({"AAPL": aapl_df, "MSFT": msft_df}, period=20)
 results["AAPL"]            # a DataFrame, or the exception if that dataset failed
+pyta.batch.trend.sma([df1, df2], period=20)   # same as pyta.batch.sma
 ```
 
 ## Parameters
