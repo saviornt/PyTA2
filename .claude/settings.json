@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(cargo check:*)",
+      "Bash(cargo clippy:*)",
+      "Bash(cargo test:*)",
+      "Bash(cargo fmt:*)",
+      "Bash(cargo bench:*)",
+      "Bash(uv run pytest:*)",
+      "Bash(uv run --extra pandas pytest:*)",
+      "Bash(uv run ruff:*)",
+      "Bash(uv run --with maturin maturin develop:*)",
+      "Bash(./scripts/test-suite.sh)",
+      "Bash(./scripts/benchmark.sh)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
+    ],
+    "deny": [
+      "Bash(git push:*)"
+    ]
+  }
+}
