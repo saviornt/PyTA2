@@ -19,3 +19,18 @@ class Prepared:
 
     values: Float64Array
     restore: Restore
+
+
+@dataclass(frozen=True, slots=True)
+class PreparedColumns:
+    """A multi-column indicator's input, one series per slot in slot order.
+
+    `labels` name each series as error messages should: the caller's column
+    name, or its position for unnamed input. `roles` are the roles the series
+    were matched to.
+    """
+
+    values: tuple[Float64Array, ...]
+    labels: tuple[str, ...]
+    roles: tuple[str, ...]
+    restore: Restore

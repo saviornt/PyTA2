@@ -6,6 +6,7 @@
 //! indicator's bindings live in a file named after it.
 
 mod batch;
+mod cci;
 mod error;
 mod log_bridge;
 mod rsi;
@@ -18,6 +19,8 @@ use pyo3::prelude::*;
 fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     log_bridge::init(m.py());
     m.add("MAX_ABS_INPUT", pyta_common::MAX_ABS_INPUT)?;
+    m.add_function(wrap_pyfunction!(cci::cci, m)?)?;
+    m.add_function(wrap_pyfunction!(cci::cci_batch, m)?)?;
     m.add_function(wrap_pyfunction!(sma::sma, m)?)?;
     m.add_function(wrap_pyfunction!(sma::sma_batch, m)?)?;
     m.add_function(wrap_pyfunction!(rsi::rsi, m)?)?;

@@ -20,11 +20,20 @@ from ohlcv_data import Ohlcv
 DOCS = Path(__file__).resolve().parents[2] / "docs" / "indicators"
 
 # Indicator name -> its category. Extend with each new indicator.
-INDICATORS = {"sma": "trend", "rsi": "momentum"}
+INDICATORS = {"sma": "trend", "rsi": "momentum", "cci": "momentum"}
+
+# Multi-column indicators, which take full OHLCV data rather than one series.
+MULTI_COLUMN = {"cci"}
 
 # Documented function paths (README, docs/API.md, docs/indicators/). These must
 # keep resolving: never remove an entry, only add.
 DOCUMENTED_PATHS = [
+    "pyta.cci",
+    "pyta.momentum.cci",
+    "pyta.indicators.cci",
+    "pyta.indicators.momentum.cci",
+    "pyta.batch.cci",
+    "pyta.batch.momentum.cci",
     "pyta.sma",
     "pyta.rsi",
     "pyta.trend.sma",
@@ -78,14 +87,24 @@ def test_every_batch_style_is_the_same_function(name: str, category: str) -> Non
 
 @pytest.mark.parametrize(("name", "category"), INDICATORS.items())
 def test_both_styles_give_the_same_results(name: str, category: str, ohlcv: Ohlcv) -> None:
-    by_name = getattr(pyta, name)(ohlcv.close, 10)
-    by_category = getattr(getattr(pyta, category), name)(ohlcv.close, 10)
+    if name in MULTI_COLUMN:
+        data: object = ohlcv.columns()
+        datasets: list[object] = [ohlcv.lists(), {k: v[-60:] for k, v in ohlcv.columns().items()}]
+    else:
+        data = ohlcv.close
+        datasets = [ohlcv.open.tolist(), ohlcv.close[-60:].tolist()]
+
+    by_name = getattr(pyta, name)(data, 10)
+    by_category = getattr(getattr(pyta, category), name)(data, 10)
+    if name in MULTI_COLUMN:
+        by_name, by_category = by_name[f"{name}_10"], by_category[f"{name}_10"]
     np.testing.assert_array_equal(by_category, by_name)
 
-    datasets = [ohlcv.open.tolist(), ohlcv.close[-60:].tolist()]
     batch_by_name = getattr(pyta.batch, name)(datasets, 10)
     batch_by_category = getattr(getattr(pyta.batch, category), name)(datasets, 10)
     for got, want in zip(batch_by_category, batch_by_name, strict=True):
+        if name in MULTI_COLUMN:
+            got, want = got[f"{name}_10"], want[f"{name}_10"]
         np.testing.assert_array_equal(got, want)
 
 

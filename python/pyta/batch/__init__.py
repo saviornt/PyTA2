@@ -7,7 +7,7 @@ exception in place, so one bad dataset never prevents results for the others.
 """
 
 from pyta.batch import momentum, trend
-from pyta.batch.momentum import rsi
+from pyta.batch.momentum import cci, rsi
 from pyta.batch.trend import sma
 
-__all__ = ["momentum", "rsi", "sma", "trend"]
+__all__ = ["cci", "momentum", "rsi", "sma", "trend"]

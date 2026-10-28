@@ -56,6 +56,12 @@ def test_smoke() -> None:
     assert ((rsi_values[14:] >= 0.0) & (rsi_values[14:] <= 100.0)).all()
     assert np.all(np.array(volume_sma["sma_20"][19:]) > 0.0)
 
+    # Multi-column: the full dict, date column included; high, low and close found by name.
+    cci_values = np.array(pyta.cci(data, period=20)["cci_20"])
+    assert cci_values.shape == (length,), "CCI output length mismatch"
+    assert np.isnan(cci_values[:19]).all(), "CCI warm-up alignment is incorrect"
+    assert np.isfinite(cci_values[19:]).all()
+
     batch = pyta.batch.sma({"SPY": data, "SPY open": data["open"]}, period=50)
     assert set(batch) == {"SPY", "SPY open"}
     assert not any(isinstance(result, Exception) for result in batch.values())

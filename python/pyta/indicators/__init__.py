@@ -6,7 +6,7 @@ is also re-exported here and at the top level, so `pyta.indicators.sma`,
 """
 
 from pyta.indicators import momentum, trend
-from pyta.indicators.momentum import rsi
+from pyta.indicators.momentum import cci, rsi
 from pyta.indicators.trend import sma
 
-__all__ = ["momentum", "rsi", "sma", "trend"]
+__all__ = ["cci", "momentum", "rsi", "sma", "trend"]

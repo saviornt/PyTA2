@@ -4,14 +4,15 @@ use numpy::{IntoPyArray, PyReadonlyArray1};
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 use pyo3::types::PyList;
-use pyta_core::{IndicatorOutput, PytaError, Series};
+use pyta_core::{IndicatorOutput, PytaError, PytaResult};
 use pyta_engine::{
-    IndicatorKind, IndicatorRequest, IndicatorResult, IndicatorStatus, execute_parallel,
-    execute_sequential, should_parallelize,
+    IndicatorInput, IndicatorKind, IndicatorRequest, IndicatorResult, IndicatorStatus,
+    execute_parallel, execute_sequential, should_parallelize,
 };
 use rayon::{ThreadPool, ThreadPoolBuilder};
 
 use crate::error::to_python_error;
+use crate::single::{columns_from, series_from};
 
 /// Number of workers available to this process, computed once.
 ///
@@ -87,6 +88,37 @@ pub(crate) fn compute_batch<'py>(
     period: usize,
     kind: IndicatorKind,
 ) -> PyResult<Bound<'py, PyList>> {
+    run_datasets(py, datasets, period, kind, |item| {
+        let values = item.extract::<PyReadonlyArray1<f64>>()?;
+
+        Ok(series_from(&values).map(IndicatorInput::Series))
+    })
+}
+
+/// Like [`compute_batch`], for a multi-column indicator: each dataset is a
+/// list of its input columns in slot order.
+pub(crate) fn compute_columns_batch<'py>(
+    py: Python<'py>,
+    datasets: &Bound<'py, PyList>,
+    period: usize,
+    kind: IndicatorKind,
+) -> PyResult<Bound<'py, PyList>> {
+    run_datasets(py, datasets, period, kind, |item| {
+        let columns = item.extract::<Vec<PyReadonlyArray1<f64>>>()?;
+
+        Ok(columns_from(&columns).map(IndicatorInput::Columns))
+    })
+}
+
+/// The shared batch path: `read` copies and validates one dataset, and a
+/// dataset it rejects becomes that dataset's exception.
+fn run_datasets<'py>(
+    py: Python<'py>,
+    datasets: &Bound<'py, PyList>,
+    period: usize,
+    kind: IndicatorKind,
+    read: impl Fn(&Bound<'py, PyAny>) -> PyResult<PytaResult<IndicatorInput>>,
+) -> PyResult<Bound<'py, PyList>> {
     // Picks up logging levels changed since the last call, so the planner and
     // pool records below are skipped cheaply when DEBUG is off.
     crate::log_bridge::refresh_max_level(py);
@@ -97,19 +129,16 @@ pub(crate) fn compute_batch<'py>(
     let mut requests = Vec::with_capacity(total);
 
     for (position, item) in datasets.iter().enumerate() {
-        let values = item.extract::<PyReadonlyArray1<f64>>()?;
-
         // Copied once, with validation fused into the copy, so the GIL
         // can be released while another thread mutates the caller's array.
-        let series = match values.as_slice() {
-            Ok(slice) => Series::from_slice(slice),
-            Err(_) => Series::new(values.as_array().to_vec()),
-        };
-
-        match series {
-            Ok(series) => {
+        match read(&item)? {
+            Ok(input) => {
                 positions.push(position);
-                requests.push(IndicatorRequest::new(kind, series, period));
+                requests.push(IndicatorRequest {
+                    kind,
+                    input,
+                    period,
+                });
             }
             Err(error) => failures[position] = Some(error),
         }

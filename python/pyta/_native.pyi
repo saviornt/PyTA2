@@ -3,7 +3,7 @@
 import numpy as np
 from numpy.typing import NDArray
 
-__all__ = ["MAX_ABS_INPUT", "rsi", "rsi_batch", "sma", "sma_batch"]
+__all__ = ["MAX_ABS_INPUT", "cci", "cci_batch", "rsi", "rsi_batch", "sma", "sma_batch"]
 
 MAX_ABS_INPUT: float
 
@@ -14,4 +14,8 @@ def sma_batch(
 ) -> list[NDArray[np.float64] | Exception]: ...
 def rsi_batch(
     datasets: list[NDArray[np.float64]], period: int
+) -> list[NDArray[np.float64] | Exception]: ...
+def cci(columns: list[NDArray[np.float64]], period: int) -> NDArray[np.float64]: ...
+def cci_batch(
+    datasets: list[list[NDArray[np.float64]]], period: int
 ) -> list[NDArray[np.float64] | Exception]: ...

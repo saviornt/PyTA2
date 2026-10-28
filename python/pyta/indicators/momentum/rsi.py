@@ -7,7 +7,7 @@ from pyta._api import run, run_batch
 from pyta._validation import CLOSE
 
 
-def rsi[T](data: T, period: int = 14, *, column: str | None = None) -> T:
+def rsi[T](data: T, period: int = 14, *, column: str | None = None, columns: None = None) -> T:
     """Relative Strength Index using Wilder's smoothing.
 
     Needs at least `period + 1` values. The first `period` results are NaN
@@ -22,6 +22,7 @@ def rsi[T](data: T, period: int = 14, *, column: str | None = None) -> T:
             one. Must be a standard name (open, high, low, close, adj_close,
             volume) or an alias; case, whitespace and . _ - are ignored.
             See docs/API.md.
+        columns: Not valid here (RSI uses one column); raises ValueError.
 
     Returns:
         The same kind of container as `data`, holding float64 values and the
@@ -32,14 +33,14 @@ def rsi[T](data: T, period: int = 14, *, column: str | None = None) -> T:
 
     Raises:
         TypeError: Unsupported input type, dtype, or period type.
-        ValueError: Invalid period, empty, non-finite or out-of-range input, or fewer than
-            `period + 1` values.
+        ValueError: Invalid period, a `columns=`, empty, non-finite or out-of-range input, or
+            fewer than `period + 1` values.
     """
-    return run(_native.rsi, "rsi", data, period, column, default_column=CLOSE)
+    return run(_native.rsi, "rsi", data, period, column, CLOSE, columns)
 
 
 def rsi_batch[D: (list[Any], dict[Any, Any])](
-    datasets: D, period: int = 14, *, column: str | None = None
+    datasets: D, period: int = 14, *, column: str | None = None, columns: None = None
 ) -> D:
     """Relative Strength Index of many datasets.
 
@@ -49,6 +50,7 @@ def rsi_batch[D: (list[Any], dict[Any, Any])](
         datasets: A list or mapping of datasets, each in any supported container.
         period: Number of price changes in the first average, shared by every dataset.
         column: Column to use for every dataset that has columns.
+        columns: Not valid here (RSI uses one column); raises ValueError.
 
     Returns:
         A list or dict of the same shape and order. Each entry is the result in
@@ -57,6 +59,6 @@ def rsi_batch[D: (list[Any], dict[Any, Any])](
     Raises:
         TypeError: `datasets` is not a list or mapping, or `period` or `column`
             has the wrong type.
-        ValueError: Invalid `period`.
+        ValueError: Invalid `period`, or a `columns=`.
     """
-    return run_batch(_native.rsi_batch, "rsi", datasets, period, column, default_column=CLOSE)
+    return run_batch(_native.rsi_batch, "rsi", datasets, period, column, CLOSE, columns)
