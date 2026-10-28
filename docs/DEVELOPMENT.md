@@ -345,7 +345,8 @@ Scripts, CI and docs:
 
 ### Tasks
 
-- [ ] Grow `IndicatorRequest` from a single `Series` to named multi-column input, building on `Ohlcv`.
+- [ ] Grow `IndicatorRequest` from a single `Series` to multi-column input: a generic `Columns` type (equal-length columns in the indicator's slot order) replaces the unused `Ohlcv`.
+- [ ] Validate the design with CCI (high, low, close), the first multi-column indicator.
 - [ ] Find each column's role by name, using the existing role and alias rules (`open`, `high`, `low`, `close`, `adj_close`, `volume`; case, whitespace and `. _ -` ignored).
 - [ ] Give each multi-column indicator named slots for the columns it needs. A slot may accept several roles (for example `close` or `adj_close`).
 - [ ] Ignore columns an indicator does not need.

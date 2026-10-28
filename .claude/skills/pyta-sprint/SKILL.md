@@ -1,6 +1,6 @@
 ---
 name: pyta-sprint
-description: How to start, run and close a PyTA sprint by the rules in docs/DEVELOPMENT.md, with TODO.md as the working plan - confirming the goal and acceptance criteria, ticking tasks only when verified, keeping docs and memory current, adding an inserted sprint (such as 7.5), writing the retrospective and marking a sprint complete. Use this whenever the user says to start, continue, plan, review or finish a sprint, asks what is left in the current sprint, refers to TODO.md items or sprint tasks, or asks to add or revise a sprint.
+description: How to plan, start, run and close a PyTA sprint by the rules in docs/DEVELOPMENT.md, with TODO.md as the working plan - confirming the goal and acceptance criteria, ticking tasks only when verified, keeping docs and memory current, adding an inserted sprint (such as 7.5), writing the retrospective and marking a sprint complete. Use this whenever the user says to move on to the next sprint, start, continue, plan, review or finish a sprint, asks what is left in the current sprint, refers to TODO.md items or sprint tasks, or asks to add or revise a sprint.
 ---
 
 # Running a PyTA sprint
@@ -9,11 +9,20 @@ description: How to start, run and close a PyTA sprint by the rules in docs/DEVE
 
 Find the current sprint: the first one in `DEVELOPMENT.md` whose marker is `☐`, unless `TODO.md` plans an inserted sprint (for example 7.5) that comes before it.
 
+## Planning the next sprint
+
+The maintainer's standing workflow, whenever they say to move on to the next sprint: **clear `TODO.md`, review the sprint, write an action plan, put the plan in `TODO.md` to tick off.** Planning happens in the main checkout (edit files only); the sprint's work then runs in its own worktree session.
+
+1. **Clear `TODO.md`.** Remove the finished sprint's plan (its record is `DEVELOPMENT.md`). Keep the parking lot, and carry over anything still open, under the new plan or in the parking lot.
+2. **Review the sprint** in `DEVELOPMENT.md` against the code as it is now and `.claude/memory.md`: what exists, what the tasks assume that is not true, what the sprint needs that no task names (for example an indicator to prove a contract), and anything that conflicts with a recorded decision.
+3. **Write the action plan** in `TODO.md`, in the same shape as earlier plans: a "Plan of record" line and "Where things stand"; Part A for confirming the goal and any decisions the user must make (each with a recommendation); then parts with checkboxes and rough sizes, each box small enough to verify on its own; the sprint's acceptance criteria as checkboxes; a verification list (test-suite report, benchmarks, a manual command); out of scope; the parking lot last.
+4. **Report** the plan's decisions to the user. The maintainer commits `TODO.md` before the worktree session starts, since a worktree only sees committed files.
+
 ## Starting a sprint
 
-1. Read the sprint in `DEVELOPMENT.md`, its plan in `TODO.md` if there is one, and `.claude/memory.md` (decisions that constrain it).
-2. **Confirm the goal and acceptance criteria with the user** before working (tracking rule 1). Point out anything that conflicts with the code as it is now, or with a recorded decision.
-3. If `TODO.md` has no plan for it, draft one in the same shape as the existing plans (parts with checkboxes and rough sizes, acceptance criteria, verification, out of scope) and agree it with the user.
+1. Read the sprint in `DEVELOPMENT.md`, its plan in `TODO.md`, and `.claude/memory.md` (decisions that constrain it).
+2. **Confirm the goal and acceptance criteria with the user** before working (tracking rule 1), and settle the decisions in the plan's Part A. Point out anything that conflicts with the code as it is now, or with a recorded decision.
+3. If `TODO.md` has no plan for it, write one as in "Planning the next sprint" and agree it with the user.
 4. Keep pieces small enough to review and test on their own (rule 2). Do the parts in order unless the plan says otherwise.
 
 ## During the sprint
@@ -39,5 +48,5 @@ Find the current sprint: the first one in `DEVELOPMENT.md` whose marker is `☐`
 2. Go through **every acceptance criterion** and give the evidence for each: report file, test name, or manual check. List any that are not met.
 3. Fill the **Retrospective** line (rule 7), in one or two sentences each: what worked, what did not, and the next sprint's priorities. Draft it and let the user adjust it.
 4. **Mark `✓` only after every acceptance criterion passes** (rule 5), and only once the user agrees. Until then the marker stays `☐`, even if every task box is ticked.
-5. Update `TODO.md`: summarise what is still open, keep the parking lot, and ask before deleting the finished plan or replacing it with the next sprint's.
+5. Update `TODO.md`: summarise what is still open and keep the parking lot. The finished plan is replaced when the next sprint is planned.
 6. Check `.claude/memory.md` and the `pyta-tooling` skill still describe the project as it now is.

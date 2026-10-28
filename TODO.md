@@ -1,74 +1,92 @@
 # TODO Scratchpad — PyTA
 
-## Sprint 8: category namespaces
+## Sprint 9: multi-column input (OHLCV)
 
-Plan of record: `docs/DEVELOPMENT.md`, "Sprint 8 — Category namespaces". Goal: users call an indicator by category (`pyta.trend.sma`) or by short-hand name (`pyta.sma`), and the batch API mirrors both (`pyta.batch.trend.sma`, `pyta.batch.sma`). Every style reaches the same function object; no indicator code is duplicated or moved into the namespaces.
+Plan of record: `docs/DEVELOPMENT.md`, "Sprint 9 — Multi-column input (OHLCV)". Goal: a user passes full OHLCV data in any supported container and PyTA finds the columns each indicator needs, by role, ignoring the rest. The binding decisions are in `.claude/memory.md` ("Multi-column indicators", "Default column"); the user-facing design is already written in `docs/API.md` §10 (marked *planned*); `.claude/skills/add-indicator/references/extending-contracts.md` has the extension rules.
 
-Where things stand: each indicator is one flat module, `python/pyta/indicators/<name>.py`, holding its single and batch functions. `pyta/__init__.py`, `pyta/indicators/__init__.py` and `pyta/batch.py` only re-export. The Rust crates (`pyta-trend`, `pyta-momentum`) and the user docs (`docs/indicators/<category>/`) are already split by category; the Python package is not. API.md §2 marks "By category" as *Planned*.
+Where things stand:
+- **Rust:** `IndicatorRequest { kind, input: Series, period }` (`pyta-engine/src/requests.rs`); every kernel is `fn(&Series, usize)`. `pyta-core` has an `Ohlcv` struct (five fixed `Series`, `LengthMismatch` check) that nothing uses yet.
+- **Bindings:** `single::compute` and `batch.rs` take one 1-D array per dataset.
+- **Python:** `_validation.py` has the six roles and their aliases (`_ROLE_ALIASES`, matched via `_squash`) and picks one column (`_pick`); `normalize` returns one `Prepared` series; `_api.run`/`run_batch` trim leading NaN from that one series.
+- **No multi-column indicator exists**, so the sprint needs one to prove the work end to end (see Part A).
 
-**Layout (decided 2026-10-28, option 2):** indicator modules move into category subpackages, `python/pyta/indicators/<category>/<name>.py`, mirroring `pyta-<category>` and `docs/indicators/<category>/`. Each subpackage `__init__.py` re-exports its single-call functions. A thin top-level module `python/pyta/<category>.py` re-exports the subpackage, because `import pyta.trend` needs a real `pyta/trend.py` (an attribute set in `pyta/__init__.py` is not importable). The batch side mirrors this in `python/pyta/batch/<category>.py`.
+### Part A: start and decide (about 30 min)
 
-Import paths this changes: the *modules* `pyta.indicators.sma` / `pyta.indicators.rsi` become `pyta.indicators.trend.sma` / `pyta.indicators.momentum.rsi`, so `from pyta.indicators.sma import sma_batch` stops working. The *functions* `pyta.sma`, `pyta.indicators.sma`, `pyta.batch.sma` (and the RSI equivalents) keep working. In the repo only `batch.py`, `indicators/__init__.py` and `tests/python/test_import.py` import the module paths.
+- [ ] Confirm the goal and the acceptance criteria below (tracking rule 1).
+- [x] Choose the indicator that validates the design. *(2026-10-28: **CCI**: high, low, close; one output; `period` only; Momentum, already a category; first on Sprint 15's priority list. Not ATR, which needs the Volatility category from Sprint 16, nor Williams %R.)*
+- [x] Choose the Rust input shape. *(2026-10-28: a generic `Columns` type in `pyta-core`, equal-length validated `Series` in the indicator's slot order, and `IndicatorRequest.input` as an enum of `Series` or `Columns`, so fundamentals need no new type. The unused `Ohlcv` struct is removed in Part B.)*
+- [x] Record both decisions, dated, in `.claude/memory.md`, and reword the first Sprint 9 task in `DEVELOPMENT.md`.
 
-### Part A: start (about 15 min)
+### Part B: Rust contract (about 1 h)
 
-- [x] Confirm the goal and the acceptance criteria below (tracking rule 1).
-- [x] Decide the category layout: option 2, category subpackages (above).
-- [x] Record the decision, dated, in `.claude/memory.md`.
+- [ ] `pyta-core`: `Columns`, validated per column like `Series`, rejecting unequal lengths (`LengthMismatch`) and zero columns; unit tests. Remove `Ohlcv` and any error variant only it used (check `PytaError::InvalidOhlcv` and its Python mapping and tests).
+- [ ] `pyta-engine`: `IndicatorRequest` carries single or multi-column input; constructors for both; a kernel receives only the slices it needs. Existing `new(kind, Series, period)` callers and SMA/RSI tests unchanged.
+- [ ] `dispatch` and `estimated_cost_ns` stay exhaustive; cost scales with rows (not rows × columns unless measured otherwise).
+- [ ] Planner and both execution paths work unchanged for multi-column requests; test `execute_parallel` = `execute_sequential` on them.
 
-### Part B: move the modules into category subpackages (about 45 min)
+### Part C: role registry (about 45 min)
 
-- [x] `git mv python/pyta/indicators/sma.py python/pyta/indicators/trend/sma.py` and `rsi.py` to `indicators/momentum/rsi.py` (keeps history). Update their imports (absolute, Ruff `TID252`) and module docstrings.
-- [x] `python/pyta/indicators/trend/__init__.py` and `momentum/__init__.py`: docstring naming the category and its planned members; re-export the single-call function; sorted `__all__`.
-- [x] `python/pyta/indicators/__init__.py`: import the category subpackages and re-export every indicator, so `pyta.indicators.sma` and `pyta.indicators.rsi` stay the functions; sorted `__all__` with the categories and the names.
-- [x] Top-level `python/pyta/trend.py` and `python/pyta/momentum.py`: re-export from `pyta.indicators.<category>`, sorted `__all__`.
-- [x] `python/pyta/__init__.py`: import `momentum` and `trend`, add both to the sorted `__all__`; keep `indicators`, `batch`, `rsi`, `sma` as they are.
-- [x] Check in a fresh interpreter: `import pyta.trend` alone, `from pyta.momentum import rsi`, `import pyta.indicators.trend.sma`, and `import pyta` still leaves pandas unloaded.
+- [ ] Turn `_ROLE_ALIASES` into a registry where a role is one entry (name plus aliases), so a fundamental role (`eps`, `book_value`, ...) is a one-line addition with no other change. Do not add fundamental roles yet.
+- [ ] A slot type: a slot name plus the roles it accepts, in preference order (CCI's `close` slot accepts `close` or `adj_close`).
+- [ ] Tests guarding the registry: no alias belongs to two roles; every alias is already squashed; a test-only role can be registered and found by name.
 
-### Part C: batch namespaces (about 30 min)
+### Part D: Python multi-column normalization (about 2 h)
 
-- [x] Turn `python/pyta/batch.py` into a package: `git mv` it to `python/pyta/batch/__init__.py`, importing from the new module paths (`pyta.indicators.trend.sma`). `pyta.batch.sma` and `pyta.batch.rsi` stay.
-- [x] `python/pyta/batch/trend.py` and `python/pyta/batch/momentum.py`: `from pyta.indicators.<category>.<name> import <name>_batch as <name>`, sorted `__all__`.
-- [x] `pyta/batch/__init__.py` imports both categories and lists them in `__all__`.
-- [x] Build a wheel (`uv run maturin build`) and confirm it contains every new file: `pyta/indicators/trend/`, `pyta/indicators/momentum/`, `pyta/trend.py`, `pyta/momentum.py`, `pyta/batch/` (maturin's `python-source` packaging, not only the editable install).
+- [ ] A multi-column `normalize` that returns one aligned float64 array per slot plus the restore function, for every named container: DataFrame, dict of columns, JSON records, JSON object of arrays.
+- [ ] Automatic matching by role; columns no slot needs are ignored, including non-numeric ones (a `date` or `symbol` column must not raise).
+- [ ] `columns=[...]` override in any order: each name goes to the slot for its role. Unrecognized name, two names for one slot, an empty slot, or a name not present raises `ValueError` naming the indicator's slots and the available columns.
+- [ ] Unnamed inputs (2-D NumPy array `(rows, columns)`, tuple of arrays) take the indicator's documented column order; the column count must match. 1-D inputs (list, 1-D array, Series) raise `TypeError` saying the indicator needs several columns.
+- [ ] `column=` on a multi-column indicator and `columns=` on a single-column one raise `ValueError`.
+- [ ] A missing role raises `ValueError` naming the required columns (with accepted roles) and the available columns.
+- [ ] Leading NaN: trim the longest leading-NaN run across the slots, so chained outputs still work; NaN after that in any slot is rejected, with the column named. Same magnitude check as single-column input.
+- [ ] `_api`: single and batch runners for multi-column indicators, sharing the existing helpers; the batch keeps failures in place and logs them as today. Result container and naming unchanged (`<label>_<period>`).
 
-### Part D: tests (about 45 min)
+### Part E: bindings (about 45 min)
 
-New `tests/python/test_namespaces.py`:
-- [x] Identity: `pyta.trend.sma is pyta.indicators.trend.sma is pyta.indicators.sma is pyta.sma`, the same for `rsi`, and `pyta.batch.<category>.<name> is pyta.batch.<name>`.
-- [x] Same results through both styles on the `ohlcv` fixture, single and batch (required by the sprint, even though identity implies it).
-- [x] Guard the convention: every name in `pyta.indicators.__all__` (minus the category names) lives in exactly one `pyta/indicators/<category>/<name>.py`; the top-level and batch category namespaces list exactly the subpackage's names; and each indicator has its user doc at `docs/indicators/<category>/<name>.md`.
-- [x] Fresh-interpreter imports (subprocess, like `test_import.py`): `import pyta.trend`, `from pyta.batch.momentum import rsi`, `import pyta.indicators.momentum.rsi`.
-- [x] Stability: a list of the documented function paths (`pyta.sma`, `pyta.rsi`, `pyta.indicators.sma`, `pyta.batch.sma`, the category forms, ...) all resolve, so adding a category cannot remove one.
-- [x] `tests/python/test_import.py`: import `sma_batch`/`rsi_batch` from the new module paths; the expected top-level `__all__` gains `momentum` and `trend`; `pyta.indicators.__all__` and `pyta.batch.__all__` gain their categories.
+- [ ] `pyta-python`: single and batch entry points that take a list of arrays per dataset, copy-and-validate each column (`Series::from_slice`), and release the GIL as `single.rs` does.
+- [ ] `_native.pyi` updated; stubtest passes.
 
-### Part E: convention and docs (about 45 min)
+### Part F: the validating indicator (about 2 h, via the `add-indicator` skill)
 
-- [x] Convention for a new category, written in `ARCHITECTURE.md` §5: the subpackage `pyta/indicators/<category>/` (one module per indicator, `__init__.py` re-exports), the thin `pyta/<category>.py` and `pyta/batch/<category>.py`, each added to its parent's sorted `__all__`; the Rust crate `pyta-<category>` and `docs/indicators/<category>/` use the same name. Adding one never changes an existing import.
-- [x] `docs/API.md` §2: "By category" becomes Available, with single and batch examples, and the paragraph describes the subpackages; §9 (batch) mentions `pyta.batch.<category>.<name>`.
-- [x] `docs/ARCHITECTURE.md`: package tree (subpackages, top-level category modules, `batch/` package) and "Where should a change go?".
-- [x] `.claude/CLAUDE.md`: the "Per-indicator modules" rule and the "Adding an indicator touches" path (`python/pyta/indicators/<category>/<name>.py`, `pyta/batch/`).
-- [x] `README.md`: one usage line in the category style.
-- [x] `docs/indicators/trend/sma.md` and `momentum/rsi.md`: Usage shows both styles.
-- [x] `.claude/skills/add-indicator/SKILL.md`: the module path `indicators/<category>/<name>.py`, the export steps (category `__init__.py`, `pyta/indicators/__init__.py`, `pyta/<category>.py`, `pyta/batch/<category>.py`, `pyta/batch/__init__.py`), and a new category per the convention; drop "If Sprint 8's category namespaces exist".
-- [x] `docs/DEVELOPMENT.md`: tick Sprint 8 tasks only as each is verified; mark API.md updated.
+- [ ] Spec per the skill (formula, TA-Lib convention, warm-up, reference source), agreed with the user.
+- [ ] Kernel in its category crate, dispatch arm, cost constant (quick benchmark scaled against RSI).
+- [ ] Bindings, `indicators/<category>/<name>.py`, category and batch exports, short-hand name.
+- [ ] Reference test from a cited published example in `tests/fixtures/`, read by Rust and Python; edge cases; property tests.
+- [ ] `docs/indicators/<category>/<name>.md` listing its required columns and their order for unnamed input; README catalog.
 
-### Acceptance criteria for Sprint 8
+### Part G: tests (about 1.5 h)
 
-- [x] `pyta.trend.sma is pyta.sma` (and the same for every indicator, single and batch), with identical results through both styles.
-- [x] `import pyta`, `import pyta.trend`, `import pyta.indicators.trend.sma` and `from pyta.batch.momentum import rsi` each work in a fresh interpreter, and `import pyta` still does not import pandas.
-- [x] Adding a category does not change existing imports: guarded by the stability and convention tests.
-- [x] `./scripts/test-suite.sh` passes (Pyright strict and stubtest included), and CI is green. *(Suite passes locally; CI not run until the branch is pushed.)*
+- [ ] Every container for the validating indicator, with extra columns (including non-numeric ones) and with exactly the needed columns.
+- [ ] Overrides: any order gives the same result; each error case of Part D.
+- [ ] Error messages name the required and the available columns.
+- [ ] Unnamed 2-D array and tuple in documented order; wrong column count.
+- [ ] Leading-NaN alignment across columns, and NaN or too-large values inside a column.
+- [ ] Batch with a mix of good and bad datasets: failures in place, others complete.
+- [ ] Hypothesis: any permutation of `columns=` gives the same result.
+- [ ] Single-column indicators unaffected: SMA and RSI tests pass untouched.
+
+### Part H: docs and close (about 45 min)
+
+- [ ] `docs/API.md` §10: Available, with CCI in the examples in place of `pyta.atr`.
+- [ ] `docs/ARCHITECTURE.md`: the multi-column contract end to end, the role registry and how to add a role, and the division of validation for columns.
+- [ ] `extending-contracts.md` and the `add-indicator` skill: multi-column is now built; describe how to declare an indicator's slots.
+- [ ] `.claude/CLAUDE.md`: the data-flow line mentions multi-column input.
+- [ ] `docs/DEVELOPMENT.md`: tick Sprint 9 tasks only as each is verified.
+
+### Acceptance criteria for Sprint 9
+
+- [ ] A full OHLCV DataFrame (the `ohlcv` fixture, with its date column) passed to the validating indicator works without naming columns, and the same holds for every named container.
+- [ ] A call missing a needed column raises `ValueError` naming the required and the available columns.
+- [ ] SMA and RSI are unaffected: their tests pass untouched, and single-call cost stays within ~5% of the latest baseline.
+- [ ] `./scripts/test-suite.sh` passes (Pyright strict and stubtest included), and CI is green after the push.
 
 ### Verification
 
-- [x] `./scripts/test-suite.sh` after Part D and at the end (reports in `tests/results/`; PASSED 2026-10-28, 196 Python tests, coverage 96%).
-- [x] The wheel check in Part C.
-- [x] `git log --follow python/pyta/indicators/trend/sma.py` still shows the history from before the move.
-- [x] Manual: `uv run python -c "import pyta; print(pyta.trend.sma([1.0, 2.0, 3.0], 2), pyta.batch.momentum.rsi([[1.0, 2.0, 3.0]], 1))"`.
-- No benchmark: the namespaces are re-exports and touch no call path. If import time is a concern, compare `uv run python -X importtime -c "import pyta"` before and after.
+- [ ] `./scripts/test-suite.sh` after Part E and at the end (cite the report in `tests/results/`).
+- [ ] `./scripts/benchmark.sh --single --python` and `--batch --python` against the latest baseline in `benches/results/`.
+- [ ] Manual: `uv run python -c "import pandas as pd, pyta; df = pd.read_csv('tests/fixtures/ohlcv_daily.csv', comment='#'); print(pyta.cci(df, period=20).tail())"`.
 
-Out of scope: Sprint 9 (multi-column OHLCV input), new indicators, lazy imports, deprecating `pyta.indicators` or the short-hand names, and namespaces for categories with no indicator yet (volatility, volume, valuation get theirs with their first indicator).
+Out of scope: multi-output indicators (Sprint 10), CSV input (Sprint 11), parameters other than `period`, the fundamental roles themselves (only the room for them), and indicators beyond the one that validates the design.
 
 ## Parking lot
 
