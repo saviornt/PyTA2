@@ -270,7 +270,7 @@ Rust:
 - [x] Test that `execute_parallel` and `execute_sequential` give identical results.
 - [x] Add reference tests from published worked examples (StockCharts SMA-5, SMA-10 and RSI-14), stored under `tests/fixtures/` with their sources cited and read by both the Rust and Python tests.
 - [x] Add `cargo nextest` and `cargo llvm-cov` as optional steps in `scripts/test-suite.sh`.
-- [x] Add `cargo deny` (licenses and advisories) as a CI job. *(`deny.toml` passes locally with `cargo deny check licenses advisories`; the CI job has not run yet: it runs on the next push.)*
+- [x] Add `cargo deny` (licenses and advisories) as a CI job.
 
 Python:
 
