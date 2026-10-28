@@ -316,17 +316,17 @@ Scripts, CI and docs:
 
 **Goal:** Let users call indicators by category or by short-hand name.
 
-> Note: Decide the category layout at the start of this sprint: indicator modules are flat today (`pyta/indicators/sma.py`, `rsi.py`). `pyta/batch.py` becomes a package, so `pyta.batch.trend` and `pyta.batch.momentum` can mirror the category namespaces.
+> Note: Indicator modules live in category subpackages (`pyta/indicators/<category>/<name>.py`), and `pyta/batch/` is a package mirroring the category namespaces. The convention for a new category is in `ARCHITECTURE.md` §5, "Adding a category".
 
 ### Tasks
 
 - [x] Decide the category layout for the indicator modules. *(2026-10-28: category subpackages, `pyta/indicators/<category>/<name>.py`, with thin `pyta/<category>.py` re-exports; see `.claude/memory.md`.)*
-- [ ] Expose category namespaces: `pyta.trend` and `pyta.momentum`.
-- [ ] Keep short-hand names (`pyta.sma`) pointing at the same implementation.
-- [ ] Mirror the namespaces under `pyta.batch`, turning `pyta/batch.py` into a package (`pyta.batch.trend`, `pyta.batch.momentum`).
-- [ ] Define the convention for adding a new category namespace.
-- [ ] Add tests confirming both styles return identical results.
-- [ ] Update `API.md` to mark the namespaces available.
+- [x] Expose category namespaces: `pyta.trend` and `pyta.momentum`.
+- [x] Keep short-hand names (`pyta.sma`) pointing at the same implementation.
+- [x] Mirror the namespaces under `pyta.batch`, turning `pyta/batch.py` into a package (`pyta.batch.trend`, `pyta.batch.momentum`).
+- [x] Define the convention for adding a new category namespace. *(`ARCHITECTURE.md` §5, "Adding a category"; guarded by `tests/python/test_namespaces.py`.)*
+- [x] Add tests confirming both styles return identical results.
+- [x] Update `API.md` to mark the namespaces available. *(§2 and §9.)*
 
 ### Acceptance criteria
 
