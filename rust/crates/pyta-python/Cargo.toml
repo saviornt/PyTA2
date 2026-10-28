@@ -15,3 +15,4 @@ numpy = { workspace = true }
 pyo3 = { workspace = true }
 pyta-core = { path = "../pyta-core" }
 pyta-engine = { path = "../pyta-engine" }
+rayon = { workspace = true }

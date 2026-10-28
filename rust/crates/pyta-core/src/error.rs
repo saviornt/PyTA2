@@ -4,22 +4,26 @@ use thiserror::Error;
 /// Errors shared across PyTA's Rust crates
 #[derive(Debug, Clone, Error, PartialEq)]
 pub enum PytaError {
-    #[error("input series must not be empty")]
+    #[error("input series is empty; provide at least one value")]
     EmptyInput,
 
-    #[error("input contains a non-finite value at index {index}")]
+    #[error(
+        "non-finite value (NaN or infinity) at index {index}; only leading NaN values are skipped"
+    )]
     NonFiniteValue { index: usize },
 
     #[error("input series have mismatched lengths")]
     LengthMismatch,
 
-    #[error("period must be greater than zero")]
+    #[error("period must be at least 1")]
     InvalidPeriod,
 
-    #[error("period {period} exceeds input length {length}")]
+    #[error(
+        "period ({period}) exceeds the series length ({length}); use a smaller period or provide more data"
+    )]
     PeriodExceedsLength { period: usize, length: usize },
 
-    #[error("insufficient data: {required} values required, got {length}")]
+    #[error("not enough data: at least {required} values are required, got {length}")]
     InsufficientData { required: usize, length: usize },
 
     #[error("invalid OHLCV data at index {index}: {reason}")]

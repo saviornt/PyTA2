@@ -1,6 +1,7 @@
 [workspace]
 resolver = "3"
 members = [
+    "rust/crates/pyta-common",
     "rust/crates/pyta-core",
     "rust/crates/pyta-momentum",
     "rust/crates/pyta-trend",

@@ -1,5 +1,7 @@
 // Numeric series and OHLCV input structures
 
+use pyta_common::VALIDATION_BLOCK_LEN;
+
 use crate::error::{PytaError, PytaResult};
 
 /// A validated, non-empty series of finite numerical values.
@@ -7,10 +9,6 @@ use crate::error::{PytaError, PytaResult};
 pub struct Series {
     values: Vec<f64>,
 }
-
-/// Elements checked per validation block. A block is small enough to
-/// stay in L1 cache between the check and the copy.
-const BLOCK: usize = 64;
 
 /// Returns `true` if every value in `block` is finite.
 ///
@@ -45,9 +43,9 @@ impl Series {
             return Err(PytaError::EmptyInput);
         }
 
-        for (number, block) in values.chunks(BLOCK).enumerate() {
+        for (number, block) in values.chunks(VALIDATION_BLOCK_LEN).enumerate() {
             if !block_is_finite(block) {
-                return Err(non_finite_error(block, number * BLOCK));
+                return Err(non_finite_error(block, number * VALIDATION_BLOCK_LEN));
             }
         }
 
@@ -66,9 +64,9 @@ impl Series {
         }
 
         let mut copy = Vec::with_capacity(values.len());
-        for (number, block) in values.chunks(BLOCK).enumerate() {
+        for (number, block) in values.chunks(VALIDATION_BLOCK_LEN).enumerate() {
             if !block_is_finite(block) {
-                return Err(non_finite_error(block, number * BLOCK));
+                return Err(non_finite_error(block, number * VALIDATION_BLOCK_LEN));
             }
             copy.extend_from_slice(block);
         }

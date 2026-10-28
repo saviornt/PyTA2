@@ -1,3 +1,4 @@
+use pyta_common::{RSI_NS_PER_ELEMENT, SMA_NS_PER_ELEMENT};
 use pyta_core::{IndicatorOutput, PytaResult};
 use pyta_momentum::rsi;
 use pyta_trend::sma;
@@ -18,8 +19,8 @@ pub(crate) fn dispatch(request: &IndicatorRequest) -> PytaResult<IndicatorOutput
 ///
 /// Used only by the planner to decide between sequential and concurrent
 /// execution, so relative accuracy matters more than absolute accuracy.
-/// The figures come from `benches/workloads.rs` on a 16-core development
-/// machine.
+/// The figures live in `pyta-common` (`costs.rs`), measured by
+/// `benches/workloads.rs` on a 16-core development machine.
 ///
 /// This match is exhaustive on purpose: adding an `IndicatorKind` fails
 /// to compile until it has a cost. When adding an indicator, benchmark
@@ -27,8 +28,8 @@ pub(crate) fn dispatch(request: &IndicatorRequest) -> PytaResult<IndicatorOutput
 /// algorithms) in its estimate.
 pub(crate) fn estimated_cost_ns(request: &IndicatorRequest) -> f64 {
     let ns_per_element = match request.kind {
-        IndicatorKind::Sma => 1.8,
-        IndicatorKind::Rsi => 3.0,
+        IndicatorKind::Sma => SMA_NS_PER_ELEMENT,
+        IndicatorKind::Rsi => RSI_NS_PER_ELEMENT,
     };
 
     request.input.len() as f64 * ns_per_element

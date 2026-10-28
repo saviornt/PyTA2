@@ -231,6 +231,25 @@ def test_period_larger_than_the_series_is_a_value_error() -> None:
         pyta.sma([1.0, 2.0, 3.0], period=5)
 
 
+@pytest.mark.parametrize("period", [0, -1, 2**31])
+def test_out_of_range_period_message_is_one_line(period: int) -> None:
+    with pytest.raises(ValueError, match=r"^period must be between 1 and \d+, got -?\d+$"):
+        pyta.sma(PRICES, period=period)
+
+
+def test_rsi_names_the_values_it_needs() -> None:
+    with pytest.raises(ValueError, match="at least 6 values"):
+        pyta.rsi([1.0, 2.0, 3.0], period=5)
+
+
+def test_errors_never_leak_library_internals() -> None:
+    with pytest.raises(TypeError, match="mixes records and numbers"):
+        pyta.sma('[{"close": 1.0}, 2.0]', period=1)
+
+    with pytest.raises(ValueError, match="nested sequences$"):
+        pyta.sma([1.0, [2.0, 3.0]], period=1)
+
+
 def test_column_is_rejected_for_inputs_without_columns() -> None:
     with pytest.raises(ValueError, match="column"):
         pyta.sma(PRICES, period=3, column="close")

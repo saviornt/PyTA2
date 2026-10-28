@@ -14,7 +14,7 @@ Build the extension in release mode first, or the numbers are meaningless:
         --manifest-path rust/crates/pyta-python/Cargo.toml
 
 Run:
-    uv run python benches/python/bench_boundary.py [indicator ...]
+    uv run python benches/python/bench_boundary.py [--quick] [indicator ...]
 
 To benchmark a new indicator, add one line to INDICATORS.
 """
@@ -24,7 +24,6 @@ import timeit
 from collections.abc import Callable
 
 import numpy as np
-
 import pyta
 from pyta import _native
 
@@ -36,6 +35,7 @@ INDICATORS: dict[str, int] = {
 
 SIZES = (100, 10_000, 1_000_000)
 REPEATS = 5
+QUICK_REPEATS = 2
 
 
 def format_time(seconds: float) -> str:
@@ -46,10 +46,10 @@ def format_time(seconds: float) -> str:
     return f"{seconds * 1e9:.1f} ns"
 
 
-def best_time(fn: Callable[[], object]) -> float:
+def best_time(fn: Callable[[], object], repeats: int = REPEATS) -> float:
     """Best-of-N time per call in seconds."""
     number, _ = timeit.Timer(fn).autorange()
-    return min(timeit.Timer(fn).repeat(REPEATS, number)) / number
+    return min(timeit.Timer(fn).repeat(repeats, number)) / number
 
 
 def random_walk(size: int) -> np.ndarray:
@@ -58,7 +58,10 @@ def random_walk(size: int) -> np.ndarray:
 
 
 def main() -> None:
-    names = sys.argv[1:] or list(INDICATORS)
+    args = sys.argv[1:]
+    quick = "--quick" in args
+    names = [arg for arg in args if arg != "--quick"] or list(INDICATORS)
+    repeats = QUICK_REPEATS if quick else REPEATS
 
     unknown = [name for name in names if name not in INDICATORS]
     if unknown:
@@ -68,7 +71,7 @@ def main() -> None:
         f"{'Indicator':<10} {'Size':>9} | {'public':>11} {'native':>11} "
         f"{'python':>11} | {'copy':>11}"
     )
-    print("\nPython boundary benchmark")
+    print("\nPython boundary benchmark" + (" (quick)" if quick else ""))
     print("=" * len(header))
     print(header)
     print("-" * len(header))
@@ -81,9 +84,9 @@ def main() -> None:
         for size in SIZES:
             data = random_walk(size)
 
-            t_public = best_time(lambda: public(data, period=period))
-            t_native = best_time(lambda: native(data, period))
-            t_copy = best_time(data.copy)
+            t_public = best_time(lambda: public(data, period=period), repeats)
+            t_native = best_time(lambda: native(data, period), repeats)
+            t_copy = best_time(data.copy, repeats)
 
             print(
                 f"{name:<10} {size:>9,} | {format_time(t_public):>11} "

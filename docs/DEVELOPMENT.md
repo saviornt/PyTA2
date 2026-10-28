@@ -16,7 +16,7 @@
 1. **Build a vertical slice first.** Each sprint should produce something that runs and can be tested, not just scaffolding.
 2. **Rust owns the calculations.** Indicator formulas, numerical processing, concurrency, and performance-critical work live in Rust.
 3. **Python owns the user experience.** Python accepts the user's container, cleans, validates, and normalizes it, sends clean arrays to Rust, and returns results in the same kind of container. Users should never have to convert to a container type they didn't choose.
-4. **Concurrency is transparent.** Users never need `asyncio` or threads. The engine chooses between direct execution and Tokio/Rayon batch execution, so concurrency overhead is only paid when it helps.
+4. **Concurrency is transparent.** Users never need `asyncio` or threads. The engine chooses between direct execution, sequential batches, and Rayon-parallel batches, so concurrency overhead is only paid when it helps.
 5. **Test from the outside.** A separate project (`PyTA-Integration`) verifies PyTA from an external user's point of view.
 6. **Correctness before optimization.** Establish trusted results and benchmarks first; every optimization needs a measured justification.
 7. **One shared architecture.** New indicators fit the existing crates, engine, and Python call path rather than requiring new infrastructure.
@@ -105,7 +105,7 @@
 - The API can accommodate additional indicators without changing the foundational data contracts.
 
 **Retrospective:**  
-**Sprint completion:** ☐
+**Sprint completion:** ✓
 
 ---
 
@@ -135,7 +135,7 @@
 - The behavior for warm-up values is explicitly documented.
 
 **Retrospective:**  
-**Sprint completion:** ☐
+**Sprint completion:** ✓
 
 ---
 
@@ -164,7 +164,7 @@
 - Adding RSI has not required duplicating the core validation or packaging architecture.
 
 **Retrospective:**  
-**Sprint completion:** ☐
+**Sprint completion:** ✓
 
 ---
 
@@ -193,7 +193,7 @@
 - Indicator formulas are not reimplemented in Python.
 
 **Retrospective:**  
-**Sprint completion:** ☐
+**Sprint completion:** ✓
 
 ---
 
@@ -206,7 +206,7 @@
 - [x] Define a common indicator request model.
 - [x] Implement dispatch from the engine to the appropriate indicator crate.
 - [x] Implement the direct path (`execute_direct`) for a single dataset, with panics caught and returned as errors.
-- [x] Implement the batch path (`execute_batch`) using Tokio for coordination and Rayon for CPU work, with bounded concurrency.
+- [x] Implement the batch path: Rayon `par_iter` (`execute_parallel`), with an async front door (`execute_batch`) for async callers. (Originally Tokio tasks per request; replaced after benchmarks showed Rayon alone was up to 10x faster.)
 - [x] Implement the planner that chooses sequential or concurrent execution from estimated cost.
 - [x] Define deterministic result ordering and a stable result structure.
 - [x] Isolate failures so one failed request never cancels the others.
@@ -222,7 +222,7 @@
 - A new indicator cannot be added without a dispatch arm and a cost estimate.
 
 **Retrospective:**  
-**Sprint completion:** ☐
+**Sprint completion:** ✓
 
 ---
 
@@ -232,14 +232,16 @@
 
 ### Tasks
 
-- [ ] Bind `execute_batch` in `pyta-python`, releasing the GIL.
-- [ ] Add `pyta.batch` mirroring the top-level indicator functions.
-- [ ] Accept a list or a mapping of datasets, each in any supported container.
-- [ ] Return results in the same shape and order, each in its own input's container type.
-- [ ] Return a result for every dataset; a failed dataset is represented by the exception explaining why, in the same position or under the same key.
-- [ ] Add tests for list and mapping input, mixed containers, ordering, and partial failures.
-- [ ] Add a Python-level benchmark for batch calls.
-- [ ] Document the batch API and error policy in `API.md`.
+- [x] Bind `execute_batch` in `pyta-python`, releasing the GIL.
+- [x] Add `pyta.batch` mirroring the top-level indicator functions.
+- [x] Accept a list or a mapping of datasets, each in any supported container.
+- [x] Return results in the same shape and order, each in its own input's container type.
+- [x] Return a result for every dataset; a failed dataset is represented by the exception explaining why, in the same position or under the same key.
+- [x] Add tests for list and mapping input, mixed containers, ordering, and partial failures.
+- [x] Add a Python-level benchmark for batch calls (`benches/python/bench_batch.py`).
+- [x] Document the batch API and error policy in `API.md`.
+- [x] Benchmark the batch scheduling options (Tokio per request, Tokio one hop, Rayon, chunked Rayon, per-call runtime) and keep the fastest: plain Rayon.
+- [x] Make parallel batches safe after `fork()` (own Rayon pool rebuilt in the child; `tests/python/test_fork.py`).
 
 ### Acceptance criteria
 
@@ -249,7 +251,7 @@
 - Batch and single calls share the same Rust kernels and validation.
 
 **Retrospective:**  
-**Sprint completion:** ☐
+**Sprint completion:** ✓
 
 ---
 
@@ -287,6 +289,7 @@
 - [ ] Detect the container and identify column roles automatically (open, high, low, close, volume).
 - [ ] Ignore columns an indicator does not need.
 - [ ] Support an explicit `columns=[...]` override.
+- [ ] Keep column roles open-ended (not hard-coded to OHLCV), so fundamental roles such as `eps`, `book_value`, `sales`, `dividends`, and `ebitda` can be added for valuation indicators without redesigning the role system.
 - [ ] Raise a `ValueError` that names the required columns and the available columns when a role cannot be found.
 - [ ] Return results in the input's container type.
 - [ ] Add tests across every supported container, including extra columns and overrides.
@@ -467,7 +470,7 @@
 
 ### Tasks
 
-- [ ] Prioritize additional categories: Volatility, Volume, and Valuation.
+- [ ] Prioritize additional categories: Volatility, Volume, and Valuation (see [Valuation plan](#valuation-plan)).
 - [ ] Create each new category as a separate `pyta-<category>` crate and Python namespace.
 - [ ] Reuse the shared core and engine contracts.
 - [ ] Implement and validate the first indicator in each new category.
@@ -484,6 +487,35 @@
 
 **Retrospective:**  
 **Sprint completion:** ☐
+
+---
+
+### Valuation plan
+
+Valuation indicators come in three kinds, and only the first two belong in PyTA.
+
+| Kind | Indicators | Inputs | When |
+|---|---|---|---|
+| Price-relative | Mayer Multiple, Z-Score | Price only | With the first Valuation work; uses the existing single-series API |
+| Fundamental multiples | P/E (TTM), Earnings Yield, P/B, P/S, Dividend Yield, EV/EBITDA, PEG | Price plus per-share fundamentals | After Sprint 9 (multi-column input) |
+| Absolute models | DCF, DDM, Residual Income, Justified P/E, Comparables, CAPE | Forecasts, discount rates, peer sets, CPI history | *Future*; single values from assumptions, not time series |
+
+#### Tasks
+
+- [ ] Create the `pyta-valuation` crate and the `pyta.valuation` namespace.
+- [ ] Mayer Multiple: `mayer_multiple(data, period=200)` = price ÷ SMA(`period`). Reuse the SMA kernel. Document the 2.4 / 0.8 bands as Bitcoin-calibrated conventions, not rules.
+- [ ] Z-Score: `zscore(data, period)` = (price − rolling mean) ÷ rolling standard deviation. Decide population vs sample standard deviation and document it. A zero standard deviation gives `NaN`.
+- [ ] Ratio kernel shared by the fundamental multiples: element-wise division, with a zero or negative denominator giving `NaN` (P/E is undefined for losses). Earnings Yield (EPS ÷ price) stays defined for negative earnings.
+- [ ] Align fundamentals to prices in Python with an as-of join (carry the last published value forward), using NumPy `searchsorted` on `datetime64` so pandas stays optional. Inputs without an index must already be aligned.
+- [ ] TTM: decide whether callers pass trailing-twelve-month values or PyTA provides a `ttm()` helper (sum of the last four quarters).
+- [ ] EV/EBITDA: EV = market cap + debt + preferred + minority interest − cash. Decide whether to accept EV directly or its components.
+- [ ] PEG: P/E ÷ growth rate, with growth supplied by the caller. Never estimate it.
+- [ ] Output names: extend the `<indicator>_<period>` convention with a no-period form for ratios (`pe`, `pb`, `ev_ebitda`).
+
+#### Rules
+
+- **No look-ahead bias.** Fundamentals must be dated by when they were published (filing date), not by fiscal period end. PyTA can't infer filing dates, so the API docs must state this requirement for every fundamental indicator.
+- PyTA never fetches fundamentals; it only accepts them (see Note 2 at the top of this plan).
 
 ---
 
@@ -518,7 +550,7 @@ Once the first two indicators are complete, each additional indicator follows th
 - [ ] Write reference and edge-case tests.
 - [ ] Implement the calculation in its category crate.
 - [ ] Validate Rust results against the reference.
-- [ ] Add engine dispatch and a benchmarked cost estimate.
+- [ ] Add engine dispatch and a benchmarked cost estimate (a named constant in `pyta-common`'s `costs.rs`).
 - [ ] Expose the indicator through the Python package (short-hand and category namespace).
 - [ ] Add the batch variant.
 - [ ] Test every supported container type.

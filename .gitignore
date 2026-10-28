@@ -22,3 +22,9 @@ dist/
 
 # Local development and temporary files
 /fixes/
+
+# Claude
+.claude/
+
+# Testing results
+results/

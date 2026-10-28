@@ -23,7 +23,7 @@ rsi = pyta.rsi(close, period=3)
 | Short-hand | `pyta.sma(...)` | Available |
 | By category | `pyta.trend.sma(...)`, `pyta.momentum.rsi(...)` | *Planned* |
 
-Both styles call the same implementation. The category modules currently live at `pyta.indicators.trend` and `pyta.indicators.momentum`; exposing them as `pyta.trend` and `pyta.momentum` is planned. `pyta._native` is internal and not part of the API.
+Both styles call the same implementation. Each indicator lives in its own module under `pyta.indicators` (for example `sma.py`, holding both the single call and the batch call); exposing category namespaces as `pyta.trend` and `pyta.momentum` is planned. `pyta._native` is internal and not part of the API.
 
 ## 3. Indicators
 
@@ -32,7 +32,7 @@ Both styles call the same implementation. The category modules currently live at
 | `sma` | Trend | `sma(data, period, *, column=None)` |
 | `rsi` | Momentum | `rsi(data, period=14, *, column=None)` |
 
-`period` is required for `sma`. `column` selects a column for inputs that have columns (see [Input containers](#4-input-containers)).
+`period` is required for `sma`. `column` selects a column for inputs that have columns (see [Column selection](#column-selection)); `None` means the indicator's default column, which is `close` for both. Each indicator has a page in the [indicator wiki](indicators/): [SMA](indicators/trend/sma.md), [RSI](indicators/momentum/rsi.md).
 
 ### SMA (Simple Moving Average)
 
@@ -76,15 +76,27 @@ Details:
 
 For DataFrame, dict, and JSON-object or record input, PyTA picks the column to use:
 
-1. If you pass `column=`, that column is used.
+1. If you pass `column=`, that column is used. The name must be a standard column name (see the table below), so code reads the same on every data source; any other name raises `ValueError`, and so does a standard name the input does not have.
 2. Otherwise, if there is only one column, it is used.
-3. Otherwise PyTA looks for `close` (also `closing`, `close_price`, `closing_price`).
+3. Otherwise PyTA looks for the indicator's **default column**. `sma` and `rsi` default to `close`; an indicator that works on something else (for example a volume average) declares its own default.
 
-Names ignore case and surrounding whitespace, so `" Close "` matches `"close"`. Two names that are identical after this normalization are rejected as ambiguous. Passing `column=` with input that has no columns (list, tuple, array, Series, JSON array of numbers) raises `ValueError`.
+Names ignore case, whitespace, and the separators `.`, `_` and `-`, so `" Close "`, `"Adj_Close"` and `"adj.close"` all match as written. A name also matches the aliases of its column role:
+
+| Role | Names that match |
+|---|---|
+| `open` | `open`, `opening`, `open_price`, `opening_price`, `o` |
+| `high` | `high`, `highest`, `high_price`, `highest_price`, `h` |
+| `low` | `low`, `lowest`, `low_price`, `lowest_price`, `l` |
+| `close` | `close`, `closing`, `close_price`, `closing_price`, `c` |
+| `adj_close` | `adj_close`, `adjusted_close`, `adj_close_price`, `adjusted_close_price`, `adj_closing`, `adjusted_closing` (any spelling of the separators, such as `Adj Close`) |
+| `volume` | `volume`, `volumes`, `vol`, `v` |
+
+A role matches only its own aliases: asking for `close` never falls back to the adjusted close, and a column named exactly as you wrote it wins over an alias. Two names that are identical after this normalization (for example `"Adj_Close"` and `"adj close"`) are rejected as ambiguous. The input's own columns may be named anything; only the name you ask for is restricted. If your columns use other names, rename them first (`df.rename(columns={"px": "close"})`). An input with a single column needs no `column=` at all, which is what lets one indicator's output feed the next. Passing `column=` with input that has no columns (list, tuple, array, Series, JSON array of numbers) raises `ValueError`.
 
 ```python
-pyta.sma(df, period=20)                  # uses the "close" column
-pyta.sma(df, period=20, column="open")   # uses the "open" column
+pyta.sma(df, period=20)                          # the "close" column
+pyta.sma(df, period=20, column="open")           # the "open" column
+pyta.sma(df, period=20, column="adjusted close") # the "Adj Close" column
 ```
 
 ## 5. Output conventions
@@ -115,24 +127,30 @@ PyTA uses built-in exceptions, and every exception carries a message that explai
 
 ```python
 >>> pyta.sma([1.0, 2.0, 3.0], period=5)
-ValueError: period (5) exceeds the series length (3); sma needs at least 5 values
+ValueError: period (5) exceeds the series length (3); use a smaller period or provide more data
+
+>>> pyta.rsi([1.0, 2.0, 3.0], period=5)
+ValueError: not enough data: at least 6 values are required, got 3
 
 >>> pyta.sma([1.0, float("nan"), 3.0, 4.0], period=2)
-ValueError: non-finite value (nan) at index 1; only leading NaN values are skipped
+ValueError: non-finite value (NaN or infinity) at index 1; only leading NaN values are skipped
 
->>> pyta.sma(df, period=20)   # df has no recognizable close column
-ValueError: no "close" column found; available columns: ["px", "vol"]. Pass column= to choose one
+>>> pyta.sma(df, period=20)   # df has columns "px" and "vol"
+ValueError: no 'close' column found; available columns: 'px', 'vol'. Pass column= to choose one
+
+>>> pyta.sma([1.0, 2.0, 3.0], period=0)
+ValueError: period must be between 1 and 2147483647, got 0
 
 >>> pyta.sma([1.0, 2.0, 3.0], period="14")
 TypeError: period must be an integer, got str
 ```
 
-The examples show the intended style; exact wording may change between releases, so catch the exception type rather than matching message text.
+The examples show the current wording, which may change between releases, so catch the exception type rather than matching message text.
 
 | Exception | Raised for |
 |---|---|
-| `TypeError` | Unsupported container or dtype (strings, booleans, complex numbers), non-integer `period` (including `bool`), non-string `column`, JSON of the wrong shape |
-| `ValueError` | `period` outside `1` to `2**31 - 1`, period larger than the series (`sma`) or fewer than `period + 1` values (`rsi`), empty or non-finite input, multidimensional or ragged input, invalid JSON, a missing or ambiguous column, `column=` on input without columns |
+| `TypeError` | Unsupported container or dtype (strings, booleans, complex numbers), DataFrames with MultiIndex columns, non-integer `period` (including `bool`), non-string `column`, JSON of the wrong shape (including arrays that mix records and numbers) |
+| `ValueError` | `period` outside `1` to `2**31 - 1`, period larger than the series (`sma`) or fewer than `period + 1` values (`rsi`), empty input or input with no valid values, a non-finite value after the first valid value, multidimensional or ragged input, invalid JSON, a missing or ambiguous column, `column=` on input without columns |
 | `RuntimeError` | An internal calculation failure |
 
 NumPy integers are accepted as `period`.
@@ -143,7 +161,7 @@ PyTA's functions are ordinary synchronous calls. The native boundary releases th
 
 ---
 
-## 9. Batch calculation *(planned)*
+## 9. Batch calculation
 
 Apply one indicator to many datasets in a single call. The engine decides internally whether to run them sequentially or concurrently.
 
@@ -151,9 +169,10 @@ Apply one indicator to many datasets in a single call. The engine decides intern
 results = pyta.batch.sma(datasets, period=14)
 ```
 
-- `pyta.batch` mirrors the top-level indicator functions, with the same names and parameters.
-- `datasets` can be a **list** or a **mapping** (for example, ticker to data). Each dataset can be any supported container, and the result has the same shape and order as the input, with each result in its own input's container type.
-- **A failure never cancels the others.** Each dataset gets a result. A dataset that fails is represented by the exception that explains why, in the same position or under the same key, so you can see which dataset failed and the reason.
+- `pyta.batch` mirrors the top-level indicator functions (`pyta.batch.sma`, `pyta.batch.rsi`), with the same names and parameters. One call applies one indicator.
+- `datasets` can be a **list** or a **mapping** (for example, ticker to data); anything else raises `TypeError`. Each dataset can be any supported container, and the result has the same shape and order as the input, with each result in its own input's container type. An empty list or mapping returns an empty one.
+- `period` and `column` are shared by every dataset. An invalid `period` or `column` raises, because it affects the whole call.
+- **A failure never cancels the others.** Each dataset gets a result. A dataset that fails is represented by the exception that explains why, in the same position or under the same key, so you can see which dataset failed and the reason. This covers malformed datasets (unsupported type, missing column, a `NaN` after the first valid value) as well as calculation errors (such as a period longer than the series). Fix the dataset and call again.
 
 ```python
 results = pyta.batch.sma({"AAPL": aapl, "MSFT": msft}, period=14)
@@ -172,11 +191,16 @@ atr = pyta.atr(df, period=14)
 ```
 
 - **Automatic selection.** PyTA matches column names to the roles an indicator needs. If you pass more columns than needed (for example all of open, high, low, close, and volume), the extras are ignored.
-- **Explicit override.** `columns=[...]` names the columns to use, in the order listed in the indicator's documentation:
+- **Explicit override.** `columns=[...]` names the columns to use. Names follow the same matching rules as `column=` (case, separators, aliases), and the order you list them in does not matter: PyTA assigns each name to the indicator's input slot for its role.
 
   ```python
-  pyta.atr(df, period=14, columns=["H", "L", "C"])
+  pyta.atr(df, period=14, columns=["high", "low", "adj close"])
+  pyta.atr(df, period=14, columns=["adj close", "low", "high"])   # same result
   ```
+
+  Each indicator defines its own slots and the roles each slot accepts (ATR's `close` slot takes `close` or `adj_close`). The call raises `ValueError`, naming what the indicator needs, when a name is not a recognized role, when two names fill the same slot, or when a slot is left empty or the count is wrong. If your columns have custom names, rename them first or use the plain `df`.
+- **Unnamed inputs.** A 2-D array or a tuple of arrays has no names, so its columns are taken in the order documented for the indicator.
+- `column=` is for single-column indicators and `columns=` for multi-column ones; passing the wrong one raises `ValueError`.
 
 - **Missing data.** If a required column can't be found, a `ValueError` names what the indicator requires and which columns were available, so you don't have to know in advance what an indicator needs.
 - Each indicator's documentation lists its required inputs.
@@ -202,4 +226,4 @@ PyTA does not depend on any data provider. It accepts the data types that provid
 
 ## 13. Indicator catalog
 
-See the [README](../README.md#indicators) for implemented and planned indicators. Every indicator will follow the conventions in this document.
+See the [README](../README.md#indicators) for implemented and planned indicators, and [`docs/indicators/`](indicators/) for one page per implemented indicator. Every indicator will follow the conventions in this document.

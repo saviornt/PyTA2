@@ -48,11 +48,12 @@ Outputs have the same length as the input, with `NaN` for the warm-up period. In
 smoothed_rsi = pyta.sma(pyta.rsi(close, period=14), period=5)
 ```
 
-With a pandas DataFrame, the `close` column is used by default (names ignore case and surrounding whitespace). Use `column=` to pick another:
+With a pandas DataFrame, an indicator uses its default column (`close` for SMA and RSI). Names ignore case, whitespace and `. _ -`, and common aliases match (`Adj Close`, `adjusted_close`, `Vol`, `o`/`h`/`l`/`c`). Use `column=` to pick another:
 
 ```python
 result = pyta.sma(df, period=20)                  # DataFrame with an "sma_20" column
 result = pyta.sma(df, period=20, column="open")
+result = pyta.sma(df, period=20, column="adj close")
 ```
 
 ## Indicators
@@ -61,8 +62,8 @@ result = pyta.sma(df, period=20, column="open")
 
 | Category | Indicator |
 |---|---|
-| Trend | Simple Moving Average (`sma`) |
-| Momentum | Relative Strength Index (`rsi`, Wilder's smoothing) |
+| Trend | [Simple Moving Average](docs/indicators/trend/sma.md) (`sma`) |
+| Momentum | [Relative Strength Index](docs/indicators/momentum/rsi.md) (`rsi`, Wilder's smoothing) |
 
 ### Planned
 
@@ -81,7 +82,9 @@ ATR, Bollinger Bands, Keltner Channels, Donchian Channels, Standard Deviation
 OBV, VWAP, Accumulation/Distribution, Chaikin Money Flow, Volume Rate of Change
 
 **Valuation Indicators**
-To be determined
+Mayer Multiple, Z-Score, P/E(TTM), Earnings Yield, P/B, P/S, Dividend Yield, EV/EBITDA, PEG
+*Future*: DCF, DDM, Residual Income, Justified P/E, Comparables, CAPE
+
 
 ## Data Providers
 
@@ -89,17 +92,19 @@ On release, PyTA will initally support the data formats returned by both **yFina
 
 ## Development
 
-Run the full check suite (Rust formatting, Clippy, Rust tests, extension build, pytest, and Ruff):
+Run the full check suite (Rust formatting, which it fixes first, Clippy, Rust tests, extension build, smoke test, pytest, and Ruff):
 
 ```bash
 ./scripts/test-suite.sh
 ```
 
-Quick build and smoke test:
+Run benchmarks (`--single`, `--batch`, or `--all`; add `--rust`, `--python`, `--indicator NAME`, or `--quick` to narrow it):
 
 ```bash
-./scripts/rebuild-and-run.sh
+./scripts/benchmark.sh --all
 ```
+
+Each script prints its progress and writes a timestamped report, with a summary at the top and the full output below, to `tests/results/` or `benches/results/`. Compare reports over time to see what changed. See [`scripts/README.md`](scripts/README.md) for all options.
 
 Project design and plans live in [`docs/`](docs/).
 

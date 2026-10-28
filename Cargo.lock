@@ -481,9 +481,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "pyta-common"
+version = "0.2.0"
+
+[[package]]
 name = "pyta-core"
 version = "0.2.0"
 dependencies = [
+ "pyta-common",
  "thiserror",
 ]
 
@@ -492,6 +497,7 @@ name = "pyta-engine"
 version = "0.2.0"
 dependencies = [
  "criterion",
+ "pyta-common",
  "pyta-core",
  "pyta-momentum",
  "pyta-trend",
@@ -514,6 +520,7 @@ dependencies = [
  "pyo3",
  "pyta-core",
  "pyta-engine",
+ "rayon",
 ]
 
 [[package]]

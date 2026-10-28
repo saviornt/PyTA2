@@ -6,7 +6,13 @@ edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
 
+[lib]
+# The library has no benchmarks; without this, `cargo bench` runs its unit-test
+# harness, which rejects Criterion flags such as `--noplot`.
+bench = false
+
 [dependencies]
+pyta-common = { path = "../pyta-common" }
 pyta-core = { path = "../pyta-core" }
 pyta-momentum = { path = "../pyta-momentum" }
 pyta-trend = { path = "../pyta-trend" }

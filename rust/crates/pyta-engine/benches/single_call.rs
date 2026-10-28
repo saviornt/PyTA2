@@ -2,22 +2,49 @@ use std::hint::black_box;
 use std::time::Duration;
 
 use criterion::{BatchSize, BenchmarkId, Criterion, SamplingMode, criterion_group, criterion_main};
-use pyta_core::Series;
+use pyta_common::{LARGE_INPUT_LEN, SINGLE_CALL_SIZES};
+use pyta_core::{IndicatorOutput, PytaResult, Series};
 use pyta_engine::{IndicatorKind, IndicatorRequest, execute_batch, execute_direct};
+use pyta_momentum::rsi;
 use pyta_trend::sma;
 use tokio::runtime::Builder;
+
+type Kernel = fn(&Series, usize) -> PytaResult<IndicatorOutput>;
+
+/// Every indicator measured here: its label, engine kind, kernel, and period.
+/// To benchmark a new indicator, add one line.
+const INDICATORS: [(&str, IndicatorKind, Kernel, usize); 2] = [
+    ("sma", IndicatorKind::Sma, sma, 20),
+    ("rsi", IndicatorKind::Rsi, rsi, 14),
+];
 
 fn single_call(c: &mut Criterion) {
     // Built once, like the OnceLock runtime in pyta-python.
     let runtime = Builder::new_multi_thread().enable_all().build().unwrap();
-    let mut group = c.benchmark_group("sma_single");
 
-    for n in [100, 1_000, 10_000, 100_000, 1_000_000] {
+    for (label, kind, kernel, period) in INDICATORS {
+        single_call_for(c, &runtime, label, kind, kernel, period);
+    }
+}
+
+/// Measures one indicator at every single-call size, from the raw kernel up
+/// to the full engine path.
+fn single_call_for(
+    c: &mut Criterion,
+    runtime: &tokio::runtime::Runtime,
+    label: &str,
+    kind: IndicatorKind,
+    kernel: Kernel,
+    period: usize,
+) {
+    let mut group = c.benchmark_group(format!("{label}_single"));
+
+    for n in SINGLE_CALL_SIZES {
         let data: Vec<f64> = (0..n).map(|i| (i as f64).sin()).collect();
         let series = Series::new(data.clone()).unwrap();
 
         // Slow sizes: flat sampling and a longer window to avoid the 5s warning
-        if n >= 1_000_000 {
+        if n >= LARGE_INPUT_LEN {
             group.sampling_mode(SamplingMode::Flat);
             group.measurement_time(Duration::from_secs(10));
         } else {
@@ -45,19 +72,19 @@ fn single_call(c: &mut Criterion) {
         });
 
         group.bench_with_input(BenchmarkId::new("kernel", n), &series, |b, s| {
-            b.iter(|| sma(black_box(s), 20).unwrap());
+            b.iter(|| kernel(black_box(s), period).unwrap());
         });
 
         group.bench_with_input(BenchmarkId::new("engine", n), &series, |b, s| {
             b.iter_batched(
-                || IndicatorRequest::new(IndicatorKind::Sma, s.clone(), 20),
+                || IndicatorRequest::new(kind, s.clone(), period),
                 |request| runtime.block_on(execute_batch(vec![request])),
                 BatchSize::LargeInput,
             );
         });
 
         group.bench_with_input(BenchmarkId::new("direct", n), &series, |b, s| {
-            let request = IndicatorRequest::new(IndicatorKind::Sma, s.clone(), 20);
+            let request = IndicatorRequest::new(kind, s.clone(), period);
             b.iter(|| execute_direct(black_box(&request)).unwrap());
         });
     }

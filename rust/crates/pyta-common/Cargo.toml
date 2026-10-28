@@ -1,0 +1,7 @@
+[package]
+name = "pyta-common"
+description = "Tunable constants shared across the PyTA crates, benchmarks, and tests"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true

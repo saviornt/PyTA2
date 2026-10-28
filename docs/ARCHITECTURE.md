@@ -16,7 +16,7 @@ PyTA is a technical-analysis library: a Python API that cleans and validates use
 
 ### Core rule
 
-> Indicator formulas belong in their category crate. Shared contracts belong in `pyta-core`. Execution policy belongs in `pyta-engine`. Python/Rust conversion belongs in `pyta-python`. Data cleaning, validation, and container handling belong in the Python package.
+> Indicator formulas belong in their category crate. Tunable constants belong in `pyta-common`. Shared contracts belong in `pyta-core`. Execution policy belongs in `pyta-engine`. Python/Rust conversion belongs in `pyta-python`. Data cleaning, validation, and container handling belong in the Python package.
 
 ---
 
@@ -26,7 +26,9 @@ PyTA is a technical-analysis library: a Python API that cleans and validates use
 PyTA/
 ├── .github/workflows/          # CI and release automation
 ├── benches/
-│   └── python/bench_boundary.py    # Python-boundary benchmark
+│   ├── python/bench_boundary.py    # Single-call Python-boundary benchmark
+│   ├── python/bench_batch.py       # pyta.batch vs a loop of single calls
+│   └── results/                    # Timestamped benchmark reports
 ├── docs/
 │   ├── ARCHITECTURE.md             # This document
 │   ├── API.md                      # Public API reference
@@ -35,6 +37,7 @@ PyTA/
 │   └── pyta/
 │       ├── __init__.py             # Public exports
 │       ├── _api.py                 # Shared execution boundary
+│       ├── batch.py                # pyta.batch namespace; re-exports only
 │       ├── _async.py               # Placeholder; deferred
 │       ├── _native.pyi             # Type stubs for the extension
 │       ├── _types.py               # Internal types
@@ -42,18 +45,20 @@ PyTA/
 │       ├── py.typed
 │       └── indicators/
 │           ├── __init__.py
-│           ├── trend.py
-│           └── momentum.py
+│           ├── sma.py              # sma() and sma_batch()
+│           └── rsi.py              # rsi() and rsi_batch()
 ├── rust/crates/
+│   ├── pyta-common/                # Tunable constants (no logic, no dependencies)
 │   ├── pyta-core/                  # Shared types, validation, errors
 │   ├── pyta-engine/                # Requests, dispatch, planning, execution
 │   ├── pyta-trend/                 # Trend indicators
 │   ├── pyta-momentum/              # Momentum indicators
 │   └── pyta-python/                # PyO3 bridge (pyta._native)
-├── scripts/                        # Build, test, and benchmark scripts
+├── scripts/                        # test-suite.sh, benchmark.sh, benchmark_summary.py, README.md
 ├── tests/
 │   ├── python/                     # Public-API tests
 │   ├── reference/                  # Comparisons with trusted references
+│   ├── results/                    # Timestamped test-suite reports
 │   └── smoke/                      # Quick build-and-run check
 ├── Cargo.toml                      # Rust workspace root
 ├── pyproject.toml                  # Python packaging (Maturin)
@@ -94,16 +99,30 @@ User receives results in the container type they supplied
 
 ### Dependency rules
 
-1. `pyta-core` depends on no other PyTA crate.
-2. Category crates depend only on `pyta-core`.
-3. `pyta-engine` depends on `pyta-core` and the category crates it dispatches to.
-4. `pyta-python` is the only crate that depends on PyO3 and NumPy.
-5. The Python package must not reimplement indicator formulas.
-6. Production code never depends on test-only code. Avoid circular dependencies; move shared contracts to the lowest layer that needs them.
+1. `pyta-common` depends on nothing.
+2. `pyta-core` depends only on `pyta-common`.
+3. Category crates depend only on `pyta-core` (and may use `pyta-common`).
+4. `pyta-engine` depends on `pyta-common`, `pyta-core`, and the category crates it dispatches to.
+5. `pyta-python` is the only crate that depends on PyO3 and NumPy.
+6. The Python package must not reimplement indicator formulas.
+7. Production code never depends on test-only code. Avoid circular dependencies; move shared contracts to the lowest layer that needs them.
 
 ---
 
 ## 4. Rust crates
+
+### `pyta-common`: tunable constants
+
+One place to adjust values while tuning, shared by the engine, benchmarks, and tests. It holds only documented `pub const`s and no logic.
+
+| File | Contents |
+|---|---|
+| `scheduling.rs` | Concurrent-engine overheads used by the planner |
+| `costs.rs` | Estimated ns per element for each indicator |
+| `limits.rs` | Batch concurrency cap and validation block length |
+| `benchmarks.rs` | Benchmark input sizes and sample counts, and the worker count assumed by planner tests |
+
+Values that define an algorithm (for example RSI's 0 to 100 scale) stay with their formula.
 
 ### `pyta-core`: shared contracts
 
@@ -140,26 +159,32 @@ New categories (volatility, volume, valuation) are added as new `pyta-<category>
 |---|---|
 | `requests.rs` | `IndicatorKind`, `IndicatorRequest`, `IndicatorResult`, `IndicatorStatus` |
 | `dispatch.rs` | Routes a request to its kernel; holds each indicator's estimated cost |
-| `execution.rs` | `execute_direct` and the Rayon-backed `execute` |
-| `batch.rs` | `execute_sequential` and `execute_batch` |
-| `planner.rs` | `should_parallelize`: predicts whether concurrency beats sequential execution |
+| `execution.rs` | `execute_direct`: one request on the calling thread, panics caught |
+| `batch.rs` | `execute_sequential`, `execute_parallel` (Rayon), and `execute_batch` (async front door) |
+| `planner.rs` | `should_parallelize`: predicts whether parallel execution beats sequential execution |
 
 The engine has two execution paths. Both use the same `dispatch`, so results are identical.
 
-**Direct path (`execute_direct`).** For a single dataset. Runs the kernel on the calling thread with no Tokio, Rayon, or channel overhead. A panic inside a kernel is caught and returned as `ExecutionFailed`.
+**Direct path (`execute_direct`).** For a single dataset. Runs the kernel on the calling thread with no thread-pool or channel overhead. A panic inside a kernel is caught and returned as `ExecutionFailed`.
 
-**Batch path (`execute_batch`).** For multiple datasets. Each request is spawned on a Tokio `JoinSet`, bounded by a semaphore (`min(available workers, 32, batch length)`), and its CPU work is handed to Rayon. Results come back in input order, and a failed request never cancels the others.
+**Batch path (`execute_parallel`).** For multiple datasets. Rayon `par_iter` runs `execute_direct` over the requests: Rayon owns the worker threads, splits the batch, and balances the load. Results come back in input order, and a failed request never cancels the others. `execute_sequential` is the same loop on the calling thread.
 
-**Planner.** Concurrency has a fixed cost, so it only helps when there is enough work. `should_parallelize` estimates each request's cost (from `estimated_cost_ns`, measured by the Criterion benchmarks), adds the scheduling overhead, and chooses concurrent execution only when it predicts a win. Single requests, tiny requests, and small batches run sequentially via `execute_sequential`.
+**Async front door (`execute_batch`).** For async Rust callers. It moves the whole batch to a blocking thread in one hop and runs `execute_parallel`, so Tokio never schedules individual requests and no second calculation path exists. The Python API is synchronous and does not use it; it exists for a future Python `await` API.
+
+*Why not Tokio per request?* Benchmarks showed Tokio adds a task spawn, semaphore, channel, and wake-ups per request (about 1 ms per 1,000 requests), while nothing here waits on I/O. For 1,000 datasets of 100 points, Rayon took about 90 µs against about 1 ms for per-request Tokio tasks.
+
+**Planner.** Parallel execution has a fixed cost, so it only helps when there is enough work. `should_parallelize(requests, workers)` estimates each request's cost (from `estimated_cost_ns`), adds the scheduling overhead, caps the expected speed-up (`MAX_PARALLEL_SPEEDUP`), and chooses parallel execution only when it predicts a win. Single requests and small batches run sequentially via `execute_sequential`. All constants live in `pyta-common`.
 
 Adding an `IndicatorKind` fails to compile until it has a dispatch arm and a cost estimate. When adding an indicator, benchmark it and include any dependence on `period` in its estimate.
 
 ### `pyta-python`: native bridge
 
-- Registers `pyta._native` and its functions (`sma`, `rsi`).
+- Registers `pyta._native` and its functions (`sma`, `rsi`, `sma_batch`, `rsi_batch`).
+- `lib.rs` only declares modules and registers functions. `error.rs` maps errors to exceptions, `single.rs` and `batch.rs` hold the shared conversion and execution plumbing, and each indicator's bindings live in a file named after it (`sma.rs`, `rsi.rs`).
 - Accepts a read-only 1-D `float64` NumPy array, copies it once, releases the GIL, runs the engine, and returns a NumPy array.
 - Maps `PytaError::ExecutionFailed` to `RuntimeError` and every other error to `ValueError`.
-- Today the bridge calls `execute_direct`. Binding `execute_batch` for `pyta.batch` is *(planned)*.
+- Single calls use `execute_direct`; batch calls use the planner, then `execute_sequential` or `execute_parallel` (see §6).
+- Parallel batches run on PyTA's own Rayon pool (`batch.rs`), built on first use and rebuilt in a forked child, because a child process does not inherit its parent's worker threads and work sent to an inherited pool would wait forever. `tests/python/test_fork.py` covers this.
 
 ---
 
@@ -169,8 +194,8 @@ The Python layer is responsible for everything about the user's data. Rust only 
 
 ### Public surface
 
-- `pyta/__init__.py` exports the public API (`sma`, `rsi`, `indicators`).
-- `pyta/indicators/` groups user-facing functions by category with full docstrings. Each function delegates to `_api.run`.
+- `pyta/__init__.py` exports the public API (`sma`, `rsi`, `batch`, `indicators`).
+- `pyta/indicators/` holds one module per indicator (`sma.py`, `rsi.py`). Each module contains that indicator's single-call function and its batch function, with full docstrings, delegating to `_api.run` and `_api.run_batch`. `pyta/batch.py` only re-exports the batch functions as `pyta.batch.<name>`; it holds no logic.
 
 ### Private modules
 
@@ -195,7 +220,7 @@ Every supported container is reduced to one 1-D, C-contiguous `float64` array, w
 | `dict` of columns | `dict` with one `<indicator>_<period>` key |
 | JSON (`str` or `bytes`): array, records, or object of arrays | JSON of the same shape and type; `NaN` is written as `null` |
 
-Column selection (for DataFrame, dict, and JSON objects) ignores case and surrounding whitespace, defaults to `close` (or the only column), and can be set with `column=`. Names that collide after normalization are rejected.
+Column selection (for DataFrame, dict, and JSON objects) uses an explicit `column=`, else the only column, else the indicator's own default column role. Each indicator function passes its default (`default_column=CLOSE` for `sma` and `rsi`) to `_api.run` / `_api.run_batch`; `_validation.py` holds no default of its own. Names ignore case, whitespace and `. _ -`, match the aliases of their role (`OPEN`, `HIGH`, `LOW`, `CLOSE`, `ADJ_CLOSE`, `VOLUME`; a role never matches another role's aliases), and are rejected when two collide after normalization.
 
 **Responsibility split**
 
@@ -210,7 +235,7 @@ Pydantic is a hard dependency and is used only for structure and parameter valid
 
 ### Smart results *(planned for OHLCV)*
 
-Multi-column indicators will follow the same rule: the user passes OHLCV in whatever container they have, PyTA identifies the container, pulls the columns the indicator needs, and returns the same container type.
+Multi-column indicators will follow the same rule (roles are found by name; `columns=[...]` overrides them, in any order: each name is assigned to the indicator's slot for its role, and an unrecognized name, a duplicate role or a missing slot is rejected): the user passes OHLCV in whatever container they have, PyTA identifies the container, pulls the columns the indicator needs, and returns the same container type.
 
 - `IndicatorRequest` will grow from a single `Series` to named multi-column input (building on `Ohlcv`).
 - Multi-output indicators (such as MACD and Bollinger Bands) return their outputs in the input's container type: extra columns for a DataFrame, extra keys for a dict or JSON object.
@@ -218,7 +243,7 @@ Multi-column indicators will follow the same rule: the user passes OHLCV in what
 
 ---
 
-## 6. Batch calculation *(planned)*
+## 6. Batch calculation
 
 Batch calls apply one indicator to many datasets through the engine's concurrent path.
 
@@ -228,16 +253,18 @@ results = pyta.batch.sma(datasets, period=14)
 
 - `pyta.batch` mirrors the top-level indicator functions, with the same names and parameters. A new indicator gets a batch variant by following the same pattern.
 - `datasets` is a list (or mapping) of any supported containers. Results are returned in the same shape and order, each in its own input's container type.
-- The call is synchronous from the user's perspective; the engine decides internally whether to run sequentially or concurrently.
-- The error policy for a failed dataset is not yet decided. The engine already reports per-request errors without cancelling the rest; the Python layer must choose how to surface them.
+- The call is synchronous from the user's perspective; the planner decides internally whether to run sequentially or concurrently.
+- `period` and `column` are shared by the whole batch. One indicator per call; mixed-indicator batches are a later sprint.
+- **Error policy.** Nothing is raised for a bad dataset, so the others still complete. Python normalizes and validates each dataset first (`_api.run_batch`); a dataset that fails there becomes its exception. The rest go to Rust in a single call, and a per-request engine error becomes the matching exception (`ValueError`, or `RuntimeError` for internal failures). Invalid `period` or `column` raise, because they affect every dataset.
+- **Native side.** `pyta._native.sma_batch` / `rsi_batch` take a list of arrays, copy and validate each, release the GIL, and return a list of arrays or exceptions in input order. The bridge asks `should_parallelize` and then runs `execute_sequential` or `execute_parallel` on its own Rayon pool.
 
 ---
 
 ## 7. Concurrency model
 
 - Rust owns concurrency. Python's `asyncio` is not part of PyTA's execution model, and no runtime details are exposed to users.
-- Tokio coordinates batch work; Rayon runs the CPU-bound kernels. Batch concurrency (the semaphore) and Rayon's thread pool are separate controls.
-- Concurrency adds overhead, so the planner chooses between sequential and concurrent execution. Do not assume that concurrency makes one calculation faster.
+- Rayon owns the worker threads and runs the CPU-bound kernels, directly from the calling thread (GIL released). Tokio is not on the synchronous path; it is only the async front door (`execute_batch`).
+- Parallelism adds overhead, so the planner chooses between sequential and parallel execution. Do not assume that concurrency makes one calculation faster.
 - The native boundary releases the GIL while the engine runs, so other Python threads are not blocked.
 - A Python-level async API is deferred. If one is added later, it must wrap the same engine and must not create a separate calculation path.
 
@@ -252,11 +279,14 @@ results = pyta.batch.sma(datasets, period=14)
 | `tests/reference/` | Comparisons against independent reference implementations, with matching conventions |
 | `tests/smoke/` | Quick build-and-run check |
 
-Run everything with `scripts/test-suite.sh`, which covers Rust formatting, Clippy, Rust tests, the extension build, pytest, and Ruff. Benchmarks must not be timing-sensitive assertions in regular tests.
+Run everything with `scripts/test-suite.sh`, which fixes Rust formatting (as CI does), then runs the format check, Clippy, Rust tests, the extension build, the smoke test, pytest, and Ruff. Every step runs even if one fails, and the report is written to `tests/results/test-suite_<datetime>.txt` (summary on top, full output below). Benchmarks must not be timing-sensitive assertions in regular tests.
 
 ## 9. Benchmarks
 
-- `cargo bench -p pyta-engine` (via `scripts/benchmark_rust_engine.sh`) compares the kernel, direct, sequential, batch, and planner (`auto`) paths and prints a summary.
+- `scripts/benchmark.sh (--single | --batch | --all) [--rust | --python] [--indicator NAME] [--quick]` runs the benchmarks and writes `benches/results/benchmark_<datetime>.txt` (options, environment and summaries on top, full output below). Keep the reports: they are the record to compare against. See `scripts/README.md`.
+- Single calls: Criterion `single_call` (cost of each stage of one call, per indicator) and `benches/python/bench_boundary.py` (Python layer vs native).
+- Batch calls: Criterion `workloads` (`sequential`, `parallel`, `batch`, and planner `auto` for one to four requests, plus many-dataset runs of 10 / 100 / 1,000 datasets) and `benches/python/bench_batch.py` (`pyta.batch` vs a loop of single calls).
+- `scripts/benchmark_summary.py` turns the Criterion output into tables.
 - `benches/python/bench_boundary.py` separates Python-layer cost from native-boundary cost.
 - Benchmark results are the basis for the planner's cost constants. Re-measure when adding indicators.
 
@@ -266,13 +296,16 @@ Run everything with `scripts/test-suite.sh`, which covers Rust formatting, Clipp
 
 | If you are changing... | Start here |
 |---|---|
+| A tunable constant (overheads, costs, limits, benchmark sizes) | `pyta-common` |
 | A shared input, output, or error contract | `pyta-core` |
 | A technical-analysis formula | Its category crate |
 | How requests are routed | `pyta-engine/src/dispatch.rs` |
 | Sequential vs concurrent decisions | `pyta-engine/src/planner.rs` |
 | Batch ordering or batch errors | `pyta-engine/src/batch.rs` |
 | Panic handling or per-request execution | `pyta-engine/src/execution.rs` |
-| PyO3 registration or Rust/Python conversion | `pyta-python/src/lib.rs` |
+| PyO3 registration | `pyta-python/src/lib.rs` |
+| Rust/Python conversion and batch execution | `pyta-python/src/single.rs`, `batch.rs` |
+| An indicator's native bindings | `pyta-python/src/<indicator>.rs` |
 | Supported input containers or column rules | `python/pyta/_validation.py` |
 | Result container restoration | `python/pyta/_validation.py` (`Prepared`) |
 | The shared call path for indicators | `python/pyta/_api.py` |

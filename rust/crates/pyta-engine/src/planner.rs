@@ -1,24 +1,20 @@
-use crate::batch::batch_concurrency;
+use pyta_common::{BATCH_BASE_OVERHEAD_NS, BATCH_PER_REQUEST_OVERHEAD_NS, MAX_PARALLEL_SPEEDUP};
+
 use crate::dispatch::estimated_cost_ns;
 use crate::requests::IndicatorRequest;
 
-/// Fixed cost of entering the concurrent engine (Tokio task creation,
-/// Rayon hand-off, and wake-ups), in nanoseconds.
-const BATCH_BASE_OVERHEAD_NS: f64 = 10_000.0;
-
-/// Additional scheduling cost for each request beyond the first.
-const BATCH_PER_REQUEST_OVERHEAD_NS: f64 = 3_500.0;
-
-/// Predicts whether the concurrent engine will beat running the
-/// requests one after another on the calling thread.
+/// Predicts whether the parallel engine will beat running the requests
+/// one after another on the calling thread.
 ///
-/// Sequential time is the sum of the estimated costs. Concurrent time is
-/// the scheduling overhead plus the larger of the longest single request
-/// (which cannot be split) and the total work divided across workers.
-/// Concurrency is chosen only when that is predicted to be faster, so a
-/// lone request, many tiny requests, and small batches stay sequential.
-pub fn should_parallelize(requests: &[IndicatorRequest]) -> bool {
-    requests.len() >= 2 && parallel_is_faster(requests, batch_concurrency(requests.len()))
+/// Sequential time is the sum of the estimated costs. Parallel time is the
+/// scheduling overhead plus the larger of the longest single request (which
+/// cannot be split) and the total work divided by the achievable speed-up.
+/// Parallel execution is chosen only when that is predicted to be faster,
+/// so a lone request and small batches stay sequential.
+///
+/// `workers` is the size of the Rayon pool the batch would run on.
+pub fn should_parallelize(requests: &[IndicatorRequest], workers: usize) -> bool {
+    requests.len() >= 2 && parallel_is_faster(requests, workers)
 }
 
 fn parallel_is_faster(requests: &[IndicatorRequest], workers: usize) -> bool {
@@ -33,21 +29,22 @@ fn parallel_is_faster(requests: &[IndicatorRequest], workers: usize) -> bool {
             (total + cost, longest.max(cost))
         });
 
-    let overhead =
-        BATCH_BASE_OVERHEAD_NS + BATCH_PER_REQUEST_OVERHEAD_NS * (requests.len() - 1) as f64;
-    let parallel = overhead + longest.max(total / workers.max(1) as f64);
+    let speedup = (workers.max(1) as f64).min(MAX_PARALLEL_SPEEDUP);
+    let overhead = BATCH_BASE_OVERHEAD_NS + BATCH_PER_REQUEST_OVERHEAD_NS * requests.len() as f64;
+    let parallel = overhead + longest.max(total / speedup);
 
     parallel < total
 }
 
 #[cfg(test)]
 mod tests {
+    use pyta_common::PLANNER_TEST_WORKERS;
     use pyta_core::Series;
 
     use super::parallel_is_faster;
     use crate::requests::{IndicatorKind, IndicatorRequest};
 
-    const WORKERS: usize = 16;
+    const WORKERS: usize = PLANNER_TEST_WORKERS;
 
     fn request(kind: IndicatorKind, len: usize) -> IndicatorRequest {
         IndicatorRequest::new(kind, Series::new(vec![1.0; len]).unwrap(), 14)
@@ -113,8 +110,22 @@ mod tests {
     }
 
     #[test]
-    fn many_tiny_requests_stay_sequential() {
+    fn few_tiny_requests_stay_sequential() {
         assert!(!parallel_is_faster(
+            &many(IndicatorKind::Sma, 100, 10),
+            WORKERS
+        ));
+        assert!(!parallel_is_faster(
+            &many(IndicatorKind::Sma, 100, 100),
+            WORKERS
+        ));
+    }
+
+    #[test]
+    fn a_thousand_tiny_requests_go_parallel() {
+        // Measured: 1,000 SMA of 100 points take 174 µs sequentially and
+        // 88 µs on Rayon.
+        assert!(parallel_is_faster(
             &many(IndicatorKind::Sma, 100, 1_000),
             WORKERS
         ));
