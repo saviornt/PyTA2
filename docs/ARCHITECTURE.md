@@ -288,10 +288,10 @@ results = pyta.batch.sma(datasets, period=14)
 | Rust `#[cfg(test)]` modules and crate `tests/` | Formulas, boundary cases, warm-up, validation, engine ordering and error isolation, sequential vs parallel equality, logging (a per-thread capturing logger in `pyta-engine`) |
 | Crate `tests/property_tests.rs` (`proptest`) | Kernel invariants for any input: output length, exact warm-up, SMA within its window's range, RSI in [0, 100], constant input |
 | Crate `tests/reference_tests.rs` | Published worked examples from `tests/fixtures/`, read by `rust/test-support/reference.rs` |
-| `tests/fixtures/` | Published reference examples as CSV (`label,input,expected`), each citing its source, period and tolerance in `#` comments. Shared by Rust and Python |
+| `tests/fixtures/` | Published reference examples as CSV (`label,input,expected`), each citing its source, period and tolerance in `#` comments, shared by Rust and Python; and realistic input data (`ohlcv_spy_daily.csv`: 300 sessions of real SPY OHLCV, source cited), which is input only, never a reference |
 | `tests/python/` | Public API behavior: containers, NaN policy, parameters, errors, batch, logging, fork, import surface; per-indicator numerics (`test_sma.py`, `test_rsi.py`); `hypothesis` properties (`test_properties.py`) |
 | `tests/reference/` | The same published examples through the public API |
-| `tests/smoke/` | Quick build-and-run check |
+| `tests/smoke/` | Quick build-and-run check: the SPY OHLCV fixture as a dict of columns through `pyta.sma`, `pyta.rsi` and `pyta.batch` (stdlib only, so it also runs as a script) |
 
 Quality gates, all in `scripts/test-suite.sh` and mirrored by CI:
 
