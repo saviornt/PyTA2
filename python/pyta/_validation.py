@@ -5,6 +5,7 @@ array, together with a function that rebuilds the caller's container from a
 result. Element-level checks (finite, non-empty) stay in Rust.
 """
 
+import functools
 import json
 import logging
 import operator
@@ -28,8 +29,12 @@ _PERIOD = TypeAdapter(Annotated[int, Field(ge=1, le=_MAX_PERIOD)])
 _SEPARATORS = re.compile(r"[\s._-]+")
 
 
+@functools.lru_cache(maxsize=4096)
 def squash(name: object) -> str:
-    """Name without case, whitespace, dots, underscores or hyphens, for matching."""
+    """Name without case, whitespace, dots, underscores or hyphens, for matching.
+
+    Cached: the same column names come back on every call.
+    """
     return _SEPARATORS.sub("", str(name).casefold())
 
 

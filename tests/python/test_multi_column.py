@@ -408,9 +408,10 @@ def test_nan_after_the_leading_run_names_the_column_and_row(ohlcv: Ohlcv) -> Non
     with pytest.raises(ValueError, match=r"column 'low': non-finite value .* at index 7"):
         pyta.cci(data, PERIOD)
 
-    data["low"][7] = 1e300
+    data["low"][7] = data["low"][6]
+    data["high"][7] = 1e300
     with pytest.raises(
-        ValueError, match="column 'low': value at index 7 is too large in magnitude"
+        ValueError, match="column 'high': value at index 7 is too large in magnitude"
     ):
         pyta.cci(data, PERIOD)
 
@@ -508,3 +509,14 @@ def test_batch_validates_shared_arguments() -> None:
         pyta.batch.cci([np.ones((5, 3))], PERIOD, columns="high")  # type: ignore[arg-type]
 
     assert pyta.batch.cci([], PERIOD) == []
+
+
+def test_batch_names_the_column_of_an_invalid_value(ohlcv: Ohlcv) -> None:
+    bad = ohlcv.lists()
+    bad["close"][7] = float("inf")
+
+    good, failed = pyta.batch.cci([ohlcv.columns(), bad], PERIOD)
+
+    np.testing.assert_array_equal(good[NAME], expected(ohlcv))
+    assert isinstance(failed, ValueError)
+    assert str(failed).startswith("column 'close': non-finite value (NaN or infinity) at index 7")

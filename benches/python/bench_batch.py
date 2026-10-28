@@ -26,10 +26,11 @@ from collections.abc import Callable
 import numpy as np
 import pyta
 
-# indicator name -> period used for the benchmark
-INDICATORS: dict[str, int] = {
-    "sma": 20,
-    "rsi": 14,
+# indicator name -> (period used for the benchmark, number of input columns)
+INDICATORS: dict[str, tuple[int, int]] = {
+    "sma": (20, 1),
+    "rsi": (14, 1),
+    "cci": (14, 3),
 }
 
 COUNTS = (10, 100, 1_000)
@@ -52,12 +53,18 @@ def best_time(fn: Callable[[], object], repeats: int) -> float:
     return min(timeit.Timer(fn).repeat(repeats, number)) / number
 
 
-def datasets(count: int, size: int) -> list[np.ndarray]:
-    """Distinct, deterministic random walks."""
-    return [
+def datasets(count: int, size: int, width: int) -> list[object]:
+    """Distinct, deterministic random walks; a dict of high, low and close for
+    a multi-column indicator."""
+    walks = [
         1_000.0 + np.cumsum(np.random.default_rng(seed).uniform(-1.0, 1.0, size))
         for seed in range(count)
     ]
+
+    if width == 1:
+        return list(walks)
+
+    return [{"high": walk + 0.5, "low": walk - 0.5, "close": walk} for walk in walks]
 
 
 def main() -> None:
@@ -80,13 +87,13 @@ def main() -> None:
     print("-" * len(header))
 
     for name in names:
-        period = INDICATORS[name]
+        period, width = INDICATORS[name]
         single = getattr(pyta, name)
         batch = getattr(pyta.batch, name)
 
         for count in COUNTS:
             for size in SIZES:
-                data = datasets(count, size)
+                data = datasets(count, size, width)
 
                 t_loop = best_time(lambda: [single(d, period=period) for d in data], repeats)
                 t_batch = best_time(lambda: batch(data, period=period), repeats)

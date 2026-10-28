@@ -229,7 +229,14 @@ def run_columns(
 
     prepared = normalize_columns(data, names, label, slots)
     first, valid = _trim_columns(prepared)
-    result = _pad(native(valid, period), first, prepared.values[0].shape[0])
+
+    try:
+        result = _pad(native(valid, period), first, prepared.values[0].shape[0])
+    except ValueError:
+        explained = _value_error(prepared, first, valid)
+        if explained is None:
+            raise
+        raise explained from None
 
     return prepared.restore(result, f"{label}_{period}")
 
@@ -268,9 +275,12 @@ def run_columns_batch(
 
     results = native(inputs, period) if inputs else []
 
-    for (position, prepared, first), result in zip(pending, results, strict=True):
+    for (position, prepared, first), valid, result in zip(pending, inputs, results, strict=True):
         if isinstance(result, BaseException):
-            outcomes[position] = result
+            explained = (
+                _value_error(prepared, first, valid) if isinstance(result, ValueError) else None
+            )
+            outcomes[position] = explained or result
             failed += 1
         else:
             padded = _pad(result, first, prepared.values[0].shape[0])
@@ -283,11 +293,13 @@ def run_columns_batch(
 
 
 def _trim_columns(prepared: PreparedColumns) -> tuple[int, list[Float64Array]]:
-    """Skips the longest leading NaN run across the columns, and checks the rest.
+    """Skips the longest leading NaN run across the columns, and checks row order.
 
     Every column is cut at the same row, so chained outputs (each with its own
-    warm-up) stay aligned. Errors name the column and the row in the caller's
-    data. Rows are then checked against `ORDERED_ROLES` (high not below low).
+    warm-up) stay aligned. Rows are then checked against `ORDERED_ROLES` (high
+    not below low), naming the columns and the row in the caller's data. Values
+    themselves are left to Rust, which rejects any non-finite or too-large one;
+    `_value_error` then explains that error by column.
     """
     first = max(_leading_nan_count(values) for values in prepared.values)
     rows = prepared.values[0].shape[0]
@@ -295,8 +307,34 @@ def _trim_columns(prepared: PreparedColumns) -> tuple[int, list[Float64Array]]:
     if first == rows:
         raise ValueError("input contains no complete row; every row has a NaN or missing value")
 
-    valid = [values[first:] for values in prepared.values]
+    valid = [values[first:] for values in prepared.values] if first else list(prepared.values)
 
+    for upper, lower in ORDERED_ROLES:
+        if upper in prepared.roles and lower in prepared.roles:
+            high = valid[prepared.roles.index(upper)]
+            low = valid[prepared.roles.index(lower)]
+
+            # NaN compares false, so it is left for the value check.
+            if (high < low).any():
+                row = int(np.flatnonzero(high < low)[0])
+                raise ValueError(
+                    f"column {prepared.labels[prepared.roles.index(upper)]!r} ({upper}) is below "
+                    f"column {prepared.labels[prepared.roles.index(lower)]!r} ({lower}) at index "
+                    f"{first + row} ({float(high[row])} < {float(low[row])}); "
+                    f"{upper} must be at least {lower} on every row"
+                )
+
+    return first, valid
+
+
+def _value_error(
+    prepared: PreparedColumns, first: int, valid: list[Float64Array]
+) -> ValueError | None:
+    """The first non-finite or too-large value after the leading run, by column and row.
+
+    Called only after Rust has rejected an input, so the scan costs nothing on
+    success. None when every value is valid (Rust failed for another reason).
+    """
     for label, values in zip(prepared.labels, valid, strict=True):
         # Same test as Rust's validation; false for NaN and infinity too.
         bad = np.flatnonzero(~(np.abs(values) <= MAX_ABS_INPUT))
@@ -306,32 +344,17 @@ def _trim_columns(prepared: PreparedColumns) -> tuple[int, list[Float64Array]]:
 
             if np.isfinite(values[bad[0]]):
                 limit = f"{MAX_ABS_INPUT:.0e}".replace("e+", "e")
-                raise ValueError(
+                return ValueError(
                     f"column {label!r}: value at index {index} is too large in magnitude; "
                     f"values must be between -{limit} and {limit}"
                 )
 
-            raise ValueError(
+            return ValueError(
                 f"column {label!r}: non-finite value (NaN or infinity) at index {index}; "
                 "only leading NaN values are skipped"
             )
 
-    for upper, lower in ORDERED_ROLES:
-        if upper in prepared.roles and lower in prepared.roles:
-            high = prepared.roles.index(upper)
-            low = prepared.roles.index(lower)
-            below = np.flatnonzero(valid[high] < valid[low])
-
-            if below.size:
-                row = int(below[0])
-                raise ValueError(
-                    f"column {prepared.labels[high]!r} ({upper}) is below column "
-                    f"{prepared.labels[low]!r} ({lower}) at index {first + row} "
-                    f"({float(valid[high][row])} < {float(valid[low][row])}); "
-                    f"{upper} must be at least {lower} on every row"
-                )
-
-    return first, valid
+    return None
 
 
 def _log_failures(label: str, outcomes: list[Any], keys: list[Any] | None, failed: int) -> None:

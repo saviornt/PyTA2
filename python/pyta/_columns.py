@@ -6,6 +6,7 @@ rebuilds the caller's container from the result. Named containers are matched
 by role; unnamed ones (2-D arrays, tuples of arrays) use the slot order.
 """
 
+import functools
 import json
 import logging
 import sys
@@ -15,7 +16,7 @@ from typing import Any, cast
 import numpy as np
 from numpy.typing import NDArray
 
-from ._types import Float64Array, PreparedColumns, Restore
+from ._types import Float64Array, Prepared, PreparedColumns, Restore
 from ._validation import (
     Slot,
     from_column,
@@ -97,6 +98,23 @@ def normalize_columns(
     )
 
 
+def _column(value: object, key: object) -> Prepared:
+    """`from_column`, with no work for a column that is already a float64 array."""
+    if (
+        type(value) is np.ndarray
+        and value.dtype == np.float64
+        and value.ndim == 1
+        and value.flags.c_contiguous
+    ):
+        return Prepared(cast(Float64Array, value), _same)
+
+    return from_column(value, key)
+
+
+def _same(out: Float64Array, _name: str) -> Float64Array:
+    return out
+
+
 def _one_column(label: str, slots: Sequence[Slot], kind: str) -> TypeError:
     return TypeError(
         f"{needs(label, slots)}, but {kind} holds one series; pass a DataFrame, dict of "
@@ -109,8 +127,18 @@ def _one_column(label: str, slots: Sequence[Slot], kind: str) -> TypeError:
 
 def _match(
     keys: Sequence[object], columns: list[str] | None, label: str, slots: Sequence[Slot]
-) -> list[tuple[object, str]]:
+) -> tuple[tuple[object, str], ...]:
     """Chooses one key per slot, in slot order, with the role it was matched as."""
+    chosen = _matched(tuple(keys), None if columns is None else tuple(columns), label, tuple(slots))
+    _log.debug("%s: using columns %r", label, [key for key, _ in chosen])
+    return chosen
+
+
+@functools.lru_cache(maxsize=256)
+def _matched(
+    keys: tuple[object, ...], columns: tuple[str, ...] | None, label: str, slots: tuple[Slot, ...]
+) -> tuple[tuple[object, str], ...]:
+    """`_match`, cached: the same column names come back on every call."""
     lookup: dict[str, object] = {}
 
     for key in keys:
@@ -125,7 +153,7 @@ def _match(
 
         lookup.setdefault(squashed, key)
 
-    available = ", ".join(repr(key) for key in keys) or "none"
+    available = _Available(keys)
 
     def find(role: str, wanted: str | None = None) -> object | None:
         candidates = role_aliases(role)
@@ -153,19 +181,28 @@ def _match(
                 "columns=[...] to choose them"
             )
 
-        _log.debug("%s: using columns %r", label, [key for key, _ in chosen])
-        return chosen
+        return tuple(chosen)
 
     return _match_explicit(columns, label, slots, find, available)
 
 
+class _Available:
+    """The input's column names for an error message, joined only when one is raised."""
+
+    def __init__(self, keys: Sequence[object]) -> None:
+        self.keys = keys
+
+    def __str__(self) -> str:
+        return ", ".join(repr(key) for key in self.keys) or "none"
+
+
 def _match_explicit(
-    columns: list[str],
+    columns: Sequence[str],
     label: str,
     slots: Sequence[Slot],
     find: Any,
-    available: str,
-) -> list[tuple[object, str]]:
+    available: _Available,
+) -> tuple[tuple[object, str], ...]:
     """Assigns each explicitly named column to the slot for its role."""
     filled: dict[str, tuple[str, object, str]] = {}  # slot name -> (name, key, role)
 
@@ -204,7 +241,7 @@ def _match_explicit(
     if empty:
         raise ValueError(f"{needs(label, slots)}; columns= leaves out: {', '.join(empty)}")
 
-    return [(filled[slot.name][1], filled[slot.name][2]) for slot in slots]
+    return tuple((filled[slot.name][1], filled[slot.name][2]) for slot in slots)
 
 
 def _prepared(
@@ -280,7 +317,7 @@ def _from_tuple(
 
     _reject_columns(columns, "a tuple of arrays", slots)
 
-    arrays = [from_column(item, i).values for i, item in enumerate(data)]
+    arrays = [_column(item, i).values for i, item in enumerate(data)]
     labels, roles = _unnamed(arrays, label, slots, "the tuple")
 
     return _prepared(arrays, labels, roles, lambda out, _name: tuple(out.tolist()))
@@ -307,7 +344,7 @@ def _from_mapping(
     data: Mapping[object, object], columns: list[str] | None, label: str, slots: Sequence[Slot]
 ) -> PreparedColumns:
     chosen = _match(list(data), columns, label, slots)
-    prepared = [from_column(data[key], key) for key, _ in chosen]
+    prepared = [_column(data[key], key) for key, _ in chosen]
     # The result keeps the container type of the first input column.
     inner = prepared[0].restore
 

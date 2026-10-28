@@ -5,6 +5,10 @@ For each indicator and input size it times:
   native   pyta._native.<indicator>(ndarray, period)   no validation or restore
   copy     ndarray.copy()                              a memcpy of the same input
 
+A multi-column indicator gets a dict of high, low and close arrays (found by
+role) in the public call, the list of arrays in the native call, and `copy`
+copies every column.
+
 and reports `python = public - native`, the cost of the Python layer.
 Compare `native` with the Criterion `direct` result for the same size to see
 the Rust boundary cost (input copy, GIL release, output array).
@@ -27,10 +31,11 @@ import numpy as np
 import pyta
 from pyta import _native
 
-# indicator name -> period used for the benchmark
-INDICATORS: dict[str, int] = {
-    "sma": 20,
-    "rsi": 14,
+# indicator name -> (period used for the benchmark, number of input columns)
+INDICATORS: dict[str, tuple[int, int]] = {
+    "sma": (20, 1),
+    "rsi": (14, 1),
+    "cci": (14, 3),
 }
 
 SIZES = (100, 10_000, 1_000_000)
@@ -57,6 +62,18 @@ def random_walk(size: int) -> np.ndarray:
     return 1_000.0 + np.cumsum(rng.uniform(-1.0, 1.0, size))
 
 
+def inputs(size: int, width: int) -> tuple[object, object, Callable[[], object]]:
+    """Public input, native input, and a copy of the same data."""
+    close = random_walk(size)
+
+    if width == 1:
+        return close, close, close.copy
+
+    columns = {"high": close + 0.5, "low": close - 0.5, "close": close}
+    arrays = list(columns.values())
+    return columns, arrays, lambda: [array.copy() for array in arrays]
+
+
 def main() -> None:
     args = sys.argv[1:]
     quick = "--quick" in args
@@ -77,16 +94,16 @@ def main() -> None:
     print("-" * len(header))
 
     for name in names:
-        period = INDICATORS[name]
+        period, width = INDICATORS[name]
         public = getattr(pyta, name)
         native = getattr(_native, name)
 
         for size in SIZES:
-            data = random_walk(size)
+            data, native_data, copy = inputs(size, width)
 
             t_public = best_time(lambda: public(data, period=period), repeats)
-            t_native = best_time(lambda: native(data, period), repeats)
-            t_copy = best_time(data.copy, repeats)
+            t_native = best_time(lambda: native(native_data, period), repeats)
+            t_copy = best_time(copy, repeats)
 
             print(
                 f"{name:<10} {size:>9,} | {format_time(t_public):>11} "
