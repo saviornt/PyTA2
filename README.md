@@ -57,6 +57,13 @@ result = pyta.sma(df, period=20, column="open")
 result = pyta.sma(df, period=20, column="adj close")
 ```
 
+Indicators that need several columns find them by name, so a full OHLCV DataFrame (dates and all) works as it is; `columns=[...]` picks them yourself, in any order:
+
+```python
+result = pyta.cci(df, period=20)                                    # high, low and close found by name
+result = pyta.cci(df, period=20, columns=["adj close", "low", "high"])
+```
+
 PyTA logs through Python's standard `logging` (Rust messages included) under the `pyta` logger and is silent unless you configure logging. For example, `logging.getLogger("pyta").setLevel(logging.DEBUG)` shows how batches are scheduled; see [Logging](docs/API.md#14-logging).
 
 ## Indicators
@@ -67,6 +74,7 @@ PyTA logs through Python's standard `logging` (Rust messages included) under the
 |---|---|
 | Trend | [Simple Moving Average](docs/indicators/trend/sma.md) (`sma`) |
 | Momentum | [Relative Strength Index](docs/indicators/momentum/rsi.md) (`rsi`, Wilder's smoothing) |
+| Momentum | [Commodity Channel Index](docs/indicators/momentum/cci.md) (`cci`, high, low and close) |
 
 ### Planned
 
@@ -76,7 +84,7 @@ The catalog below is the planned scope and is subject to change.
 EMA, WMA, DEMA, TEMA, KAMA, MACD, ADX, Parabolic SAR, Ichimoku Cloud, Aroon
 
 **Momentum Indicators**
-CCI, Stochastic Oscillator, Williams %R, ROC, MFI, TRIX, Ultimate Oscillator
+Stochastic Oscillator, Williams %R, ROC, MFI, TRIX, Ultimate Oscillator
 
 **Volatility Indicators**
 ATR, Bollinger Bands, Keltner Channels, Donchian Channels, Standard Deviation

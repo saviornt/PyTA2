@@ -42,8 +42,9 @@ Each indicator lives in its own module in a category subpackage, `pyta.indicator
 |---|---|---|
 | `sma` | Trend | `sma(data, period, *, column=None)` |
 | `rsi` | Momentum | `rsi(data, period=14, *, column=None)` |
+| `cci` | Momentum | `cci(data, period=14, *, columns=None)` |
 
-`period` is required for `sma`. `column` selects a column for inputs that have columns (see [Column selection](#column-selection)); `None` means the indicator's default column, which is `close` for both. Each indicator has a page in the [indicator wiki](indicators/): [SMA](indicators/trend/sma.md), [RSI](indicators/momentum/rsi.md).
+`period` is required for `sma`. `column` selects a column for inputs that have columns (see [Column selection](#column-selection)); `None` means the indicator's default column, which is `close` for both. `cci` needs several columns, found by name, and takes `columns=` instead (see [Multi-column indicators](#10-multi-column-indicators)). Each indicator has a page in the [indicator wiki](indicators/): [SMA](indicators/trend/sma.md), [RSI](indicators/momentum/rsi.md), [CCI](indicators/momentum/cci.md).
 
 ### SMA (Simple Moving Average)
 
@@ -58,6 +59,14 @@ Uses Wilder's smoothing. The first average gain and loss are the simple means of
 
 - Needs at least `period + 1` values. The first `period` results are `NaN` (warm-up).
 - Flat prices give `0`; a series with no losses gives `100`; a series with no gains gives `0`.
+
+### CCI (Commodity Channel Index)
+
+Follows TA-Lib. The typical price is `TP = (high + low + close) / 3`; over each window of `period` rows, `CCI = (TP - mean(TP)) / (0.015 * mean_deviation(TP))`, where the mean deviation is the mean absolute distance from the window's mean.
+
+- Needs at least `period` rows. The first `period - 1` results are `NaN` (warm-up).
+- A flat window, or a latest typical price equal to the mean (within `1e-14` of the mean, as TA-Lib), gives `0`; `period=1` gives `0` throughout (TA-Lib rejects it).
+- Inputs: high, low, and close (or else the adjusted close). Unnamed input is in that order.
 
 ## 4. Input containers
 
@@ -152,6 +161,9 @@ ValueError: non-finite value (NaN or infinity) at index 1; only leading NaN valu
 >>> pyta.sma(df, period=20)   # df has columns "px" and "vol"
 ValueError: no 'close' column found; available columns: 'px', 'vol'. Pass column= to choose one
 
+>>> pyta.cci(df, period=20)   # df has date, open, high, close, volume
+ValueError: cci needs the columns high, low and close (close or adj_close); missing: low. Available columns: 'date', 'open', 'high', 'close', 'volume'. Rename the input's columns, or pass columns=[...] to choose them
+
 >>> pyta.sma([1.0, 2.0, 3.0], period=0)
 ValueError: period must be between 1 and 2147483647, got 0
 
@@ -163,8 +175,8 @@ The examples show the current wording, which may change between releases, so cat
 
 | Exception | Raised for |
 |---|---|
-| `TypeError` | Unsupported container or dtype (strings, booleans, complex numbers), DataFrames with MultiIndex columns, non-integer `period` (including `bool`), non-string `column`, JSON of the wrong shape (including arrays that mix records and numbers) |
-| `ValueError` | `period` outside `1` to `2**31 - 1`, period larger than the series (`sma`) or fewer than `period + 1` values (`rsi`), empty input or input with no valid values, a non-finite value after the first valid value, a value larger in magnitude than `1e290`, multidimensional or ragged input, invalid JSON, a missing or ambiguous column, `column=` on input without columns |
+| `TypeError` | Unsupported container or dtype (strings, booleans, complex numbers), DataFrames with MultiIndex columns, non-integer `period` (including `bool`), non-string `column`, `columns` that is not a list of strings, JSON of the wrong shape (including arrays that mix records and numbers), one series (list, 1-D array, Series) given to a multi-column indicator |
+| `ValueError` | `period` outside `1` to `2**31 - 1`, period larger than the series (`sma`) or fewer than `period + 1` values (`rsi`) or `period` rows (`cci`), empty input or input with no valid values, a non-finite value after the first valid value, a value larger in magnitude than `1e290`, multidimensional or ragged input, invalid JSON, a missing or ambiguous column, `column=` on input without columns; for multi-column indicators: an invalid `columns=` (see [§10](#10-multi-column-indicators)), columns of different lengths, a high below its low on any row, the wrong number of unnamed columns, and `column=` on a multi-column indicator or `columns=` on a single-column one |
 | `RuntimeError` | An internal calculation failure |
 
 NumPy integers are accepted as `period`.
@@ -183,7 +195,7 @@ Apply one indicator to many datasets in a single call. The engine decides intern
 results = pyta.batch.sma(datasets, period=14)
 ```
 
-- `pyta.batch` mirrors the top-level indicator functions (`pyta.batch.sma`, `pyta.batch.rsi`), with the same names and parameters, and the category namespaces too (`pyta.batch.trend.sma is pyta.batch.sma`). One call applies one indicator.
+- `pyta.batch` mirrors the top-level indicator functions (`pyta.batch.sma`, `pyta.batch.rsi`, `pyta.batch.cci`), with the same names and parameters, and the category namespaces too (`pyta.batch.trend.sma is pyta.batch.sma`). One call applies one indicator.
 - `datasets` can be a **list** or a **mapping** (for example, ticker to data); anything else raises `TypeError`. Each dataset can be any supported container, and the result has the same shape and order as the input, with each result in its own input's container type. An empty list or mapping returns an empty one.
 - `period` and `column` are shared by every dataset. An invalid `period` or `column` raises, because it affects the whole call.
 - **A failure never cancels the others.** Each dataset gets a result. A dataset that fails is represented by the exception that explains why, in the same position or under the same key, so you can see which dataset failed and the reason. This covers malformed datasets (unsupported type, missing column, a `NaN` after the first valid value) as well as calculation errors (such as a period longer than the series). Fix the dataset and call again.
@@ -196,28 +208,36 @@ for ticker, result in results.items():
         print(f"{ticker} failed: {result}")
 ```
 
-## 10. Multi-column indicators *(planned)*
+## 10. Multi-column indicators
 
-Some indicators need more than one column (for example ATR needs high, low, and close). Pass your OHLCV data in any supported container; PyTA identifies it, finds the columns the indicator needs, and returns the same kind of container.
+Some indicators need more than one column (for example CCI needs high, low, and close). Pass your OHLCV data in any named container (DataFrame, dict of columns, JSON array of records or object of arrays); PyTA finds the columns the indicator needs and returns the same kind of container.
 
 ```python
-atr = pyta.atr(df, period=14)
+cci = pyta.cci(df, period=20)   # a DataFrame with one column, "cci_20"
 ```
 
-- **Automatic selection.** PyTA matches column names to the roles an indicator needs. If you pass more columns than needed (for example all of open, high, low, close, and volume), the extras are ignored.
-- **Explicit override.** `columns=[...]` names the columns to use. Names follow the same matching rules as `column=` (case, separators, aliases), and the order you list them in does not matter: PyTA assigns each name to the indicator's input slot for its role.
+- **Automatic selection.** PyTA matches column names to the roles an indicator needs, with the same rules as `column=` (case, whitespace, and `. _ -` ignored; aliases such as `h` or `adjusted close`). If you pass more columns than needed (for example all of date, open, high, low, close, and volume), the extras are ignored, whatever they hold.
+- **Explicit override.** `columns=[...]` names the columns to use, and the order you list them in does not matter: PyTA assigns each name to the indicator's input slot for its role.
 
   ```python
-  pyta.atr(df, period=14, columns=["high", "low", "adj close"])
-  pyta.atr(df, period=14, columns=["adj close", "low", "high"])   # same result
+  pyta.cci(df, period=20, columns=["high", "low", "adj close"])
+  pyta.cci(df, period=20, columns=["adj close", "low", "high"])   # same result
   ```
 
-  Each indicator defines its own slots and the roles each slot accepts (ATR's `close` slot takes `close` or `adj_close`). The call raises `ValueError`, naming what the indicator needs, when a name is not a recognized role, when two names fill the same slot, or when a slot is left empty or the count is wrong. If your columns have custom names, rename them first or use the plain `df`.
-- **Unnamed inputs.** A 2-D array or a tuple of arrays has no names, so its columns are taken in the order documented for the indicator.
+  Each indicator defines its own slots and the roles each slot accepts (CCI's `close` slot takes `close`, or else `adj_close`). The call raises `ValueError`, naming what the indicator needs, when a name is not a recognized role, when its role is not one of the indicator's inputs, when two names fill the same slot, when a slot is left empty, or when a name is not in the input. If your columns have custom names, rename them first.
+- **Unnamed inputs.** A 2-D NumPy array of shape `(rows, columns)` or a tuple of arrays has no names, so its columns are taken in the order documented for the indicator (high, low, close for CCI); the count must match. A 2-D array returns a 1-D array, and a tuple a tuple. A single series (list, 1-D array, pandas Series) raises `TypeError`.
 - `column=` is for single-column indicators and `columns=` for multi-column ones; passing the wrong one raises `ValueError`.
+- **Missing data.** If a required column can't be found, a `ValueError` names what the indicator requires and which columns were available, so you don't have to know in advance what an indicator needs:
 
-- **Missing data.** If a required column can't be found, a `ValueError` names what the indicator requires and which columns were available, so you don't have to know in advance what an indicator needs.
-- Each indicator's documentation lists its required inputs.
+  ```text
+  ValueError: cci needs the columns high, low and close (close or adj_close); missing: low. Available columns: 'date', 'open', 'high', 'close', 'volume'. ...
+  ```
+
+- **Leading NaN.** Rows up to the last leading `NaN` of any needed column are skipped and re-padded with `NaN`, so outputs of other indicators (each with its own warm-up) can be combined. `NaN` or `inf` after that raises `ValueError` naming the column and the row.
+- **Row checks.** A high below its low on any row raises `ValueError` naming both columns and the row (equal is fine).
+- **Results.** A DataFrame result keeps the input's index; a dict result keeps the container type of the indicator's first input column.
+- **Batch.** `pyta.batch.cci(datasets, period, columns=None)` works as in [§9](#9-batch-calculation); `columns=` applies to every dataset, and a dataset with a missing column is returned as its `ValueError` in place.
+- Each indicator's documentation lists its required inputs and their order for unnamed input.
 
 ## 11. Multi-output indicators *(planned)*
 

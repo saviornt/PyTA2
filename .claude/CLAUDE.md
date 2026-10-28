@@ -33,12 +33,13 @@ CI (`.github/workflows/ci.yml`) auto-runs `cargo fmt --all` and commits the resu
 
 ## Architecture (big picture)
 
-Data flows: user container → Python layer (clean/validate → 1-D float64 array) → `pyta._native` (PyO3, GIL released) → `pyta-engine` → category crate kernel → back to Python, which restores the caller's container type.
+Data flows: user container → Python layer (clean/validate → 1-D float64 array, or one per slot for a multi-column indicator, matched by role) → `pyta._native` (PyO3, GIL released) → `pyta-engine` → category crate kernel → back to Python, which restores the caller's container type.
 
 Crate dependency direction: `pyta-common` (constants only, no deps) ← `pyta-core` (Series/Ohlcv, IndicatorOutput, PytaError) ← category crates (`pyta-trend`, `pyta-momentum`; one indicator per file) ← `pyta-engine` ← `pyta-python`. Only `pyta-python` depends on PyO3/NumPy. Indicator formulas live only in Rust, never in Python.
 
 Key rules that span files:
-- **Division of validation.** Python handles containers, column selection, `None`/leading-NaN skipping (so indicators chain), and `period` type/range (Pydantic). Rust is strict: rejects empty input and any non-finite value. Output length equals input length, with `NaN` warm-up.
+- **Division of validation.** Python handles containers, column selection, `None`/leading-NaN skipping (so indicators chain), `period` type/range (Pydantic), and checks across columns (high not below low). Rust is strict: rejects empty input, any non-finite value, and columns of unequal length or count.
+- **Multi-column input.** Rust: `pyta-core::Columns` (equal-length `Series` in slot order); `IndicatorRequest.input` is `IndicatorInput::{Series, Columns}`; dispatch takes `input.series()` or `input.columns::<N>()`. Python: roles in a registry (`_validation.register_role`), each indicator declares `SLOTS`, `_columns.normalize_columns` matches them, `_api.run_columns`/`run_columns_batch` run them. `column=` is single-column only, `columns=` multi-column only. Output length equals input length, with `NaN` warm-up.
 - **Two engine paths** sharing one `dispatch`: `execute_direct` (single dataset, calling thread, panics caught → `ExecutionFailed`) and the batch path `execute_parallel` (Rayon `par_iter`; `execute_sequential` is the same loop on one thread; `execute_batch` is only an async front door that hands the batch to Rayon in one hop). `planner::should_parallelize(requests, workers)` picks sequential vs parallel from cost estimates. The bridge owns a Rayon pool that is rebuilt after `fork()`. Adding an `IndicatorKind` must fail to compile until it has a dispatch arm and cost constant (`pyta-common/src/costs.rs`).
 - **Errors.** `PytaError::ExecutionFailed` → `RuntimeError`; everything else → `ValueError`; Python raises `TypeError` for unsupported types.
 - **Batch API (`pyta.batch.*`).** Takes a list or mapping; a failing dataset is returned *as its exception object in place*, never raised, so other datasets complete. Python validates each dataset first (`_api.run_batch`), valid ones go to Rust in one call. `period`/`column` are shared and raise for the whole call.

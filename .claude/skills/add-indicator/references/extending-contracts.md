@@ -26,18 +26,16 @@ No sprint covers this yet, so the spec must propose it.
 - Output names include the parameters that distinguish results (`bbands_20_2`), decided in the spec.
 - Batch: parameters stay shared across the batch, like `period` today.
 
-## Multi-column input (ATR, Stochastic, CCI, OBV, VWAP): Sprint 9
+## Multi-column input (ATR, Stochastic, OBV, VWAP, ...): built in Sprint 9
 
-The decisions in `.claude/memory.md` ("Multi-column indicators", "Default column") are binding:
+Multi-column input exists (CCI was its first user), so a new multi-column indicator needs no contract work: declare its slots and copy CCI. The decisions in `.claude/memory.md` ("Multi-column indicators", "Default column") still bind.
 
-- Roles (`OPEN`, `HIGH`, `LOW`, `CLOSE`, `ADJ_CLOSE`, `VOLUME` in `_validation.py`) are found by name automatically; columns the indicator does not need are ignored.
-- The override is `columns=[...]` in any order; each name is assigned to the indicator's slot for its role, and a slot may accept several roles (`close` or `adj_close`). Unrecognized names, duplicate roles and missing slots raise. `column=` is single-column only, `columns=` multi-column only.
-- Unnamed 2-D arrays and tuples use the indicator's documented column order.
-- A missing role raises `ValueError` naming the required and the available columns.
-- Keep the role registry open-ended for fundamentals (`eps`, `book_value`, ...).
-- Rust side: build on `pyta-core`'s `Ohlcv` (`pyta-core/src/input.rs`, with `PytaError::InvalidOhlcv`) or a named-columns input; the kernel takes only the slices it needs.
-
-Follow the Sprint 9 task list in `docs/DEVELOPMENT.md` and tick what the extension completes.
+- **Rust.** The kernel takes one `&Series` per input, in slot order: `pub fn atr(high: &Series, low: &Series, close: &Series, period: usize)`. It checks the lengths match (`LengthMismatch`) but not relations between columns (high below low); Python does that. The dispatch arm destructures the input: `let [high, low, close] = input.columns()?;` (`IndicatorInput::columns::<N>()`; the wrong count is a `ColumnCount` error). Requests are built with `IndicatorRequest::with_columns(kind, Columns::new(vec![...])?, period)`. The cost constant is per row, not per row and column.
+- **Bindings.** `<name>` calls `single::compute_columns(py, columns, period, kind)` with `columns: Vec<PyReadonlyArray1<f64>>`; `<name>_batch` calls `batch::compute_columns_batch`. Stubs take `list[NDArray]` and `list[list[NDArray]]` (see `cci` in `_native.pyi`).
+- **Slots.** In `indicators/<category>/<name>.py`, `SLOTS = (Slot("high", (HIGH,)), Slot("low", (LOW,)), Slot("close", (CLOSE, ADJ_CLOSE)))`: one `Slot(name, roles)` per input, in the native order (which is also the documented order for unnamed input), each slot's roles in preference order. The functions take `columns: Sequence[str] | None = None` and `column: None = None` (which raises), and call `_api.run_columns(_native.<name>, "<name>", data, period, columns, SLOTS, column)` and `run_columns_batch(...)`.
+- **A new role** (for example `volume` exists; a fundamental such as `eps` does not) is one `register_role("eps", "earnings per share", ...)` line in `_validation.py`, beside the OHLCV ones. Nothing else changes.
+- **A rule between columns on every row** (like high not below low) is an entry in `ORDERED_ROLES` in `_columns.py`, checked for any indicator that has both roles.
+- **Tests and docs.** The reference fixture names its input columns by role (`label,high,low,close,expected`); `reference.columns` (Rust, in file order) and `reference.columns` (Python, a dict by name) read them. `tests/python/test_batch.py` feeds one series per dataset, so a multi-column indicator's batch tests go in `test_<name>.py`; add it to `MULTI_COLUMN` in `test_namespaces.py`. The wiki page gets a "Required columns" table (slot, accepted roles, order for unnamed input), as `docs/indicators/momentum/cci.md` has.
 
 ## Multi-output (MACD, Bollinger Bands, Stochastic %K/%D, Aroon): Sprint 10
 

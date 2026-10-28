@@ -37,9 +37,10 @@ PyTA/
 │   └── pyta/
 │       ├── __init__.py             # Public exports
 │       ├── _api.py                 # Shared execution boundary
+│       ├── _columns.py             # Multi-column normalization (slots matched by role)
 │       ├── _native.pyi             # Type stubs for the extension
 │       ├── _types.py               # Internal types
-│       ├── _validation.py          # Normalization and validation
+│       ├── _validation.py          # Normalization, validation, role registry
 │       ├── py.typed
 │       ├── trend.py                # pyta.trend namespace; re-exports only
 │       ├── momentum.py             # pyta.momentum namespace; re-exports only
@@ -54,6 +55,7 @@ PyTA/
 │           │   └── sma.py          # sma() and sma_batch()
 │           └── momentum/
 │               ├── __init__.py
+│               ├── cci.py          # cci() and cci_batch() (high, low, close)
 │               └── rsi.py          # rsi() and rsi_batch()
 ├── rust/crates/
 │   ├── pyta-common/                # Tunable constants (no logic, no dependencies)
@@ -89,7 +91,8 @@ PyTA/
 User data (list, tuple, ndarray, pandas, dict, JSON, ...)
     |
     v
-Python layer         clean, validate, normalize -> float64 array(s)
+Python layer         clean, validate, normalize -> one float64 array, or one per slot
+                     (multi-column: columns matched to the indicator's slots by role)
     |
     v
 pyta-python          GIL released; Rust types in, Rust types out
@@ -140,7 +143,7 @@ Owns the types and rules every indicator shares.
 
 | File | Responsibility |
 |---|---|
-| `input.rs` | `Series` (non-empty, all values finite) and `Ohlcv` (five aligned series) |
+| `input.rs` | `Series` (non-empty, all values finite) and `Columns` (one or more `Series` of equal length, in an indicator's slot order) |
 | `output.rs` | `IndicatorOutput`: values with `NaN` marking positions with no valid result |
 | `error.rs` | `PytaError` and `PytaResult` |
 
@@ -151,7 +154,8 @@ Does not own formulas, scheduling, or Python concerns.
 - Rust is strict: empty input, any non-finite value (`NaN` or infinity), and any value whose magnitude exceeds `MAX_ABS_INPUT` (`1e290`, in `pyta-common`) are rejected by `Series` validation.
 - Output length always equals input length. Warm-up positions are `NaN`, and only warm-up positions: for valid input every other output is finite.
 - `MAX_ABS_INPUT` is what makes that guarantee hold. Kernels may form sums of up to `period` values and differences of two values; with every input at most `1e290` in magnitude, those stay below `f64::MAX` (about `1.8e308`) for any series that fits in memory (at most 2^60 elements). Without it, `sma([f64::MAX, f64::MAX], 2)` returned `inf`. Checking against the limit costs the same as checking for finiteness: it is one compare per value, and it also rejects `NaN` and infinity. A future kernel that squares values (for example a standard deviation) must scale or centre them before squaring, or this limit must be revisited.
-- Rust errors are structured (for example `InvalidPeriod`, `PeriodExceedsLength`, `InsufficientData`, `NonFiniteValue { index }`, `ValueOutOfRange { index }`, `LengthMismatch`, `ExecutionFailed`).
+- Rust errors are structured (for example `InvalidPeriod`, `PeriodExceedsLength`, `InsufficientData`, `NonFiniteValue { index }`, `ValueOutOfRange { index }`, `LengthMismatch`, `ColumnCount { expected, actual }`, `ExecutionFailed`).
+- `Columns` knows nothing about roles: Python matches columns to slots and passes them in slot order, so a new role (such as a fundamental) needs no new Rust type. Rust does not check columns against each other (high below low); Python does, so the error can name the columns.
 
 ### Category crates: formulas
 
@@ -160,7 +164,7 @@ Each crate owns the formulas for one technical-analysis category. One indicator 
 | Crate | Indicators |
 |---|---|
 | `pyta-trend` | SMA |
-| `pyta-momentum` | RSI (Wilder's smoothing) |
+| `pyta-momentum` | RSI (Wilder's smoothing), CCI (high, low, close; O(rows × period)) |
 
 New categories (volatility, volume, valuation) are added as new `pyta-<category>` crates when there is a concrete indicator to implement.
 
@@ -168,11 +172,13 @@ New categories (volatility, volume, valuation) are added as new `pyta-<category>
 
 | File | Responsibility |
 |---|---|
-| `requests.rs` | `IndicatorKind`, `IndicatorRequest`, `IndicatorResult`, `IndicatorStatus` |
+| `requests.rs` | `IndicatorKind`, `IndicatorInput`, `IndicatorRequest`, `IndicatorResult`, `IndicatorStatus` |
 | `dispatch.rs` | Routes a request to its kernel; holds each indicator's estimated cost |
 | `execution.rs` | `execute_direct`: one request on the calling thread, panics caught |
 | `batch.rs` | `execute_sequential`, `execute_parallel` (Rayon), and `execute_batch` (async front door) |
 | `planner.rs` | `should_parallelize`: predicts whether parallel execution beats sequential execution |
+
+**Input.** `IndicatorRequest.input` is an `IndicatorInput`: `Series` for a single-column indicator (`IndicatorRequest::new`) or `Columns` for a multi-column one (`IndicatorRequest::with_columns`). Each `dispatch` arm takes what its kernel needs, `input.series()` or `input.columns::<N>()` (the slots in order), so a kernel receives only `&Series` values; input with the wrong number of columns is a `ColumnCount` error, never a panic. A cost is per row, not per row and column; a multi-column constant is measured per row.
 
 The engine has two execution paths. Both use the same `dispatch`, so results are identical.
 
@@ -190,9 +196,9 @@ Adding an `IndicatorKind` fails to compile until it has a dispatch arm and a cos
 
 ### `pyta-python`: native bridge
 
-- Registers `pyta._native` and its functions (`sma`, `rsi`, `sma_batch`, `rsi_batch`).
-- `lib.rs` only declares modules and registers functions. `error.rs` maps errors to exceptions, `single.rs` and `batch.rs` hold the shared conversion and execution plumbing, and each indicator's bindings live in a file named after it (`sma.rs`, `rsi.rs`).
-- Accepts a read-only 1-D `float64` NumPy array, copies it once, releases the GIL, runs the engine, and returns a NumPy array.
+- Registers `pyta._native` and its functions (`sma`, `rsi`, `cci`, and their `_batch` forms).
+- `lib.rs` only declares modules and registers functions. `error.rs` maps errors to exceptions, `single.rs` and `batch.rs` hold the shared conversion and execution plumbing, and each indicator's bindings live in a file named after it (`sma.rs`, `rsi.rs`, `cci.rs`).
+- A single-column function accepts a read-only 1-D `float64` NumPy array; a multi-column one (`compute_columns`, `compute_columns_batch`) accepts a list of them in slot order. Each array is copied once with validation fused into the copy (`series_from`, `columns_from`), then the GIL is released, the engine runs, and a NumPy array is returned. Single- and multi-column batches share one loop (`run_datasets`).
 - Maps `PytaError::ExecutionFailed` to `RuntimeError` and every other error to `ValueError`.
 - Single calls use `execute_direct`; batch calls use the planner, then `execute_sequential` or `execute_parallel` (see §6).
 - Parallel batches run on PyTA's own Rayon pool (`batch.rs`), built on first use and rebuilt in a forked child, because a child process does not inherit its parent's worker threads and work sent to an inherited pool would wait forever. `tests/python/test_fork.py` covers this.
@@ -215,8 +221,8 @@ The Python layer is responsible for everything about the user's data. Rust only 
 
 ### Public surface
 
-- `pyta/__init__.py` exports the public API (`sma`, `rsi`, `batch`, `indicators`, and the category namespaces `trend`, `momentum`).
-- `pyta/indicators/<category>/` holds one module per indicator (`trend/sma.py`, `momentum/rsi.py`). Each module contains that indicator's single-call function and its batch function, with full docstrings, delegating to `_api.run` and `_api.run_batch`.
+- `pyta/__init__.py` exports the public API (`sma`, `rsi`, `cci`, `batch`, `indicators`, and the category namespaces `trend`, `momentum`).
+- `pyta/indicators/<category>/` holds one module per indicator (`trend/sma.py`, `momentum/rsi.py`, `momentum/cci.py`). Each module contains that indicator's single-call function and its batch function, with full docstrings, delegating to `_api.run` and `_api.run_batch` (single-column) or `_api.run_columns` and `_api.run_columns_batch` (multi-column, with the indicator's `SLOTS`).
 - Everything else only re-exports, so every import style reaches the same function object (`pyta.trend.sma is pyta.indicators.sma is pyta.sma`): the category `__init__.py`, `pyta/indicators/__init__.py`, the thin top-level `pyta/<category>.py` (a real module, because `import pyta.trend` cannot import an attribute), and the `pyta/batch/` package (`pyta.batch.<name>` and `pyta.batch.<category>.<name>`, both the indicator's `<name>_batch`). None holds logic.
 - Function names shadow their module names (`pyta.indicators.trend.sma` is the function), so code that needs the module imports from it: `from pyta.indicators.trend.sma import sma_batch`.
 
@@ -237,9 +243,10 @@ Adding a category or an indicator only adds names; no existing import path chang
 
 | File | Responsibility |
 |---|---|
-| `_api.py` | `run()`: validate the period, normalize data, call native, restore the container. Also skips and re-pads a leading `NaN` run |
-| `_validation.py` | `validate_period` and `normalize` for every supported container; column selection |
-| `_types.py` | `Prepared`: a normalized series plus a function that rebuilds the caller's container |
+| `_api.py` | `run()` / `run_batch()`: validate the period, normalize data, call native, restore the container; also skip and re-pad a leading `NaN` run. `run_columns()` / `run_columns_batch()`: the same for multi-column indicators, plus the row-order check (`ORDERED_ROLES`) and column-named value errors |
+| `_validation.py` | `validate_period` and `normalize` for every supported container; single-column selection; the role registry (`register_role`, `role_of`) and `Slot` |
+| `_columns.py` | `normalize_columns`: every named container matched to an indicator's slots by role (or by `columns=`), unnamed ones in slot order |
+| `_types.py` | `Prepared` (a normalized series) and `PreparedColumns` (one series per slot, with labels and roles), each with a function that rebuilds the caller's container |
 | `_native.pyi` | Type stubs for the native module |
 
 ### Input and output contract
@@ -261,18 +268,27 @@ Column selection (for DataFrame, dict, and JSON objects) uses an explicit `colum
 
 | Layer | Handles |
 |---|---|
-| Python | Container detection, column selection, dtype conversion, `None` and `null` gaps, parameter types and ranges, leading-`NaN` skipping so indicators can be chained, restoring the user's container |
-| Rust | Emptiness, finiteness, period against length, and the calculation itself |
+| Python | Container detection, column selection and matching columns to slots, dtype conversion, `None` and `null` gaps, parameter types and ranges, leading-`NaN` skipping so indicators can be chained, rows checked across columns (high not below low), restoring the user's container |
+| Rust | Emptiness, finiteness, magnitude, equal column lengths and count, period against length, and the calculation itself |
+
+For multi-column input, Python checks values only after Rust has rejected one, to name the column and the row in the caller's data; on success it never scans them, so the Rust check is the only one paid.
 
 Python raises `TypeError` for unsupported types and `ValueError` for invalid values. Native errors surface as `ValueError`, or `RuntimeError` for internal execution failures.
 
 Pydantic is a hard dependency and is used only for structure and parameter validation, never per element. pandas is optional and is only inspected if the caller has already imported it, so `import pyta` never loads it.
 
-### Smart results *(planned for OHLCV)*
+### Multi-column input
 
-Multi-column indicators will follow the same rule (roles are found by name; `columns=[...]` overrides them, in any order: each name is assigned to the indicator's slot for its role, and an unrecognized name, a duplicate role or a missing slot is rejected): the user passes OHLCV in whatever container they have, PyTA identifies the container, pulls the columns the indicator needs, and returns the same container type.
+Multi-column indicators follow the same rule as single-column ones: the user passes OHLCV in whatever container they have, PyTA identifies the container, pulls the columns the indicator needs, and returns the same container type.
 
-- `IndicatorRequest` will grow from a single `Series` to named multi-column input (building on `Ohlcv`).
+- **Roles.** A role is what a column holds (`open`, `high`, ..., `volume`). `_validation.register_role(name, *aliases)` adds one; it returns the name for use as a constant and raises if an alias already belongs to another role, so no alias is ambiguous. A fundamental role (`eps`, `book_value`, ...) is one call; nothing else changes, because Rust only sees columns in slot order.
+- **Slots.** Each multi-column indicator declares `SLOTS`, a tuple of `Slot(name, roles)` in the order its native function takes the columns and unnamed input uses. A slot's roles are in preference order (CCI's `close` accepts `close`, or else `adj_close`).
+- **Matching.** With no `columns=`, each slot takes the first role it accepts that the input has, under any alias; unneeded columns are ignored, whatever they hold. `columns=[...]`, in any order, assigns each name to the slot for its role; an unrecognized name, a role no slot takes, two names for one slot, an empty slot or a name not in the input raise `ValueError` naming the indicator's slots. A missing role raises `ValueError` naming the required and the available columns. The match is cached per set of column names.
+- **Unnamed input.** A 2-D array `(rows, columns)` or a tuple of arrays is taken in slot order; the count must match. A single series raises `TypeError`.
+- **Rows.** The longest leading-`NaN` run across the slots is skipped (and re-padded), so chained outputs stay aligned. `ORDERED_ROLES` (in `_columns.py`) lists role pairs that must hold on every row, today `(high, low)`; a violation raises `ValueError` naming both columns and the row.
+
+Still planned:
+
 - Multi-output indicators (such as MACD and Bollinger Bands) return their outputs in the input's container type: extra columns for a DataFrame, extra keys for a dict or JSON object.
 - CSV input will be added alongside the existing types, so data returned by AlphaVantage works directly.
 
@@ -289,9 +305,9 @@ results = pyta.batch.sma(datasets, period=14)
 - `pyta.batch` mirrors the top-level indicator functions, with the same names and parameters. A new indicator gets a batch variant by following the same pattern.
 - `datasets` is a list (or mapping) of any supported containers. Results are returned in the same shape and order, each in its own input's container type.
 - The call is synchronous from the user's perspective; the planner decides internally whether to run sequentially or concurrently.
-- `period` and `column` are shared by the whole batch. One indicator per call; mixed-indicator batches are a later sprint.
+- `period` and `column` (or `columns` for a multi-column indicator) are shared by the whole batch. One indicator per call; mixed-indicator batches are a later sprint.
 - **Error policy.** Nothing is raised for a bad dataset, so the others still complete. Python normalizes and validates each dataset first (`_api.run_batch`); a dataset that fails there becomes its exception. The rest go to Rust in a single call, and a per-request engine error becomes the matching exception (`ValueError`, or `RuntimeError` for internal failures). Invalid `period` or `column` raise, because they affect every dataset.
-- **Native side.** `pyta._native.sma_batch` / `rsi_batch` take a list of arrays, copy and validate each, release the GIL, and return a list of arrays or exceptions in input order. The bridge asks `should_parallelize` and then runs `execute_sequential` or `execute_parallel` on its own Rayon pool.
+- **Native side.** `pyta._native.sma_batch` / `rsi_batch` take a list of arrays (`cci_batch` a list of lists of arrays, one per slot), copy and validate each, release the GIL, and return a list of arrays or exceptions in input order. The bridge asks `should_parallelize` and then runs `execute_sequential` or `execute_parallel` on its own Rayon pool.
 
 ---
 
@@ -310,12 +326,12 @@ results = pyta.batch.sma(datasets, period=14)
 | Location | Purpose |
 |---|---|
 | Rust `#[cfg(test)]` modules and crate `tests/` | Formulas, boundary cases, warm-up, validation, engine ordering and error isolation, sequential vs parallel equality, logging (a per-thread capturing logger in `pyta-engine`) |
-| Crate `tests/property_tests.rs` (`proptest`) | Kernel invariants for any input: output length, exact warm-up, SMA within its window's range, RSI in [0, 100], constant input |
+| Crate `tests/property_tests.rs` (`proptest`) | Kernel invariants for any input: output length, exact warm-up, SMA within its window's range, RSI in [0, 100], constant input, CCI within `period / 0.03` and unchanged by a shift and a positive scale |
 | Crate `tests/reference_tests.rs` | Published worked examples from `tests/fixtures/`, read by `rust/test-support/reference.rs` |
-| `tests/fixtures/` | Published reference examples as CSV (`label,input,expected`), each citing its source, period and tolerance in `#` comments, shared by Rust and Python; and realistic input data (`ohlcv_daily.csv`: 300 sessions of real SPY OHLCV, source cited), which is input only, never a reference. Python tests get it from the `ohlcv` fixture (`tests/conftest.py`, loader and an independent `rolling_mean` in `tests/ohlcv_data.py`) |
-| `tests/python/` | Public API behavior: containers, NaN policy, parameters, errors, batch, logging, fork, import surface; per-indicator numerics (`test_sma.py`, `test_rsi.py`); `hypothesis` properties (`test_properties.py`) |
+| `tests/fixtures/` | Published reference examples as CSV (`label,input,expected`, or one column per role such as `label,high,low,close,expected` for a multi-column indicator), each citing its source, period and tolerance in `#` comments, shared by Rust and Python; and realistic input data (`ohlcv_daily.csv`: 300 sessions of real SPY OHLCV, source cited), which is input only, never a reference. Python tests get it from the `ohlcv` fixture (`tests/conftest.py`, loader and an independent `rolling_mean` in `tests/ohlcv_data.py`) |
+| `tests/python/` | Public API behavior: containers, NaN policy, parameters, errors, batch, logging, fork, import surface; per-indicator numerics (`test_sma.py`, `test_rsi.py`, `test_cci.py`); multi-column input for every container, `columns=`, the role registry and errors (`test_multi_column.py`); `hypothesis` properties (`test_properties.py`, and `columns=` permutations) |
 | `tests/reference/` | The same published examples through the public API |
-| `tests/smoke/` | Quick build-and-run check: the OHLCV fixture as a dict of columns through `pyta.sma`, `pyta.rsi` and `pyta.batch` (stdlib only, so it also runs as a script) |
+| `tests/smoke/` | Quick build-and-run check: the OHLCV fixture as a dict of columns through `pyta.sma`, `pyta.rsi`, `pyta.cci` and `pyta.batch` (stdlib only, so it also runs as a script) |
 
 Quality gates, all in `scripts/test-suite.sh` and mirrored by CI:
 
@@ -349,8 +365,11 @@ Every step runs even if one fails, and the report is written to `tests/results/t
 | PyO3 registration | `pyta-python/src/lib.rs` |
 | Rust/Python conversion and batch execution | `pyta-python/src/single.rs`, `batch.rs` |
 | An indicator's native bindings | `pyta-python/src/<indicator>.rs` |
-| Supported input containers or column rules | `python/pyta/_validation.py` |
-| Result container restoration | `python/pyta/_validation.py` (`Prepared`) |
+| Supported input containers or column rules | `python/pyta/_validation.py` (single-column), `python/pyta/_columns.py` (multi-column) |
+| A column role (for example a fundamental such as `eps`) | `register_role` in `python/pyta/_validation.py` |
+| A rule between columns on every row (high not below low) | `ORDERED_ROLES` in `python/pyta/_columns.py` |
+| An indicator's input columns | `SLOTS` in its `python/pyta/indicators/<category>/<name>.py` |
+| Result container restoration | `python/pyta/_validation.py` (`Prepared`), `python/pyta/_columns.py` (`PreparedColumns`) |
 | The shared call path for indicators | `python/pyta/_api.py` |
 | A public indicator function | `python/pyta/indicators/<category>/<name>.py` |
 | Public exports and category namespaces | `python/pyta/__init__.py`, `indicators/__init__.py`, `indicators/<category>/__init__.py`, `pyta/<category>.py`, `pyta/batch/` (see [Adding a category](#adding-a-category)) |
@@ -360,7 +379,7 @@ Every step runs even if one fails, and the report is written to `tests/results/t
 
 - Python modules and Rust source files: `snake_case`. Rust crate directories: kebab-case (`pyta-trend`). Private Python modules start with `_`.
 - Crates are named `pyta-<category>`; one indicator per file when practical.
-- Python function names are `snake_case` (`sma`, `rsi`). Use consistent parameter names across indicators (`period`, `column`).
+- Python function names are `snake_case` (`sma`, `rsi`). Use consistent parameter names across indicators (`period`, `column`, `columns`).
 - Anything re-exported from `pyta/__init__.py` is public API. Internal modules and `pyta._native` carry no stability promise.
 - Document any non-default formula variants or smoothing methods.
 
