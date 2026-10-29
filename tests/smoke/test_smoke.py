@@ -68,6 +68,20 @@ def test_smoke() -> None:
     assert np.isnan(atr_values[:14]).all(), "ATR warm-up alignment is incorrect"
     assert (atr_values[14:] > 0.0).all()
 
+    donchian = pyta.donchian(data, period=20)
+    assert list(donchian) == ["donchian_upper", "donchian_middle", "donchian_lower"]
+    upper, middle, lower = (np.array(donchian[name]) for name in donchian)
+    assert middle.dtype == np.float64
+    assert upper.shape == middle.shape == lower.shape == (length,), (
+        "Donchian output length mismatch"
+    )
+    assert np.isnan(upper[:19]).all(), "Donchian warm-up alignment is incorrect"
+    assert np.isnan(lower[:19]).all(), "Donchian warm-up alignment is incorrect"
+    assert upper[-1] == max(data["high"][-20:])
+    assert lower[-1] == min(data["low"][-20:])
+    assert (lower[19:] <= middle[19:]).all()
+    assert (middle[19:] <= upper[19:]).all()
+
     stddev_values = np.array(pyta.stddev(data, period=20, k=2.0)["stddev"])
     assert stddev_values.dtype == np.float64
     assert stddev_values.shape == (length,), "STDDEV output length mismatch"

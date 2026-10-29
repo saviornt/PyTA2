@@ -1,12 +1,12 @@
 use pyta_common::{
     ATR_NS_PER_ELEMENT, BBANDS_NS_PER_ELEMENT, BBANDS_NS_PER_WINDOW_VALUE, CCI_NS_PER_ELEMENT,
-    CCI_NS_PER_WINDOW_VALUE, EMA_NS_PER_ELEMENT, MACD_NS_PER_ELEMENT, RSI_NS_PER_ELEMENT,
-    SMA_NS_PER_ELEMENT, STDDEV_NS_PER_ELEMENT, STDDEV_NS_PER_WINDOW_VALUE,
+    CCI_NS_PER_WINDOW_VALUE, DONCHIAN_NS_PER_ELEMENT, EMA_NS_PER_ELEMENT, MACD_NS_PER_ELEMENT,
+    RSI_NS_PER_ELEMENT, SMA_NS_PER_ELEMENT, STDDEV_NS_PER_ELEMENT, STDDEV_NS_PER_WINDOW_VALUE,
 };
 use pyta_core::{IndicatorOutput, PytaResult};
 use pyta_momentum::{cci, rsi};
 use pyta_trend::{ema, macd, sma};
-use pyta_volatility::{atr, bbands, stddev};
+use pyta_volatility::{atr, bbands, donchian, stddev};
 
 use crate::requests::{IndicatorRequest, Params};
 
@@ -28,6 +28,10 @@ pub(crate) fn dispatch(request: &IndicatorRequest) -> PytaResult<IndicatorOutput
         Params::Cci { period } => {
             let [high, low, close] = input.columns()?;
             cci(high, low, close, period)
+        }
+        Params::Donchian { period } => {
+            let [high, low] = input.columns()?;
+            donchian(high, low, period)
         }
         Params::Ema { period } => ema(input.series()?, period),
         Params::Macd { fast, slow, signal } => macd(input.series()?, fast, slow, signal),
@@ -57,6 +61,7 @@ pub(crate) fn estimated_cost_ns(request: &IndicatorRequest) -> f64 {
             BBANDS_NS_PER_ELEMENT + BBANDS_NS_PER_WINDOW_VALUE * period as f64
         }
         Params::Cci { period } => CCI_NS_PER_ELEMENT + CCI_NS_PER_WINDOW_VALUE * period as f64,
+        Params::Donchian { .. } => DONCHIAN_NS_PER_ELEMENT,
         Params::Ema { .. } => EMA_NS_PER_ELEMENT,
         Params::Macd { .. } => MACD_NS_PER_ELEMENT,
         Params::Rsi { .. } => RSI_NS_PER_ELEMENT,
@@ -129,6 +134,15 @@ mod tests {
         assert_eq!(
             cost(Params::Bbands { period: 20, k: 1.0 }),
             cost(Params::Bbands { period: 20, k: 3.0 })
+        );
+    }
+
+    #[test]
+    fn donchian_cost_does_not_depend_on_its_period() {
+        // The rolling extremes are O(n) whatever the window.
+        assert_eq!(
+            cost(Params::Donchian { period: 5 }),
+            cost(Params::Donchian { period: 200 })
         );
     }
 }

@@ -12,6 +12,7 @@ fn params(kind: IndicatorKind, period: usize) -> Params {
     match kind {
         IndicatorKind::Atr => Params::Atr { period },
         IndicatorKind::Cci => Params::Cci { period },
+        IndicatorKind::Donchian => Params::Donchian { period },
         IndicatorKind::Ema => Params::Ema { period },
         IndicatorKind::Rsi => Params::Rsi { period },
         IndicatorKind::Sma => Params::Sma { period },
@@ -278,6 +279,7 @@ fn the_kind_comes_from_the_params() {
         (Params::Atr { period: 2 }, IndicatorKind::Atr),
         (Params::Bbands { period: 2, k: 2.0 }, IndicatorKind::Bbands),
         (Params::Cci { period: 2 }, IndicatorKind::Cci),
+        (Params::Donchian { period: 2 }, IndicatorKind::Donchian),
         (Params::Ema { period: 2 }, IndicatorKind::Ema),
         (
             Params::Macd {
@@ -549,6 +551,53 @@ async fn bbands_runs_through_the_engine_with_three_outputs_and_reports_its_error
         PytaError::PeriodExceedsLength {
             period: 5,
             length: 4,
+        }
+    );
+}
+
+#[tokio::test]
+async fn donchian_runs_through_the_engine_with_three_outputs_and_reports_its_errors() {
+    // Windows of 2: highest highs 12, 12, 14, lowest lows 9, 9, 10.
+    let high: &[f64] = &[11.0, 12.0, 11.0, 14.0];
+    let low: &[f64] = &[9.0, 9.0, 10.0, 12.0];
+    let requests = vec![
+        columns_request(IndicatorKind::Donchian, &[high, low], 2),
+        columns_request(IndicatorKind::Donchian, &[high, low], 0),
+        columns_request(IndicatorKind::Donchian, &[high, low], 5),
+        request(IndicatorKind::Donchian, high.to_vec(), 2),
+    ];
+
+    let direct = execute_direct(&requests[0]).unwrap();
+    let [upper, middle, lower] = direct.outputs() else {
+        panic!("expected three outputs, got {}", direct.output_count());
+    };
+    assert_values(upper, &[NAN, 12.0, 12.0, 14.0]);
+    assert_values(middle, &[NAN, 10.5, 10.5, 12.0]);
+    assert_values(lower, &[NAN, 9.0, 9.0, 10.0]);
+
+    let results = execute_batch(requests).await;
+
+    match &results[0].status {
+        IndicatorStatus::Success(output) => {
+            for (got, want) in output.outputs().iter().zip(direct.outputs()) {
+                assert_values(got, want);
+            }
+        }
+        IndicatorStatus::Error(error) => panic!("expected Donchian success, got {error:?}"),
+    }
+    assert_eq!(*error_of(&results[1]), PytaError::InvalidPeriod);
+    assert_eq!(
+        *error_of(&results[2]),
+        PytaError::PeriodExceedsLength {
+            period: 5,
+            length: 4,
+        }
+    );
+    assert_eq!(
+        *error_of(&results[3]),
+        PytaError::ColumnCount {
+            expected: 2,
+            actual: 1,
         }
     );
 }

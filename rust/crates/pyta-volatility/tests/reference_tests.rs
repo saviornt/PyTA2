@@ -1,10 +1,10 @@
-//! ATR, STDDEV and BBANDS against TA-Lib's own output (generated fixtures, see their comments).
+//! ATR, STDDEV, BBANDS and Donchian Channels against TA-Lib's own output (generated fixtures, see their comments).
 
 #[path = "../../../test-support/reference.rs"]
 mod reference;
 
 use pyta_core::Series;
-use pyta_volatility::{atr, bbands, stddev};
+use pyta_volatility::{atr, bbands, donchian, stddev};
 use reference::{assert_matches, assert_output_matches, load};
 
 fn check_atr(name: &str) {
@@ -96,4 +96,37 @@ fn bbands_20_2_matches_talib_on_the_edge_series() {
             );
         }
     }
+}
+
+fn check_donchian(name: &str) {
+    let reference = load(name);
+    let [high, low] = [0, 1].map(|i| Series::new(reference.columns[i].clone()).unwrap());
+
+    let output = donchian(&high, &low, reference.period()).unwrap();
+
+    assert_eq!(output.output_count(), 3);
+    for (index, channel) in output.outputs().iter().enumerate() {
+        assert_output_matches(channel, &reference, index);
+    }
+
+    // Upper and lower are TA-Lib's MAX and MIN, copied input values, so they
+    // match bit for bit; the middle is the same (upper + lower) / 2.
+    for (index, (actual, expected)) in output.outputs().iter().zip(&reference.outputs).enumerate() {
+        for (row, (a, e)) in actual.iter().zip(expected).enumerate() {
+            assert!(
+                a.to_bits() == e.to_bits() || (a.is_nan() && e.is_nan()),
+                "output {index}, row {row}: {a} vs {e}"
+            );
+        }
+    }
+}
+
+#[test]
+fn donchian_20_matches_talib_on_spy() {
+    check_donchian("donchian_20_talib.csv");
+}
+
+#[test]
+fn donchian_20_matches_talib_on_the_edge_series() {
+    check_donchian("donchian_20_edge_talib.csv");
 }

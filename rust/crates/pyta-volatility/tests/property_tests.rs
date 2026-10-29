@@ -1,9 +1,9 @@
-//! ATR, STDDEV and BBANDS invariants that must hold for any valid input.
+//! ATR, STDDEV, BBANDS and Donchian Channels invariants that must hold for any valid input.
 
 use proptest::prelude::*;
 use pyta_core::Series;
 use pyta_core::kernels::true_range_at;
-use pyta_volatility::{atr, bbands, stddev};
+use pyta_volatility::{atr, bbands, donchian, stddev};
 
 /// High, low and close columns of 2 to 300 rows (high at or above low,
 /// close between them) and a period that leaves at least one ATR value.
@@ -198,6 +198,49 @@ proptest! {
             prop_assert!(low - slack <= middle && middle <= high + slack);
             prop_assert_eq!(upper, middle + width[row]);
             prop_assert_eq!(lower, middle - width[row]);
+        }
+    }
+}
+
+fn donchian_of(columns: &[Vec<f64>; 3], period: usize) -> Vec<Vec<f64>> {
+    let [high, low, _] = columns.clone().map(|values| Series::new(values).unwrap());
+
+    donchian(&high, &low, period).unwrap().into_outputs()
+}
+
+proptest! {
+    #[test]
+    fn donchian_outputs_have_input_length_and_one_shared_warm_up(
+        (columns, period) in columns_and_period(),
+    ) {
+        let channels = donchian_of(&columns, period);
+
+        prop_assert_eq!(channels.len(), 3);
+        for channel in &channels {
+            prop_assert_eq!(channel.len(), columns[0].len());
+            prop_assert!(channel[..period - 1].iter().all(|value| value.is_nan()));
+            prop_assert!(channel[period - 1..].iter().all(|value| value.is_finite()));
+        }
+    }
+
+    #[test]
+    fn donchian_is_the_window_extremes_and_their_midpoint(
+        (columns, period) in columns_and_period(),
+    ) {
+        // A rescan of every window, current row included.
+        let channels = donchian_of(&columns, period);
+        let [high, low, _] = &columns;
+
+        for (offset, (highs, lows)) in high.windows(period).zip(low.windows(period)).enumerate() {
+            let row = offset + period - 1;
+            let top = highs.iter().copied().fold(f64::MIN, f64::max);
+            let bottom = lows.iter().copied().fold(f64::MAX, f64::min);
+            let (upper, middle, lower) = (channels[0][row], channels[1][row], channels[2][row]);
+
+            prop_assert_eq!(upper, top);
+            prop_assert_eq!(lower, bottom);
+            prop_assert_eq!(middle, (top + bottom) / 2.0);
+            prop_assert!(lower <= middle && middle <= upper);
         }
     }
 }

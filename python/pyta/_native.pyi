@@ -11,6 +11,8 @@ __all__ = [
     "bbands_batch",
     "cci",
     "cci_batch",
+    "donchian",
+    "donchian_batch",
     "ema",
     "ema_batch",
     "macd",
@@ -58,4 +60,8 @@ def stddev_batch(
 def bbands(values: NDArray[np.float64], period: int, k: float) -> list[NDArray[np.float64]]: ...
 def bbands_batch(
     datasets: list[NDArray[np.float64]], period: int, k: float
+) -> list[list[NDArray[np.float64]] | Exception]: ...
+def donchian(columns: list[NDArray[np.float64]], period: int) -> list[NDArray[np.float64]]: ...
+def donchian_batch(
+    datasets: list[list[NDArray[np.float64]]], period: int
 ) -> list[list[NDArray[np.float64]] | Exception]: ...

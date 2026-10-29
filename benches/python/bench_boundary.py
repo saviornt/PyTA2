@@ -44,6 +44,7 @@ INDICATORS: dict[str, tuple[dict[str, int | float], int]] = {
     "atr": ({"period": 14}, 3),
     "stddev": ({"period": 5, "k": 1.0}, 1),
     "bbands": ({"period": 20, "k": 2.0}, 1),
+    "donchian": ({"period": 20}, 2),
 }
 
 SIZES = (100, 10_000, 1_000_000)

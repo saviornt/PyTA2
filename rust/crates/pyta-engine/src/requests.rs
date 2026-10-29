@@ -12,6 +12,8 @@ pub enum IndicatorKind {
     Bbands,
     /// Commodity Channel Index (`pyta-momentum`; high, low, close).
     Cci,
+    /// Donchian Channels (`pyta-volatility`; high, low; three outputs).
+    Donchian,
     /// Exponential Moving Average (`pyta-trend`).
     Ema,
     /// Moving Average Convergence/Divergence (`pyta-trend`; three outputs).
@@ -55,6 +57,12 @@ pub enum Params {
         /// Rows in each window.
         period: usize,
     },
+    /// Donchian Channels: the highest high and lowest low of the last
+    /// `period` rows, and their midpoint.
+    Donchian {
+        /// Rows in each window, the current row included.
+        period: usize,
+    },
     /// Exponential Moving Average.
     Ema {
         /// Rows in the seed average; sets the weight `2 / (period + 1)`.
@@ -95,6 +103,7 @@ impl Params {
             Self::Atr { .. } => IndicatorKind::Atr,
             Self::Bbands { .. } => IndicatorKind::Bbands,
             Self::Cci { .. } => IndicatorKind::Cci,
+            Self::Donchian { .. } => IndicatorKind::Donchian,
             Self::Ema { .. } => IndicatorKind::Ema,
             Self::Macd { .. } => IndicatorKind::Macd,
             Self::Rsi { .. } => IndicatorKind::Rsi,

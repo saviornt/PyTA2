@@ -9,6 +9,7 @@ mod atr;
 mod batch;
 mod bbands;
 mod cci;
+mod donchian;
 mod ema;
 mod error;
 mod log_bridge;
@@ -40,5 +41,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(stddev::stddev_batch, m)?)?;
     m.add_function(wrap_pyfunction!(bbands::bbands, m)?)?;
     m.add_function(wrap_pyfunction!(bbands::bbands_batch, m)?)?;
+    m.add_function(wrap_pyfunction!(donchian::donchian, m)?)?;
+    m.add_function(wrap_pyfunction!(donchian::donchian_batch, m)?)?;
     Ok(())
 }

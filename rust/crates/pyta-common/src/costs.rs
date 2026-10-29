@@ -79,6 +79,22 @@ pub const BBANDS_NS_PER_ELEMENT: f64 = 9.9;
 /// cost is O(rows * period). Measured as [`BBANDS_NS_PER_ELEMENT`].
 pub const BBANDS_NS_PER_WINDOW_VALUE: f64 = 0.26;
 
+/// Donchian Channels, in nanoseconds per input row; independent of
+/// `period` (the van Herk/Gil-Werman rolling maximum and minimum are O(n)
+/// whatever the window).
+///
+/// Provisional, from a quick run on 2026-10-29
+/// (`benches/results/benchmark_2026-10-29_06-48-34.txt`, `--single --rust
+/// --quick`, governor `performance`: kernels at 1,000,000 rows took
+/// 9.798 ms for Donchian-20 and 2.774 ms for RSI-14), scaled here by
+/// `RSI_NS_PER_ELEMENT` (3.0 * 3.53). A period sweep of the release-built
+/// native call at 1,000,000 rows (best of 15, twice) was flat from period
+/// 14 on (12.4 ms at 14, 12.1 at 20, 11.6 at 200) and higher only for tiny
+/// windows (14.1 ms at 5, 16.9 at 2: one block per `period` rows), so the
+/// constant has no `period` term. Confirm with a full
+/// `--single --rust --indicator donchian`.
+pub const DONCHIAN_NS_PER_ELEMENT: f64 = 10.6;
+
 /// Exponential Moving Average, in nanoseconds per input element; independent
 /// of `period` (one pass after the seed).
 ///

@@ -29,13 +29,14 @@ INDICATORS = {
     "atr": "volatility",
     "stddev": "volatility",
     "bbands": "volatility",
+    "donchian": "volatility",
 }
 
 # Every category subpackage, including those without indicators yet.
 CATEGORIES = {"momentum", "trend", "volatility", "volume"}
 
 # Multi-column indicators, which take full OHLCV data rather than one series.
-MULTI_COLUMN = {"atr", "cci"}
+MULTI_COLUMN = {"atr", "cci", "donchian"}
 
 # Documented function paths (README, docs/API.md, docs/indicators/). These must
 # keep resolving: never remove an entry, only add.
@@ -88,6 +89,12 @@ DOCUMENTED_PATHS = [
     "pyta.indicators.volatility.bbands",
     "pyta.batch.bbands",
     "pyta.batch.volatility.bbands",
+    "pyta.donchian",
+    "pyta.volatility.donchian",
+    "pyta.indicators.donchian",
+    "pyta.indicators.volatility.donchian",
+    "pyta.batch.donchian",
+    "pyta.batch.volatility.donchian",
 ]
 
 
@@ -139,14 +146,15 @@ def test_both_styles_give_the_same_results(name: str, category: str, ohlcv: Ohlc
     by_name = getattr(pyta, name)(data, 10)
     by_category = getattr(getattr(pyta, category), name)(data, 10)
     if name in MULTI_COLUMN:
-        by_name, by_category = by_name[name], by_category[name]
+        # Every output, in order (Donchian Channels have three).
+        by_name, by_category = list(by_name.values()), list(by_category.values())
     np.testing.assert_array_equal(by_category, by_name)
 
     batch_by_name = getattr(pyta.batch, name)(datasets, 10)
     batch_by_category = getattr(getattr(pyta.batch, category), name)(datasets, 10)
     for got, want in zip(batch_by_category, batch_by_name, strict=True):
         if name in MULTI_COLUMN:
-            got, want = got[name], want[name]
+            got, want = list(got.values()), list(want.values())
         np.testing.assert_array_equal(got, want)
 
 

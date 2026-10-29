@@ -17,6 +17,7 @@ fn params(kind: IndicatorKind, period: usize) -> Params {
     match kind {
         IndicatorKind::Atr => Params::Atr { period },
         IndicatorKind::Cci => Params::Cci { period },
+        IndicatorKind::Donchian => Params::Donchian { period },
         IndicatorKind::Ema => Params::Ema { period },
         IndicatorKind::Rsi => Params::Rsi { period },
         IndicatorKind::Sma => Params::Sma { period },
