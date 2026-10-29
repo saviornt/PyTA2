@@ -65,7 +65,7 @@ def run(
 def _pad_all(result: NativeResult, first: int, length: int) -> Sequence[Float64Array]:
     """`_pad` applied to every output of a native result, in output order."""
     if isinstance(result, np.ndarray):
-        return (_pad(result, first, length),)
+        return (result if first == 0 else _pad(result, first, length),)
 
     return [_pad(values, first, length) for values in result]
 
@@ -253,7 +253,7 @@ def run_columns(
         raise explained from None
 
     results = _pad_all(result, first, prepared.values[0].shape[0])
-    return prepared.restore(outputs.cased(prepared.names), results)
+    return prepared.restore(outputs.cased_text(prepared.names), results)
 
 
 def run_columns_batch(
@@ -299,7 +299,7 @@ def run_columns_batch(
             failed += 1
         else:
             padded = _pad_all(result, first, prepared.values[0].shape[0])
-            outcomes[position] = prepared.restore(outputs.cased(prepared.names), padded)
+            outcomes[position] = prepared.restore(outputs.cased_text(prepared.names), padded)
 
     if failed:
         _log_failures(label, outcomes, keys, failed)

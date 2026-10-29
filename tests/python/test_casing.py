@@ -234,6 +234,16 @@ def test_series_names_that_compare_equal_are_cased_apart(ohlcv: Ohlcv) -> None:
     assert pyta.sma(pd.Series(ohlcv.close, name=1), 3).name == "sma"
 
 
+@pytest.mark.parametrize(
+    "names", [(), ("Close",), ("HIGH", "LOW", "CLOSE"), ("High", "low"), ("a", "B")]
+)
+def test_cased_text_matches_cased_for_str_names(names: tuple[str, ...]) -> None:
+    # Fresh instances, so neither call is answered from the other's memo.
+    expected = OutputNames("macd", ("macd", "macd_signal"), ("macd",)).cased(names)
+
+    assert OutputNames("macd", ("macd", "macd_signal"), ("macd",)).cased_text(names) == expected
+
+
 def test_the_memo_is_bounded(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(outputs_module, "_MEMO_SIZE", 2)
     names = OutputNames("sma", ("sma",), ("sma",))

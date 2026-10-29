@@ -263,13 +263,8 @@ def _prepared(
         )
         raise ValueError(f"columns have different lengths ({sizes})")
 
-    return PreparedColumns(
-        tuple(values),
-        tuple(str(label) for label in labels),
-        tuple(roles),
-        restore,
-        tuple(labels) if named else (),
-    )
+    text = tuple(map(str, labels))
+    return PreparedColumns(tuple(values), text, tuple(roles), restore, text if named else ())
 
 
 # --- containers -----------------------------------------------------------------------------

@@ -283,7 +283,7 @@ For multi-column input, Python checks values only after Rust has rejected one, t
 
 Python raises `TypeError` for unsupported types and `ValueError` for invalid values. Native errors surface as `ValueError`, or `RuntimeError` for internal execution failures.
 
-Pydantic is a hard dependency and is used only for structure and parameter validation, never per element. pandas is optional and is only inspected if the caller has already imported it, so `import pyta` never loads it.
+Pydantic is a hard dependency and is used only for structure and parameter validation, never per element. A parameter that is already a plain `int` in range skips it (Pydantic would return the same value; in context it cost about 1 µs of a 100-row call); anything else goes through Pydantic. pandas is optional and is only inspected if the caller has already imported it, so `import pyta` never loads it.
 
 ### Multi-column input
 

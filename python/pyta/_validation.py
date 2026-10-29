@@ -127,7 +127,13 @@ def _validate_int(name: str, value: object, minimum: int, adapter: TypeAdapter[i
     """Returns `value` as an int in [minimum, 2**31 - 1], with errors naming `name`.
 
     Wrong types raise `TypeError`; out-of-range values raise `ValueError`.
+    A plain in-range `int` is returned as is: Pydantic would return the same
+    value, and skipping it saves about 1 µs per call (measured in a 100-row
+    CCI call, where Pydantic's cost in context exceeds its ~0.4 µs alone).
     """
+    if type(value) is int and minimum <= value <= _MAX_PERIOD:
+        return value
+
     if isinstance(value, bool):
         raise TypeError(f"{name} must be an integer, not bool")
 
@@ -150,6 +156,10 @@ def validate_period(period: object) -> int:
 
     Wrong types raise `TypeError`; out-of-range values raise `ValueError`.
     """
+    # Inlined fast path of `_validate_int`: this runs on every call.
+    if type(period) is int and 1 <= period <= _MAX_PERIOD:
+        return period
+
     return _validate_int("period", period, 1, _AT_LEAST_1)
 
 
@@ -300,10 +310,6 @@ def one_series(single: Callable[[Float64Array, str], Any]) -> Restore:
     return restore
 
 
-def _as_array(out: Float64Array, _name: str) -> Float64Array:
-    return out
-
-
 def _as_list(out: Float64Array, _name: str) -> list[float]:
     return out.tolist()
 
@@ -312,8 +318,13 @@ def _as_tuple(out: Float64Array, _name: str) -> tuple[float, ...]:
     return tuple(out.tolist())
 
 
+def _restore_array(_names: Sequence[str], results: Sequence[Float64Array]) -> Any:
+    """`one_series` for a NumPy array, written out: it runs on every array call."""
+    return results[0] if len(results) == 1 else tuple(results)
+
+
 #: Restores for unnamed one-series containers, shared by every call.
-RESTORE_ARRAY = one_series(_as_array)
+RESTORE_ARRAY: Restore = _restore_array
 RESTORE_LIST = one_series(_as_list)
 RESTORE_TUPLE = one_series(_as_tuple)
 
@@ -322,8 +333,15 @@ def restore_columns(inner: Restore) -> Restore:
     """A `Restore` for a dict: one key per output, each value restored by `inner`.
 
     `inner` is the restore of the input column's own container, so each output
-    keeps that container type.
+    keeps that container type. The restores for the shared `inner` ones are
+    built once (see `_COLUMN_RESTORES`).
     """
+    shared = _COLUMN_RESTORES.get(inner)
+    return shared if shared is not None else _restore_columns(inner)
+
+
+def _restore_columns(inner: Restore) -> Restore:
+    """Builds the `restore_columns` closure for `inner`."""
 
     def restore(names: Sequence[str], results: Sequence[Float64Array]) -> dict[str, Any]:
         if len(results) == 1:
@@ -331,6 +349,13 @@ def restore_columns(inner: Restore) -> Restore:
         return {name: inner((name,), (out,)) for name, out in zip(names, results, strict=True)}
 
     return restore
+
+
+#: `restore_columns` for each shared inner restore, built once: building one per
+#: call cost ~0.1 µs per dict of arrays.
+_COLUMN_RESTORES: dict[Restore, Restore] = {
+    inner: _restore_columns(inner) for inner in (RESTORE_ARRAY, RESTORE_LIST, RESTORE_TUPLE)
+}
 
 
 def restore_frame(pd: Any, index: Any) -> Restore:

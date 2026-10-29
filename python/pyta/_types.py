@@ -34,13 +34,13 @@ class PreparedColumns:
 
     `labels` name each series as error messages should: the caller's column
     name, or its position for unnamed input. `roles` are the roles the series
-    were matched to. `names` are the caller's column names, or empty for
-    unnamed input (2-D arrays, tuples of arrays); output names take their
-    casing from them.
+    were matched to. `names` are the caller's column names as `str` (the
+    same tuple as `labels`), or empty for unnamed input (2-D arrays, tuples
+    of arrays); output names take their casing from them.
     """
 
     values: tuple[Float64Array, ...]
     labels: tuple[str, ...]
     roles: tuple[str, ...]
     restore: Restore
-    names: tuple[object, ...] = ()
+    names: tuple[str, ...] = ()
