@@ -427,7 +427,7 @@ def test_a_square_table_is_read_as_rows_and_columns() -> None:
         ((np.ones(3), 4.0), TypeError, "the tuple mixes lists or arrays and numbers"),
         ("[[1.0, 2.0, 3.0], 4.0]", TypeError, "JSON array mixes arrays and numbers"),
         ('[[1.0, 2.0, 3.0], {"high": 1.0}]', TypeError, "mixes records and numbers or arrays"),
-        ([["a", "b", "c"]] * 4, TypeError, "unsupported dtype"),
+        ([["a", "b", "c"]] * 4, TypeError, "value 'a' at index 0 is not a number"),
     ],
 )
 def test_malformed_nested_input(data: object, error: type[Exception], message: str) -> None:
@@ -554,7 +554,7 @@ def test_series_mixed_with_other_columns_raise(ohlcv: Ohlcv) -> None:
             TypeError,
             "JSON column 'high' must be an array",
         ),
-        ("3.5", TypeError, "JSON input must be an array of records, an array of arrays or an "),
+        ("3.5", ValueError, "CSV input has no header row"),
         ({"high": [1.0], "low": "x", "close": [1.0]}, TypeError, "column 'low' must be a list"),
     ],
 )
@@ -722,3 +722,83 @@ def test_batch_names_the_column_of_an_invalid_value(ohlcv: Ohlcv) -> None:
     np.testing.assert_array_equal(good[NAME], expected(ohlcv))
     assert isinstance(failed, ValueError)
     assert str(failed).startswith("column 'close': non-finite value (NaN or infinity) at index 7")
+
+
+# --- numbers as strings and numbered names --------------------------------------------------
+
+
+def as_text(ohlcv: Ohlcv) -> dict[str, list[str]]:
+    """The fixture's columns as strings, as AlphaVantage's JSON holds them."""
+    return {name: [repr(value) for value in values] for name, values in ohlcv.lists().items()}
+
+
+def test_numbers_as_strings_in_dict_json_and_rows(ohlcv: Ohlcv) -> None:
+    text = as_text(ohlcv)
+    want = expected(ohlcv)
+    rows = [list(row) for row in zip(text["high"], text["low"], text["close"], strict=True)]
+
+    np.testing.assert_array_equal(pyta.cci(text, PERIOD)[NAME], want)
+    np.testing.assert_array_equal(
+        pyta.cci({name: tuple(values) for name, values in text.items()}, PERIOD)[NAME], want
+    )
+    floats = json.loads(pyta.cci(json.dumps(text), PERIOD))[NAME]
+    np.testing.assert_array_equal(np.array(floats, dtype=np.float64), want)
+    records = [dict(zip(text, row, strict=True)) for row in zip(*text.values(), strict=True)]
+    parsed = json.loads(pyta.cci(json.dumps(records), PERIOD))
+    np.testing.assert_array_equal(np.array([row[NAME] for row in parsed], dtype=np.float64), want)
+    np.testing.assert_array_equal(pyta.cci(rows, PERIOD), want)
+    np.testing.assert_array_equal(pyta.cci(np.array(rows), PERIOD), want)
+
+
+@pytest.mark.pandas
+def test_numbers_as_strings_in_a_dataframe(ohlcv: Ohlcv) -> None:
+    pd = pytest.importorskip("pandas")
+    frame = pd.DataFrame(as_text(ohlcv), dtype="string")
+
+    np.testing.assert_array_equal(pyta.cci(frame, PERIOD)[NAME].to_numpy(), expected(ohlcv))
+
+
+def test_text_that_is_not_a_number_names_the_column_and_row() -> None:
+    data = {"high": ["3", "4", "5"], "low": ["1", "2", "3"], "close": ["2", "n/a", "4"]}
+
+    with pytest.raises(TypeError, match=r"column 'close' value 'n/a' at index 1 is not a number"):
+        pyta.cci(data, 2)
+
+    with pytest.raises(TypeError, match=r"column 'close' value 'n/a' at index 1"):
+        pyta.cci(json.dumps(data), 2)
+
+
+def test_numbered_names_match_with_and_without_columns(ohlcv: Ohlcv) -> None:
+    numbered = {
+        "1. open": ohlcv.open,
+        "2. high": ohlcv.high,
+        "3. low": ohlcv.low,
+        "4. close": ohlcv.close,
+        "5. adjusted close": ohlcv.open,
+    }
+
+    np.testing.assert_array_equal(pyta.cci(numbered, PERIOD)[NAME], expected(ohlcv))
+    np.testing.assert_array_equal(
+        pyta.cci(numbered, PERIOD, columns=["2. high", "low", "adjusted close"])[NAME],
+        expected(ohlcv, close=ohlcv.open),
+    )
+    parsed = json.loads(pyta.cci(json.dumps({k: v.tolist() for k, v in numbered.items()}), PERIOD))
+    np.testing.assert_array_equal(np.array(parsed[NAME], dtype=np.float64), expected(ohlcv))
+
+
+@pytest.mark.pandas
+def test_numbered_names_in_a_dataframe_keep_their_casing(ohlcv: Ohlcv) -> None:
+    pd = pytest.importorskip("pandas")
+    frame = pd.DataFrame({"2. High": ohlcv.high, "3. Low": ohlcv.low, "4. Close": ohlcv.close})
+
+    result = pyta.cci(frame, PERIOD)
+
+    assert list(result.columns) == ["CCI"]
+    np.testing.assert_array_equal(result["CCI"].to_numpy(), expected(ohlcv))
+
+
+def test_numbered_and_plain_names_of_one_role_are_ambiguous() -> None:
+    data = {"2. high": [3.0], "high": [3.0], "low": [1.0], "close": [2.0]}
+
+    with pytest.raises(ValueError, match=r"'2\. high' and 'high' are the same after ignoring"):
+        pyta.cci(data, 1)

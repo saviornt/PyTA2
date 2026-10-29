@@ -258,15 +258,16 @@ def test_all_nan_and_empty_inputs_are_rejected() -> None:
     [
         (["a", "b", "c"], TypeError),
         ([True, False, True], TypeError),
-        (np.array(["1", "2", "3"]), TypeError),
+        (np.array(["a", "b", "c"]), TypeError),
         (np.array([1 + 2j, 3 + 4j, 5 + 6j]), TypeError),
         (np.ones((3, 3)), ValueError),
         ([[1.0, 2.0], [3.0, 4.0]], ValueError),
         (42, TypeError),
         (None, TypeError),
         (range(5), TypeError),
-        ("not json", ValueError),
-        ("42", TypeError),
+        ("not json", ValueError),  # CSV with a header and no rows
+        ("{not json", ValueError),
+        ("42", ValueError),  # CSV with no header row
         ('{"close": 5}', TypeError),
         ('{"open": [1, 2, 3], "high": [1, 2, 3]}', ValueError),
     ],
@@ -335,3 +336,169 @@ def test_rsi_defaults_to_period_14() -> None:
     assert result.shape == (20,)
     assert np.isnan(result[:14]).all()
     assert np.isfinite(result[14:]).all()
+
+
+# --- numbers as strings (one parser for every container) ------------------------------------
+
+TEXT = ["", " NaN", "10", "11.0", " 12 ", "1.3e1", "12", "14"]
+TEXT_SMA_3 = np.array([np.nan, np.nan, np.nan, np.nan, 11.0, 12.0, 37.0 / 3.0, 13.0])
+
+
+def first_output(result: object) -> object:
+    """The SMA values of any container's result, JSON decoded."""
+    if isinstance(result, str | bytes):
+        result = json.loads(result)
+        if isinstance(result, list) and result and isinstance(result[0], dict):
+            result = [row["sma"] for row in result]
+    if isinstance(result, dict):
+        result = next(iter(result.values()))
+    if isinstance(result, list):
+        result = nulls_to_nan(result)
+    return result
+
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        TEXT,
+        tuple(TEXT),
+        np.array(TEXT),
+        [None, None, "10", 11.0, " 12 ", "1.3e1", 12, "14"],  # mixed with numbers and gaps
+        {"close": TEXT},
+        {"close": tuple(TEXT)},
+        {"close": np.array(TEXT)},
+        json.dumps(TEXT),
+        json.dumps({"Close": TEXT}).encode(),
+        json.dumps([{"date": i, "close": value} for i, value in enumerate(TEXT)]),
+        json.dumps([None, "NaN", "10", 11, "12", 13, "12", "14"]),
+    ],
+    ids=lambda data: type(data).__name__,
+)
+def test_numbers_as_strings_are_read_in_every_container(data: object) -> None:
+    assert_series(first_output(pyta.sma(data, period=3)), TEXT_SMA_3)
+
+
+def test_numbers_as_strings_keep_the_container() -> None:
+    assert pyta.sma(["1", "3"], period=2)[1] == 2.0
+    assert type(pyta.sma(("1", "3"), period=2)) is tuple
+    assert pyta.sma({"close": ("1", "3")}, period=2)["sma"][1] == 2.0
+
+
+@pytest.mark.pandas
+@pytest.mark.parametrize("dtype", [object, "string", "str"])
+def test_pandas_string_columns_are_read(ohlcv: Ohlcv, dtype: object) -> None:
+    pd = pytest.importorskip("pandas")
+    text: list[str | None] = [repr(value) for value in ohlcv.close.tolist()]
+    text[0] = None  # a gap: None in object, pd.NA in "string", NaN in "str"
+
+    frame = pd.DataFrame({"Close": pd.Series(text, dtype=dtype)})
+    expected = pyta.sma(np.concatenate([[np.nan], ohlcv.close[1:]]), PERIOD)
+
+    result = pyta.sma(frame, PERIOD)
+
+    assert list(result.columns) == ["SMA"]
+    np.testing.assert_array_equal(result["SMA"].to_numpy(), expected)
+    np.testing.assert_array_equal(pyta.sma(frame["Close"], PERIOD).to_numpy(), expected)
+
+
+@pytest.mark.pandas
+def test_pandas_object_column_of_numbers_is_read() -> None:
+    pd = pytest.importorskip("pandas")
+
+    result = pyta.sma(pd.Series([10, 11.0, "12"], dtype=object), 3)
+
+    assert result.tolist()[2] == 11.0
+
+
+@pytest.mark.parametrize(
+    ("data", "message"),
+    [
+        (["1", "abc"], r"^input value 'abc' at index 1 is not a number; expected a number"),
+        (np.array(["1", "x"]), r"^input value 'x' at index 1 is not a number"),
+        ({"Close": ["1", "2", "abc"]}, r"^column 'Close' value 'abc' at index 2 is not a number"),
+        ('{"close": ["1", "abc"]}', r"^column 'close' value 'abc' at index 1"),
+        ('[{"close": "1"}, {"close": "1,5"}]', r"^column 'close' value '1,5' at index 1"),
+        (["1", True], r"value 'True' at index 1 is not a number"),
+        ([None, "1", True], r"value True at index 2 is not a number; booleans are not numbers"),
+        ([None, 1.0, {2.0}], r"value \{2.0\} at index 2 is not a number; expected a number, got"),
+        (["1", "x" * 60], r"value 'xxxxxxxxx.*\.\.\. at index 1"),
+        ([True, False, True], r"^input holds booleans, which are not numbers"),
+        ({"close": np.array([True, False])}, r"^column 'close' holds booleans"),
+        (np.array([1 + 2j]), r"^input holds complex numbers \(complex128\), which are not real"),
+        (np.array(["2024-01-02"], dtype="datetime64[D]"), r"^input holds dates"),
+    ],
+)
+def test_text_that_is_not_a_number_names_column_and_index(data: object, message: str) -> None:
+    with pytest.raises(TypeError, match=message):
+        pyta.sma(data, period=1)
+
+
+def test_errors_never_mention_numpy_dtype_codes() -> None:
+    with pytest.raises(TypeError) as caught:
+        pyta.sma(["abcdef", "1"], period=1)
+
+    assert "<U" not in str(caught.value)
+    assert "dtype" not in str(caught.value)
+
+
+def test_a_bool_among_numbers_in_a_list_is_read_as_one_or_zero() -> None:
+    # Documented limitation (API.md §4): NumPy converts [1, True] to numbers.
+    assert pyta.sma([1.0, True, False], period=1) == [1.0, 1.0, 0.0]
+    assert pyta.sma("[1.0, true, false]", period=1) == "[1.0,1.0,0.0]"
+
+
+@pytest.mark.pandas
+@pytest.mark.parametrize(
+    ("values", "dtype", "message"),
+    [
+        (["1", "abc"], object, r"^column 'close' value 'abc' at index 1 is not a number"),
+        (["1", True], object, r"value True at index 1 is not a number; booleans"),
+        ([True, False], bool, r"^column 'close' holds booleans, which are not real numbers"),
+        ([True, None], "boolean", r"holds booleans"),
+        (["2024-01-02"], "datetime64[ns]", r"holds dtype datetime64\[ns\]"),
+    ],
+)
+def test_pandas_columns_that_are_not_numbers_raise(
+    values: list[object], dtype: object, message: str
+) -> None:
+    pd = pytest.importorskip("pandas")
+
+    with pytest.raises(TypeError, match=message):
+        pyta.sma(pd.DataFrame({"close": pd.Series(values, dtype=dtype)}), 1)
+
+
+# --- numbered column names ("1. open", AlphaVantage's style) --------------------------------
+
+NUMBERED = {"1. open": [1.0, 3.0], "4. close": [10.0, 30.0], "5. adjusted close": [5.0, 7.0]}
+
+
+@pytest.mark.parametrize(
+    ("column", "expected"),
+    [(None, 20.0), ("open", 2.0), ("1. open", 2.0), ("Adj Close", 6.0), ("2. close", 20.0)],
+)
+def test_numbered_names_match_in_dict_and_column(column: str | None, expected: float) -> None:
+    assert pyta.sma(NUMBERED, 2, column=column)["sma"][1] == expected
+
+
+def test_numbered_names_match_in_json() -> None:
+    rows = [dict(zip(NUMBERED, row, strict=True)) for row in zip(*NUMBERED.values(), strict=True)]
+
+    assert pyta.sma(json.dumps(rows), 2) == '[{"sma":null},{"sma":20.0}]'
+    assert pyta.sma(json.dumps(NUMBERED), 2, column="o") == '{"sma":[null,2.0]}'
+
+
+@pytest.mark.pandas
+def test_numbered_names_match_in_a_dataframe_and_keep_their_casing() -> None:
+    pd = pytest.importorskip("pandas")
+    frame = pd.DataFrame({"1. Open": [1.0, 3.0], "4. Close": [10.0, 30.0]})
+
+    result = pyta.sma(frame, 2)
+
+    assert list(result.columns) == ["SMA"]
+    assert result["SMA"].tolist()[1] == 20.0
+    assert pyta.sma(frame, 2, column="open")["SMA"].tolist()[1] == 2.0
+
+
+def test_numbered_and_plain_names_together_are_ambiguous() -> None:
+    with pytest.raises(ValueError, match=r"'1\. open' and 'open' are the same after ignoring case"):
+        pyta.sma({"1. open": [1.0], "open": [2.0]}, 1, column="open")

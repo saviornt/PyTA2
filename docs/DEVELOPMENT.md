@@ -420,10 +420,10 @@ Scripts, CI and docs:
 
 ### Tasks: CSV
 
-- [ ] Accept CSV (`str` and `bytes`) as input. *(2026-10-29: text starting with `[` or `{` is JSON, anything else CSV; header row required; `,` only.)*
-- [ ] Return CSV in the same form as the input.
-- [ ] Apply the same column selection and NaN policy as other containers.
-- [ ] Add tests, including headers, missing values, and mixed-case column names.
+- [x] Accept CSV (`str` and `bytes`) as input. *(2026-10-29: text starting with `[` or `{` is JSON, anything else CSV; header row required; `,` only. Built 2026-10-29 for single- and multi-column indicators, single and batch.)*
+- [x] Return CSV in the same form as the input. *(2026-10-29: header of output names, empty field for `NaN`, shortest `repr`, `\n`; `str` → `str`, bytes → bytes.)*
+- [x] Apply the same column selection and NaN policy as other containers. *(2026-10-29: picked like a dict, numbered names such as `1. open` matched; empty field or `NaN` text is a gap, and the same string parser now reads numbers as strings in every container.)*
+- [x] Add tests, including headers, missing values, and mixed-case column names. *(2026-10-29: `tests/python/test_csv.py` and property tests; `tests/results/test-suite_2026-10-29_01-34-55.txt` PASSED (Python 640, was 510; Rust 145; coverage 99%).)*
 
 ### Tasks: import and export of every container
 

@@ -64,6 +64,12 @@ def dict_with(ohlcv: Ohlcv, names: list[str]) -> dict[str, list[float]]:
         (("SPY Close",), "title"),
         (("SPY_Close", "SPY_High"), "title"),
         (("Close", "MACD_Hist"), "title"),
+        # A number (AlphaVantage's "4. close") does not count against title case.
+        (("4. Close",), "title"),
+        (("5. Adjusted Close", "2. High"), "title"),
+        (("4. close",), "lower"),
+        (("4. CLOSE",), "upper"),
+        (("4. cLose",), "lower"),  # mixed
         (("SPy Close",), "lower"),  # mixed word
         ((True,), "title"),  # the casing of str(name)
         ((1,), "lower"),

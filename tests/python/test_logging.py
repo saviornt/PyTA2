@@ -61,7 +61,8 @@ def test_python_batch_failures_log_each_at_debug_and_a_warning_summary(
         ),
         (
             logging.DEBUG,
-            "sma: dataset 'text' failed: unsupported dtype <U1; expected a real numeric dtype",
+            "sma: dataset 'text' failed: input value 'a' at index 0 is not a number; "
+            "expected a number, an empty field or NaN",
         ),
         (logging.WARNING, "sma: 2 of 3 datasets failed; each failure is returned in its place"),
     ]

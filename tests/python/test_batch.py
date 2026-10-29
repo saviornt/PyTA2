@@ -119,7 +119,7 @@ def test_failures_are_returned_in_place_not_raised():
         "good": good,
         "short": [1.0, 2.0],  # period exceeds length (Rust)
         "gap": [1.0, float("nan"), 3.0, 4.0, 5.0],  # NaN after start (Python)
-        "text": ["a", "b", "c"],  # unsupported dtype (Python)
+        "text": ["a", "b", "c"],  # not numbers (Python)
         "good2": good,
     }
 

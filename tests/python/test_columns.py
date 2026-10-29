@@ -6,7 +6,7 @@ import numpy as np
 import pyta
 import pytest
 from ohlcv_data import Ohlcv, rolling_mean
-from pyta._validation import ADJ_CLOSE, CLOSE, HIGH, LOW, OPEN, VOLUME, normalize
+from pyta._validation import ADJ_CLOSE, CLOSE, HIGH, LOW, OPEN, VOLUME, normalize, squash
 
 CLOSES = [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]
 OTHER = [10.0, 20.0, 30.0, 40.0, 50.0, 60.0]
@@ -179,3 +179,31 @@ def test_provider_style_dataframe_finds_each_role(ohlcv: Ohlcv) -> None:
     np.testing.assert_allclose(
         adjusted["SMA"], rolling_mean(ohlcv.close * 0.98, 20), rtol=1e-12, equal_nan=True
     )
+
+
+@pytest.mark.parametrize(
+    ("name", "squashed"),
+    [
+        ("1. open", "open"),
+        ("5. adjusted close", "adjustedclose"),
+        (" 10.Close", "close"),
+        ("2.  High", "high"),
+        ("1.5", "15"),  # no letter after the dot: a number, not a numbering
+        ("1. 2 close", "12close"),
+        ("1.2. close", "12close"),  # only digits then one dot
+        ("a1. open", "a1open"),  # only at the start
+        ("1 open", "1open"),  # the dot is required
+        ("1._open", "1open"),  # a letter must follow the optional whitespace
+    ],
+)
+def test_squash_ignores_a_leading_number_before_a_letter(name: str, squashed: str) -> None:
+    assert squash(name) == squashed
+
+
+def test_squash_stays_cached() -> None:
+    squash.cache_clear()
+
+    squash("1. open")
+    squash("1. open")
+
+    assert squash.cache_info().hits == 1

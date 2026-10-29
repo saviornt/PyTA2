@@ -7,6 +7,7 @@ containers are matched by role; unnamed ones (2-D arrays, lists of rows or
 columns, tuples of arrays, JSON arrays of arrays) use the slot order, and give a
 tuple of outputs for a multi-output indicator. A list or tuple of pandas Series
 is matched by name when every Series is named by a role, else taken in order.
+CSV text (a header row, then one row per period) is matched by name like a dict.
 """
 
 import functools
@@ -21,14 +22,18 @@ from numpy.typing import NDArray
 
 from ._types import Float64Array, Prepared, PreparedColumns, Restore
 from ._validation import (
+    IGNORED,
     RESTORE_ARRAY,
     RESTORE_LIST,
     RESTORE_TUPLE,
     Slot,
     from_column,
     from_pandas_series,
+    is_json,
     json_dump,
+    read_csv,
     restore_columns,
+    restore_csv,
     restore_frame,
     restore_json_array,
     restore_json_object,
@@ -86,7 +91,9 @@ def normalize_columns(
     is None, each slot takes the first column that has one of its roles.
     """
     if isinstance(data, str | bytes | bytearray):
-        return _from_json(data, columns, label, slots)
+        if is_json(data):
+            return _from_json(data, columns, label, slots)
+        return _from_csv(data, columns, label, slots)
     if isinstance(data, np.ndarray):
         return _from_array(cast(NDArray[Any], data), columns, label, slots)
     if isinstance(data, tuple):
@@ -106,7 +113,7 @@ def normalize_columns(
 
     raise TypeError(
         f"unsupported input type {type(data).__name__}; expected a pandas DataFrame, dict of "
-        "columns, JSON string, 2-D NumPy array, list of rows or columns, or a list or tuple "
+        "columns, JSON or CSV text, 2-D NumPy array, list of rows or columns, or a list or tuple "
         "of arrays or Series"
     )
 
@@ -158,7 +165,7 @@ def _matched(
         if squashed in lookup and role_of(key) is not None:
             raise ValueError(
                 f"column names {lookup[squashed]!r} and {key!r} are the same "
-                "after ignoring case, whitespace and the separators . _ -"
+                f"after ignoring {IGNORED}"
             )
 
         lookup.setdefault(squashed, key)
@@ -520,7 +527,7 @@ def _from_json(
     and the same type (str or bytes), with NaN written as `null`.
     """
     try:
-        parsed = json.loads(data)
+        parsed = json.loads(data.removeprefix("\ufeff") if isinstance(data, str) else data)
     except ValueError as error:  # JSONDecodeError and UnicodeDecodeError
         raise ValueError(f"invalid JSON input: {error}") from error
 
@@ -548,25 +555,39 @@ def _from_json(
             restore_records(dump),
         )
 
-    if isinstance(parsed, dict):
-        table = cast(dict[str, Any], parsed)
-        chosen = _match(list(table), columns, label, slots)
-        arrays: list[Float64Array] = []
+    # Text starting with { is always an object (`is_json`).
+    table = cast(dict[str, Any], parsed)
+    chosen = _match(list(table), columns, label, slots)
+    arrays: list[Float64Array] = []
 
-        for key, _ in chosen:
-            if not isinstance(table[cast(str, key)], list):
-                raise TypeError(f"JSON column {key!r} must be an array of numbers")
-            arrays.append(from_column(table[cast(str, key)], key).values)
+    for key, _ in chosen:
+        if not isinstance(table[cast(str, key)], list):
+            raise TypeError(f"JSON column {key!r} must be an array of numbers")
+        arrays.append(from_column(table[cast(str, key)], key).values)
 
-        return _prepared(
-            arrays,
-            [key for key, _ in chosen],
-            [role for _, role in chosen],
-            restore_json_object(dump),
-        )
+    return _prepared(
+        arrays,
+        [key for key, _ in chosen],
+        [role for _, role in chosen],
+        restore_json_object(dump),
+    )
 
-    raise TypeError(
-        "JSON input must be an array of records, an array of arrays or an object of arrays"
+
+def _from_csv(
+    data: str | bytes | bytearray, columns: list[str] | None, label: str, slots: Sequence[Slot]
+) -> PreparedColumns:
+    """CSV with a header row, matched by name like a dict; only the matched columns are parsed.
+
+    The result is CSV of the output names, of the same type (str or bytes).
+    """
+    table = read_csv(data)
+    chosen = _match(table.header, columns, label, slots)
+
+    return _prepared(
+        [table.column(key) for key, _ in chosen],
+        [key for key, _ in chosen],
+        [role for _, role in chosen],
+        restore_csv(table.as_bytes),
     )
 
 

@@ -29,9 +29,12 @@ _MEMO_SIZE = 1024
 
 
 def _title_word(word: str) -> bool:
-    """A capital followed by no other capital (`Close`), or all capitals (`MACD`)."""
+    """A capital followed by no other capital (`Close`), or all capitals (`MACD`).
+
+    A word with no letters (the `5` of `5. Adjusted Close`) does not count against it.
+    """
     if not word[0].isupper():
-        return False
+        return not any(char.isalpha() for char in word)
 
     rest = word[1:]
     return not any(c.isupper() for c in rest) or not any(c.islower() for c in rest)

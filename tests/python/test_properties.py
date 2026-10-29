@@ -40,7 +40,7 @@ def test_leading_nan_is_skipped_and_restored(case: tuple[list[float], int], gap:
     np.testing.assert_array_equal(result[gap:], pyta.sma(np.array(values), period=period))
 
 
-@given(series_and_period(), st.sampled_from(["list", "tuple", "ndarray", "dict", "json"]))
+@given(series_and_period(), st.sampled_from(["list", "tuple", "ndarray", "dict", "json", "csv"]))
 def test_container_type_is_preserved(case: tuple[list[float], int], kind: str) -> None:
     values, period = case
     data: object = {
@@ -49,11 +49,42 @@ def test_container_type_is_preserved(case: tuple[list[float], int], kind: str) -
         "ndarray": np.array(values),
         "dict": {"close": values},
         "json": "[" + ",".join(repr(value) for value in values) + "]",
+        "csv": "close\n" + "\n".join(repr(value) for value in values),
     }[kind]
 
     result = pyta.sma(data, period=period)
 
     assert type(result) is type(data)
+
+
+def csv_values(text: str) -> np.ndarray:
+    """The one column of a CSV result, empty fields as NaN."""
+    return np.array([float(field) if field else np.nan for field in text.split("\n")[1:-1]])
+
+
+@given(
+    series_and_period(),
+    st.sampled_from(["\n", "\r\n"]),
+    st.sampled_from(["", " ", "\t"]),
+    st.integers(min_value=0, max_value=5),
+)
+def test_csv_and_numeric_strings_give_the_values_of_the_array_call(
+    case: tuple[list[float], int], newline: str, pad: str, gap: int
+) -> None:
+    values, period = case
+    want = pyta.sma(np.concatenate([np.full(gap, np.nan), values]), period=period)
+    fields = [""] * gap + [f"{pad}{value!r}{pad}" for value in values]
+
+    text = pyta.sma(
+        newline.join(["Date,Close", *(f"d{i},{f}" for i, f in enumerate(fields))]), period
+    )
+    strings = pyta.sma(fields, period=period)
+
+    assert text.split("\n")[0] == "SMA"
+    np.testing.assert_array_equal(csv_values(text), want)
+    np.testing.assert_array_equal(np.array(strings), want)
+    # CSV out reads back in: the one-column result chains.
+    np.testing.assert_array_equal(csv_values(pyta.sma(text, 1)), want)
 
 
 @given(series_and_period(min_size=2))

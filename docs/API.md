@@ -109,10 +109,10 @@ Columns are the indicator shapes: one input column and one output (SMA, EMA, RSI
 | JSON array of arrays (rows or columns) | `ValueError` (expects numbers) | `ValueError` (expects numbers) | JSON array; layout as for a 2-D array | JSON object keyed by output |
 | JSON array of records | records, one key per output | records, one key per output | records | records |
 | JSON object of arrays | object, one key per output | object, one key per output | object | object |
-| CSV with a header row (`str`, `bytes`) *(Sprint 11, planned)* | CSV, one column | CSV, one column per output | CSV, one column | CSV, one column per output |
+| CSV with a header row (`str`, `bytes`, `bytearray`) | CSV, one column | CSV, one column per output | CSV, one column | CSV, one column per output |
 | anything else (sets, scalars, generators, ...) | `TypeError` | `TypeError` | `TypeError` | `TypeError` |
 
-JSON and CSV results have the input's type: `str` stays `str`, and `bytes` or `bytearray` become `bytes`. A pandas index (default, date, datetime, time-zone aware, non-unique, MultiIndex rows) is kept with its name and order. A dict's values take the container type of the column used (for a multi-column indicator, its first input column), so a Series value keeps its index only when that column is a Series.
+Text (`str`, `bytes`, `bytearray`) is JSON when its first non-whitespace character is `[` or `{`, and CSV otherwise. JSON and CSV results have the input's type: `str` stays `str`, and `bytes` or `bytearray` become `bytes`. A pandas index (default, date, datetime, time-zone aware, non-unique, MultiIndex rows) is kept with its name and order. A dict's values take the container type of the column used (for a multi-column indicator, its first input column), so a Series value keeps its index only when that column is a Series.
 
 **Limitations** (each raises, never guesses):
 
@@ -120,27 +120,30 @@ JSON and CSV results have the input's type: `str` stays `str`, and `bytes` or `b
 - A 2-D table (array, list of lists, JSON array of arrays) with as many rows as columns is read as `(rows, columns)`; neither axis matching the column count raises `ValueError`. A tuple is always a tuple of columns, never of rows.
 - DataFrames with MultiIndex columns are not supported; select a single column level first.
 - Only leading gaps are skipped: a gap (`None`, `null`, `NaN`, `pd.NA`) after the first value raises `ValueError` ([§6](#6-missing-and-non-finite-values)).
-- In a Python list or JSON array, `True` and `False` among numbers are read as 1 and 0 (NumPy's conversion); a list, array or Series of only booleans raises `TypeError`.
-- Provider-specific layouts are not unpacked: AlphaVantage's nested JSON time series must be flattened by the caller ([§12](#12-data-sources-planned)).
+- In a Python list or JSON array, `True` and `False` among numbers are read as 1 and 0 (NumPy's conversion; rejecting them would mean scanning every list); a list, array or Series of only booleans, or a boolean among strings, raises `TypeError`.
+- CSV needs a header row, uses `,` as its only delimiter, and must be UTF-8 when given as bytes. A first line of only numbers (or blanks) is taken as a missing header and raises `ValueError`, so name the columns even in a one-column file.
+- Provider-specific layouts are not unpacked: AlphaVantage's nested JSON time series is not supported; use its CSV, or flatten the JSON first ([§12](#12-data-sources)).
 
 Details:
 
 - **Output names** are the indicator's name without its parameters (`sma`, `rsi`, `ema`, `cci`), with casing that follows the input's columns: `sma` for `close`, `SMA` for `CLOSE` or `Close` (see [§11](#11-multi-output-indicators) for the rule). To keep two runs of one indicator side by side (SMA 20 and SMA 50), rename one of them.
 - **Dict values** may be lists, tuples, NumPy arrays, or pandas Series.
 - **JSON** may be an array of numbers, an array of records (`[{"close": 1.0}, ...]`), or an object of arrays (`{"close": [1.0, ...]}`). Results use the same shape. `NaN` is written as `null`.
+- **CSV** needs a header row naming the columns (`timestamp,open,high,low,close,volume`); columns are picked as for a dict, and only the columns used are read, so a date or text column is never parsed. Quoted fields, `\r\n` line endings and a UTF-8 byte-order mark are accepted; a row with more or fewer fields than the header raises `ValueError`. The result is CSV with a header of the output names and one row per input row (the input's other columns are not repeated, as for JSON records): `NaN` is an empty field, numbers are written as Python's shortest round-trip form (`repr`), and lines end with `\n`. A one-column result can be passed straight to the next indicator.
+- **Numbers as strings** (`"187.15"`, `" 1e3 "`) are read as numbers in every container: CSV fields, lists, tuples, dict values, JSON, NumPy string arrays, and pandas `object` or string columns (so a DataFrame built from text works). Surrounding whitespace is ignored, and an empty string or `NaN` text is a gap. Any other text, or a boolean among strings, raises `TypeError` naming the column (when the input has names) and the index: `column 'close' value 'abc' at index 3 is not a number`.
 - **pandas** is optional. PyTA only recognizes pandas objects when pandas has been imported by your program. DataFrames with MultiIndex columns are not supported; select a single column first.
 - **Masked arrays** are accepted; masked values become `NaN`.
 - **Input is never modified.**
 
 ### Column selection
 
-For DataFrame, dict, and JSON-object or record input, PyTA picks the column to use:
+For DataFrame, dict, JSON-object or record, and CSV input, PyTA picks the column to use:
 
 1. If you pass `column=`, that column is used. The name must be a standard column name (see the table below), so code reads the same on every data source; any other name raises `ValueError`, and so does a standard name the input does not have.
 2. Otherwise, if there is only one column, it is used.
 3. Otherwise PyTA looks for the indicator's **default column**. `sma` and `rsi` default to `close`; an indicator that works on something else (for example a volume average) declares its own default.
 
-Names ignore case, whitespace, and the separators `.`, `_` and `-`, so `" Close "`, `"Adj_Close"` and `"adj.close"` all match as written. A name also matches the aliases of its column role:
+Names ignore case, whitespace, and the separators `.`, `_` and `-`, so `" Close "`, `"Adj_Close"` and `"adj.close"` all match as written. A leading number and dot before a letter is ignored too (AlphaVantage numbers its fields), so `"1. open"` matches `open` and `"5. adjusted close"` matches `adj_close`, in every container and in `column=` and `columns=`; output casing still reads the name as written (`"4. Close"` gives `SMA`). A name also matches the aliases of its column role:
 
 | Role | Names that match |
 |---|---|
@@ -151,7 +154,7 @@ Names ignore case, whitespace, and the separators `.`, `_` and `-`, so `" Close 
 | `adj_close` | `adj_close`, `adjusted_close`, `adj_close_price`, `adjusted_close_price`, `adj_closing`, `adjusted_closing` (any spelling of the separators, such as `Adj Close`) |
 | `volume` | `volume`, `volumes`, `vol`, `v` |
 
-A role matches only its own aliases: asking for `close` never falls back to the adjusted close, and a column named exactly as you wrote it wins over an alias. Two names that are identical after this normalization (for example `"Adj_Close"` and `"adj close"`) are rejected as ambiguous. The input's own columns may be named anything; only the name you ask for is restricted. If your columns use other names, rename them first (`df.rename(columns={"px": "close"})`). An input with a single column needs no `column=` at all, which is what lets one indicator's output feed the next. Passing `column=` with input that has no columns (list, tuple, array, Series, JSON array of numbers) raises `ValueError`.
+A role matches only its own aliases: asking for `close` never falls back to the adjusted close, and a column named exactly as you wrote it wins over an alias. Two names that are identical after this normalization (for example `"Adj_Close"` and `"adj close"`, or `"1. open"` and `"open"`) are rejected as ambiguous. The input's own columns may be named anything; only the name you ask for is restricted. If your columns use other names, rename them first (`df.rename(columns={"px": "close"})`). An input with a single column needs no `column=` at all, which is what lets one indicator's output feed the next. Passing `column=` with input that has no columns (list, tuple, array, Series, JSON array of numbers) raises `ValueError`.
 
 ```python
 pyta.sma(df, period=20)                          # the "close" column
@@ -171,6 +174,7 @@ pyta.sma(df, period=20, column="adjusted close") # the "Adj Close" column
 | Input value | Behavior |
 |---|---|
 | `None` (list) or `null` (JSON) | Treated as a gap (`NaN`) |
+| Empty CSV field, empty string, or `NaN` / `nan` text (CSV, or a string in any container) | Treated as a gap (`NaN`) |
 | Leading `NaN` | Skipped, then re-padded as `NaN` in the output |
 | `NaN` after the first valid value | `ValueError`, naming the index |
 | `inf` / `-inf` | `ValueError`, naming the index |
@@ -219,8 +223,8 @@ The examples show the current wording, which may change between releases, so cat
 
 | Exception | Raised for |
 |---|---|
-| `TypeError` | Unsupported container or dtype (strings, booleans, complex numbers), DataFrames with MultiIndex columns, non-integer `period`, `fast`, `slow` or `signal` (including `bool`), non-string `column`, `columns` that is not a list of strings, JSON of the wrong shape (including arrays that mix records and numbers), one series (list, 1-D array, Series) given to a multi-column indicator |
-| `ValueError` | `period` or `signal` outside `1` to `2**31 - 1`, `fast` or `slow` outside `2` to `2**31 - 1`, period larger than the series (`sma`) or fewer than `period` values (`ema`), `period + 1` values (`rsi`), `period` rows (`cci`) or `slow + signal - 1` values (`macd`), empty input or input with no valid values, a non-finite value after the first valid value, a value larger in magnitude than `1e290`, multidimensional or ragged input, invalid JSON, a missing or ambiguous column, `column=` on input without columns; for multi-column indicators: an invalid `columns=` (see [§10](#10-multi-column-indicators)), columns of different lengths, a high below its low on any row, the wrong number of unnamed columns (or a 2-D table with neither axis of that length), Series that do not share one index, and `column=` on a multi-column indicator or `columns=` on a single-column one |
+| `TypeError` | Unsupported container or dtype (booleans, complex numbers, dates), text that is not a number (naming the column and index), DataFrames with MultiIndex columns, non-integer `period`, `fast`, `slow` or `signal` (including `bool`), non-string `column`, `columns` that is not a list of strings, JSON of the wrong shape (including arrays that mix records and numbers), one series (list, 1-D array, Series) given to a multi-column indicator |
+| `ValueError` | `period` or `signal` outside `1` to `2**31 - 1`, `fast` or `slow` outside `2` to `2**31 - 1`, period larger than the series (`sma`) or fewer than `period` values (`ema`), `period + 1` values (`rsi`), `period` rows (`cci`) or `slow + signal - 1` values (`macd`), empty input or input with no valid values, a non-finite value after the first valid value, a value larger in magnitude than `1e290`, multidimensional or ragged input, invalid JSON, CSV without a header row or with a row of the wrong field count (or bytes that are not UTF-8), a missing or ambiguous column, `column=` on input without columns; for multi-column indicators: an invalid `columns=` (see [§10](#10-multi-column-indicators)), columns of different lengths, a high below its low on any row, the wrong number of unnamed columns (or a 2-D table with neither axis of that length), Series that do not share one index, and `column=` on a multi-column indicator or `columns=` on a single-column one |
 | `RuntimeError` | An internal calculation failure |
 
 NumPy integers are accepted for every integer parameter.
@@ -325,14 +329,23 @@ macd, signal, hist = pyta.macd(close)    # one series in: a tuple of three, in o
 
 In title case, abbreviations (`SMA`, `EMA`, `RSI`, `CCI`, `MACD`) are upper case and words (`Signal`, `Hist`) title case. The separator is always `_`. Because a word in capitals counts as title case, title-case outputs chain as title case: `pyta.sma(pyta.macd(yf_frame)["MACD_Signal"], 5)` is named `SMA`. A name that is not a string is cased by its `str()`.
 
-## 12. Data sources *(planned)*
+## 12. Data sources
 
 PyTA does not depend on any data provider. It accepts the data types that providers return:
 
 | Provider | Returns | Support |
 |---|---|---|
 | yFinance | pandas DataFrame or Series, tuple, dict | Available (single-level columns) |
-| AlphaVantage | JSON, CSV | JSON available; CSV planned |
+| AlphaVantage | JSON, CSV | CSV available (`datatype=csv`); its nested JSON time series is not supported |
+
+AlphaVantage's CSV (`timestamp,open,high,low,close,volume`) works as it comes, for single- and multi-column indicators. AlphaVantage sends the newest row first, and PyTA never reorders rows, so reverse the rows first for the usual oldest-first calculation:
+
+```python
+header, *rows = text.splitlines()
+pyta.sma("\n".join([header, *reversed(rows)]), period=20)
+```
+
+Its JSON nests each day's values under the date (`{"Time Series (Daily)": {"2024-01-02": {"1. open": "187.15", ...}}}`), which PyTA does not unpack: flatten it into records or a DataFrame first. Its numbered, string-valued fields then work as they are ([§4](#4-input-containers)).
 
 ## 13. Indicator catalog
 

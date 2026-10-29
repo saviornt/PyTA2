@@ -281,7 +281,7 @@ def test_batch_matches_single_calls_and_keeps_failures_in_place(ohlcv: Ohlcv) ->
     datasets: list[object] = [
         ohlcv.close.tolist(),
         ohlcv.close[:20].tolist(),  # too short: the native call fails for this one only
-        "not json",  # Python rejects this one before the native call
+        "{not json",  # Python rejects this one before the native call
         {"close": ohlcv.close[-60:]},
     ]
 

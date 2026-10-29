@@ -30,11 +30,11 @@ Where things stand:
 
 ### Part C: CSV input and output (about 2.5 h)
 
-- [ ] Shared string-to-number parser (A4) used by CSV and every other container, and numbered-name stripping in `squash` (A7); unit tests, including `bool` still rejected and the duplicate `1. open`/`open` error.
-- [ ] `_validation.py`: CSV detection (A2) and `_from_csv` for one series: header, column pick, values per A3, restore per A3. Unit tests: header only, one column, missing values, `NaN` text, bad text (error names column and row), mixed-case and title-case headers (casing rule), `\r\n` input, BOM, quoted fields, ragged rows (`ValueError`).
-- [ ] `_columns.py`: CSV for multi-column indicators (CCI), sharing the parser; tests incl. high below low naming the row.
-- [ ] Batch: a list/mapping of CSV datasets; a bad one in place.
-- [ ] A real-shape fixture: `tests/fixtures/ohlcv_daily.csv` re-emitted in AlphaVantage's layout (`timestamp,open,high,low,close,volume`, oldest first after the caller's reverse) as a test input, not a new file if a test can build it.
+- [x] Shared string-to-number parser (A4) used by CSV and every other container, and numbered-name stripping in `squash` (A7); unit tests, including `bool` still rejected and the duplicate `1. open`/`open` error. *(2026-10-29: `_validation.parse_numbers`, run only for string/object dtypes; `squash` strips an anchored `digits.` before a letter and stays cached; `_outputs` casing ignores letterless words so `4. Close` is title. Tests in `test_inputs.py`, `test_multi_column.py`, `test_columns.py`, `test_casing.py`; `tests/results/test-suite_2026-10-29_01-34-55.txt` PASSED (Python 640, was 510; Rust 145; coverage 99%).)*
+- [x] `_validation.py`: CSV detection (A2) and `_from_csv` for one series: header, column pick, values per A3, restore per A3. Unit tests: header only, one column, missing values, `NaN` text, bad text (error names column and row), mixed-case and title-case headers (casing rule), `\r\n` input, BOM, quoted fields, ragged rows (`ValueError`). *(2026-10-29: `is_json`, `read_csv`, `restore_csv`; a first line of only numbers is rejected as a missing header rather than dropping a row; `tests/python/test_csv.py`; same report.)*
+- [x] `_columns.py`: CSV for multi-column indicators (CCI), sharing the parser; tests incl. high below low naming the row. *(2026-10-29: `_columns._from_csv`; `test_csv.py`; same report.)*
+- [x] Batch: a list/mapping of CSV datasets; a bad one in place. *(2026-10-29: SMA list and CCI mapping in `test_csv.py`; same report.)*
+- [x] A real-shape fixture: `tests/fixtures/ohlcv_daily.csv` re-emitted in AlphaVantage's layout (`timestamp,open,high,low,close,volume`, oldest first after the caller's reverse) as a test input, not a new file if a test can build it. *(2026-10-29: built in `test_csv.py` (newest first, `\r\n`); SMA, CCI and MACD equal the NumPy calls exactly; same report.)*
 
 ### Part D: shared export layer and `output=` (about 3 h)
 
@@ -59,10 +59,10 @@ Where things stand:
     - a list or tuple of pandas Series: matched by name like a dict when every Series is named with a recognized role, else taken in documented order; all must share one index (else `ValueError`); the result is a Series (several outputs: a tuple of Series) with that index;
     - tests for each form and shape (CCI and the stand-in), the square case, mismatched indexes, and a list of numbers still raising `TypeError` for multi-column indicators; §4 and §10 updated and the limitation removed.
   - [ ] Clearer `TypeError`/`ValueError` messages *(multi-column part done 2026-10-29 with the box above: Series and lists of lists now work, mixed lists say what they mix, a wrong 2-D shape names `(rows, 3)` or `(3, rows)`; the single-column part is still open)*: a tuple or list of Series, a list of lists, or a JSON array of arrays into a multi-column indicator (today: "a tuple of numbers holds one series"); a `(columns, rows)` 2-D array (say `(rows, columns)` is expected); a 2-D array or one-item tuple into a single-column indicator (point at `column=` / passing one column).
-  - [ ] NumPy dtype names in errors (`unsupported dtype <U6`) replaced by A4's message naming the column and row.
+  - [x] NumPy dtype names in errors (`unsupported dtype <U6`) replaced by A4's message naming the column and row. *(2026-10-29, with Part C: `column 'close' value 'abc' at index 3 is not a number; ...`; booleans, complex numbers and dates say what they hold; `test_errors_never_mention_numpy_dtype_codes`.)*
   - [x] Documented as limitations in §4: `(rows, 1)` arrays (the `(columns, rows)` and list forms are now a fix, above), MultiIndex columns, interior gaps, bools mixed into lists and JSON (open: see the note under A4), AlphaVantage's nested JSON.
   - [x] §4 corrected: a dict's values take the container type of the column used (the first input column for multi-column indicators), so a mixed dict can drop a Series' index.
-  - [ ] §12: CSV available; AlphaVantage's nested JSON unsupported (with Part G).
+  - [x] §12: CSV available; AlphaVantage's nested JSON unsupported (with Part G). *(2026-10-29, with Part C, including the reverse-the-rows example.)*
 
 ### Part F: benchmarks (about 45 min, `pyta-benchmarks` skill)
 

@@ -3,11 +3,17 @@
 Every supported input container is reduced to one 1-D, C-contiguous float64
 array, together with a function that rebuilds the caller's container from an
 indicator's named results. Element-level checks (finite, non-empty) stay in Rust.
+Text input is JSON when its first non-whitespace character is `[` or `{`, else
+CSV with a header row. Numbers written as strings are read by one parser
+(`parse_numbers`) in every container.
 """
 
+import csv
 import functools
+import io
 import json
 import logging
+import math
 import operator
 import re
 import sys
@@ -28,15 +34,24 @@ _AT_LEAST_1 = TypeAdapter(Annotated[int, Field(ge=1, le=_MAX_PERIOD)])
 _AT_LEAST_2 = TypeAdapter(Annotated[int, Field(ge=2, le=_MAX_PERIOD)])
 
 _SEPARATORS = re.compile(r"[\s._-]+")
+#: A leading number and dot before a letter, as AlphaVantage numbers its fields ("1. open").
+_NUMBERING = re.compile(r"\A\s*\d+\.\s*(?=[^\W\d_])")
 
 
 @functools.lru_cache(maxsize=4096)
 def squash(name: object) -> str:
     """Name without case, whitespace, dots, underscores or hyphens, for matching.
 
+    A leading number and dot before a letter is ignored too, so "1. open" and
+    "5. adjusted close" match as "open" and "adjusted close".
+
     Cached: the same column names come back on every call.
     """
-    return _SEPARATORS.sub("", str(name).casefold())
+    return _SEPARATORS.sub("", _NUMBERING.sub("", str(name), count=1).casefold())
+
+
+#: What error messages say `squash` ignores.
+IGNORED = "case, whitespace, the separators . _ - and a leading number such as '1. '"
 
 
 # --- role registry --------------------------------------------------------------------------
@@ -186,7 +201,9 @@ def normalize(data: object, column: str | None, default_column: str) -> Prepared
     calculates on (`CLOSE`, `HIGH`, ...).
     """
     if isinstance(data, str | bytes | bytearray):
-        return _from_json(data, column, default_column)
+        if is_json(data):
+            return _from_json(data, column, default_column)
+        return _from_csv(data, column, default_column)
     if isinstance(data, np.ndarray):
         return _from_array(cast(NDArray[Any], data), column)
     if isinstance(data, list | tuple):
@@ -205,7 +222,7 @@ def normalize(data: object, column: str | None, default_column: str) -> Prepared
 
     raise TypeError(
         f"unsupported input type {type(data).__name__}; expected a list, tuple, NumPy array, "
-        "pandas Series or DataFrame, dict, or JSON string"
+        "pandas Series or DataFrame, dict, or JSON or CSV text"
     )
 
 
@@ -235,7 +252,7 @@ def _pick(keys: Sequence[object], column: str | None, default_column: str) -> ob
         if squashed in lookup:
             raise ValueError(
                 f"column names {lookup[squashed]!r} and {key!r} are the same "
-                "after ignoring case, whitespace and the separators . _ -"
+                f"after ignoring {IGNORED}"
             )
 
         lookup[squashed] = key
@@ -271,25 +288,107 @@ def _reject_column(column: str | None, kind: str) -> None:
 # --- dtype conversion -----------------------------------------------------------------------
 
 
-def to_float64(values: NDArray[Any]) -> Float64Array:
-    """Converts a real numeric array to 1-D, C-contiguous float64 without copying if possible."""
+def to_float64(values: NDArray[Any], name: object = None) -> Float64Array:
+    """Converts a real numeric array to 1-D, C-contiguous float64 without copying if possible.
+
+    Strings holding numbers are parsed (`parse_numbers`); `name` is the column
+    the values came from, for error messages (None when there is none).
+    """
     if values.ndim != 1:
         raise ValueError(f"expected a 1-D series, got an array with shape {values.shape}")
 
     kind = values.dtype.kind
 
-    if kind == "O":
-        # Object arrays arise from lists containing None (a gap) and from
-        # JSON nulls. Strings and bools must not be silently converted.
-        if any(isinstance(item, str | bytes | bool | np.bool_) for item in values):
-            raise TypeError("input must contain only numbers (or None for gaps)")
-        converted = values.astype(np.float64)
-    elif kind in "iuf":
+    if kind in "iuf":
         converted = values
+    elif kind == "O":
+        # Object arrays arise from lists containing None (a gap), JSON nulls
+        # and strings mixed with gaps. Bools must not be silently converted.
+        if any(isinstance(item, str | bytes | bool | np.bool_) for item in values):
+            return parse_numbers(values, name)
+        try:
+            converted = values.astype(np.float64)
+        except TypeError, ValueError:  # an item that is not a number: name it
+            return parse_numbers(values, name)
+    elif kind in "US":  # strings (NumPy makes a list of str and numbers one)
+        return parse_numbers(values, name)
+    elif kind == "b":
+        raise TypeError(f"{_where(name)}holds booleans, which are not numbers")
     else:
-        raise TypeError(f"unsupported dtype {values.dtype}; expected a real numeric dtype")
+        raise TypeError(
+            f"{_where(name)}holds {_KIND_NAMES.get(kind, 'values')} ({values.dtype}), "
+            "which are not real numbers"
+        )
 
     return np.ascontiguousarray(converted, dtype=np.float64)
+
+
+_KIND_NAMES = {"c": "complex numbers", "M": "dates", "m": "time spans", "V": "raw bytes"}
+
+
+def _where(name: object) -> str:
+    """The start of a value error message: "column 'close' " or "input "."""
+    return "input " if name is None else f"column {name!r} "
+
+
+def _number(item: object) -> float:
+    """One value as a float: a number, None (a gap), or a string holding a number.
+
+    Strings ignore surrounding whitespace; empty is a gap, and so is `NaN`.
+
+    Raises:
+        TypeError: A bool, or anything else that is not a number.
+        ValueError: A string that is not a number.
+    """
+    if isinstance(item, str | bytes):
+        text = item.strip()
+        return float(text) if text else math.nan
+    if item is None:
+        return math.nan
+    if isinstance(item, bool | np.bool_):
+        raise TypeError("bool")
+
+    return float(cast(float, item))
+
+
+def parse_numbers(items: Sequence[object] | NDArray[Any], name: object = None) -> Float64Array:
+    """The one parser for values that may be strings, used by every container.
+
+    Each item is a number, None (a gap), or a string holding a number (`"187.15"`,
+    `" 1e3 "`); an empty string or `NaN` text is a gap.
+
+    Raises:
+        TypeError: An item is not a number or numeric string, naming `name`
+            (the column, when there is one) and the item's index.
+    """
+    try:
+        return np.fromiter(map(_number, items), np.float64, len(items))
+    except TypeError, ValueError:
+        pass
+
+    for index, item in enumerate(cast(Sequence[object], items)):
+        try:
+            _number(item)
+        except TypeError, ValueError:
+            if isinstance(item, bool | np.bool_):
+                reason = "booleans are not numbers"
+            elif isinstance(item, str | bytes):
+                reason = "expected a number, an empty field or NaN"
+            else:
+                reason = f"expected a number, got {type(item).__name__}"
+            raise TypeError(
+                f"{_where(name)}value {_shown(cast(object, item))} at index {index} is not "
+                f"a number; {reason}"
+            ) from None
+
+    raise AssertionError("unreachable: every item parsed on the second pass")  # pragma: no cover
+
+
+def _shown(item: object) -> str:
+    """An item for an error message, shortened if long."""
+    value = cast(object, item.item()) if isinstance(item, np.generic) else item
+    text = repr(value)
+    return text if len(text) <= 40 else f"{text[:37]}..."
 
 
 # --- restoring results ----------------------------------------------------------------------
@@ -420,19 +519,47 @@ def restore_json_object(dump: Callable[[Any], str | bytes]) -> Restore:
     )
 
 
+def _csv_fields(values: Float64Array) -> list[str]:
+    """CSV fields: Python's shortest round-trip `repr`, and an empty field for NaN."""
+    return [repr(value) if value == value else "" for value in values.tolist()]
+
+
+def restore_csv(as_bytes: bool) -> Restore:
+    """A `Restore` for CSV: a header of the output names, then one row per input row.
+
+    The input's other columns are not repeated (as for JSON records); NaN is an
+    empty field and every line ends with a line feed. Bytes in give UTF-8 bytes out.
+    """
+    return _CSV_BYTES if as_bytes else _CSV_TEXT
+
+
+def _restore_csv_text(names: Sequence[str], results: Sequence[Float64Array]) -> str:
+    columns = [_csv_fields(values) for values in results]
+    rows = columns[0] if len(columns) == 1 else map(",".join, zip(*columns, strict=True))
+    return "\n".join((",".join(names), *rows)) + "\n"
+
+
+def _restore_csv_bytes(names: Sequence[str], results: Sequence[Float64Array]) -> bytes:
+    return _restore_csv_text(names, results).encode()
+
+
+_CSV_TEXT: Restore = _restore_csv_text
+_CSV_BYTES: Restore = _restore_csv_bytes
+
+
 # --- containers -----------------------------------------------------------------------------
 
 
-def _from_array(data: NDArray[Any], column: str | None) -> Prepared:
+def _from_array(data: NDArray[Any], column: str | None, name: object = None) -> Prepared:
     _reject_column(column, "array")
 
     if isinstance(data, np.ma.MaskedArray):
         data = np.ma.filled(data.astype(np.float64), np.nan)
 
-    return Prepared(to_float64(data), RESTORE_ARRAY)
+    return Prepared(to_float64(data, name), RESTORE_ARRAY)
 
 
-def _from_sequence(data: Sequence[object], column: str | None) -> Prepared:
+def _from_sequence(data: Sequence[object], column: str | None, name: object = None) -> Prepared:
     _reject_column(column, "list/tuple")
 
     try:
@@ -440,7 +567,7 @@ def _from_sequence(data: Sequence[object], column: str | None) -> Prepared:
     except ValueError:  # ragged nested sequences
         raise ValueError("expected a flat sequence of numbers, got nested sequences") from None
 
-    values = to_float64(array)
+    values = to_float64(array, name)
 
     return Prepared(values, RESTORE_TUPLE if isinstance(data, tuple) else RESTORE_LIST)
 
@@ -456,9 +583,16 @@ def from_pandas_series(pd: Any, data: Any, column: str | None) -> Prepared:
         or types.is_bool_dtype(dtype)
         or types.is_complex_dtype(dtype)
     ):
-        raise TypeError(f"unsupported Series dtype {dtype}; expected a real numeric dtype")
-
-    if isinstance(dtype, np.dtype):
+        if (isinstance(dtype, np.dtype) and dtype.kind == "O") or isinstance(dtype, pd.StringDtype):
+            # Strings holding numbers (a frame built from JSON text); gaps become None.
+            values = parse_numbers(data.to_numpy(dtype=object, na_value=None), data.name)
+        else:
+            what = "booleans" if types.is_bool_dtype(dtype) else f"dtype {dtype}"
+            raise TypeError(
+                f"{_where(data.name)}holds {what}, which are not real numbers; expected a "
+                "numeric dtype or strings holding numbers"
+            )
+    elif isinstance(dtype, np.dtype):
         values = data.to_numpy(dtype=np.float64, copy=False)
     else:  # nullable extension dtypes: pd.NA becomes NaN
         values = data.to_numpy(dtype=np.float64, na_value=np.nan)
@@ -490,9 +624,9 @@ def _from_pandas_frame(pd: Any, data: Any, column: str | None, default_column: s
 def from_column(value: object, key: object) -> Prepared:
     """Normalizes one column of a dict (list, tuple, array, or Series)."""
     if isinstance(value, np.ndarray):
-        return _from_array(cast(NDArray[Any], value), None)
+        return _from_array(cast(NDArray[Any], value), None, key)
     if isinstance(value, list | tuple):
-        return _from_sequence(cast(Sequence[object], value), None)
+        return _from_sequence(cast(Sequence[object], value), None, key)
 
     pd = sys.modules.get("pandas")
     if pd is not None and isinstance(value, pd.Series):
@@ -529,7 +663,7 @@ def _from_json(data: str | bytes | bytearray, column: str | None, default_column
     outputs from an array of numbers become an object keyed by output name.
     """
     try:
-        parsed = json.loads(data)
+        parsed = json.loads(data.removeprefix("\ufeff") if isinstance(data, str) else data)
     except ValueError as error:  # JSONDecodeError and UnicodeDecodeError
         raise ValueError(f"invalid JSON input: {error}") from error
 
@@ -544,7 +678,7 @@ def _from_json(data: str | bytes | bytearray, column: str | None, default_column
 
         if records:
             key = _pick(list(parsed[0]), column, default_column)
-            values = _from_sequence([row.get(key) for row in parsed], None).values
+            values = _from_sequence([row.get(key) for row in parsed], None, key).values
 
             return Prepared(values, restore_records(dump), (key,))
 
@@ -553,17 +687,125 @@ def _from_json(data: str | bytes | bytearray, column: str | None, default_column
 
         return Prepared(values, restore_json_array(dump))
 
-    if isinstance(parsed, dict):  # columns
-        parsed = cast(dict[Any, Any], parsed)
-        key = _pick(list(parsed), column, default_column)
+    # Text starting with { is always an object (`is_json`).
+    table = cast(dict[Any, Any], parsed)
+    key = _pick(list(table), column, default_column)
 
-        if not isinstance(parsed[key], list):
-            raise TypeError(f"JSON column {key!r} must be an array of numbers")
+    if not isinstance(table[key], list):
+        raise TypeError(f"JSON column {key!r} must be an array of numbers")
 
-        values = _from_sequence(parsed[key], None).values
+    values = _from_sequence(table[key], None, key).values
 
-        return Prepared(values, restore_json_object(dump), (key,))
+    return Prepared(values, restore_json_object(dump), (key,))
 
-    raise TypeError(
-        "JSON input must be an array of numbers, an array of records, or an object of arrays"
-    )
+
+# --- CSV ------------------------------------------------------------------------------------
+
+#: First characters of JSON text, as `str` characters and as bytes.
+_JSON_FIRST = frozenset(("[", "{", ord("["), ord("{")))
+_LEADING_TEXT = re.compile(r"[\s\ufeff]*(.)", re.DOTALL)
+_LEADING_BYTES = re.compile(rb"(?:\xef\xbb\xbf)?\s*(.)", re.DOTALL)
+
+
+def is_json(data: str | bytes | bytearray) -> bool:
+    """True when the first non-whitespace character of `data` is `[` or `{`; else it is CSV.
+
+    A byte-order mark is skipped. Only the leading whitespace is scanned.
+    """
+    if data and data[0] in _JSON_FIRST:
+        return True
+
+    if isinstance(data, str):
+        match = _LEADING_TEXT.match(data)
+        return match is not None and match.group(1) in "[{"
+
+    found = _LEADING_BYTES.match(data)
+    return found is not None and found.group(1) in (b"[", b"{")
+
+
+@dataclass(frozen=True, slots=True)
+class CsvTable:
+    """CSV text split into its header and rows of fields, all as `str`."""
+
+    header: list[str]
+    rows: list[list[str]]
+    as_bytes: bool
+
+    def column(self, key: object) -> Float64Array:
+        """The values of column `key` (a header name), parsed by `parse_numbers`."""
+        index = self.header.index(cast(str, key))
+        return parse_numbers([row[index] for row in self.rows], key)
+
+
+def read_csv(data: str | bytes | bytearray) -> CsvTable:
+    """Splits CSV text (delimiter `,`, header row required) into a `CsvTable`.
+
+    Bytes are UTF-8, with or without a byte-order mark. Quoted fields and
+    CRLF line endings work. Blank lines at the end are ignored; in a one-column
+    file any other blank line is an empty field (a gap), as PyTA writes it.
+
+    Raises:
+        ValueError: Invalid UTF-8 or CSV, no header row, or a row whose field
+            count differs from the header's.
+    """
+    as_bytes = not isinstance(data, str)
+
+    if isinstance(data, str):
+        text = data
+    else:
+        try:
+            text = bytes(data).decode("utf-8")
+        except UnicodeDecodeError as error:
+            raise ValueError(f"CSV input is not valid UTF-8: {error}") from None
+
+    reader = csv.reader(io.StringIO(text.removeprefix("\ufeff"), newline=""), strict=True)
+
+    try:
+        header = next(reader, None)
+        rows = list(reader)
+    except csv.Error as error:
+        raise ValueError(f"invalid CSV input: {error}") from None
+
+    # A first line of only numbers is data, not names: reading it as a header would drop a row.
+    if not header or all(_is_number_or_blank(name) for name in header):
+        raise ValueError(
+            "CSV input has no header row; the first line must name the columns (for example "
+            "'close'). Text starting with [ or { is read as JSON"
+        )
+
+    while rows and not rows[-1]:
+        rows.pop()
+
+    width = len(header)
+    for position, row in enumerate(rows):
+        if len(row) != width:
+            if width == 1 and not row:
+                rows[position] = [""]
+                continue
+            raise ValueError(
+                f"CSV row {position} (data rows numbered from 0 after the header) has "
+                f"{len(row)} fields, but the header has {width}"
+            )
+
+    return CsvTable(header, rows, as_bytes)
+
+
+def _is_number_or_blank(field: str) -> bool:
+    """True for a field that reads as a number or a gap (empty or `NaN`)."""
+    try:
+        _number(field)
+    except ValueError:
+        return False
+    return True
+
+
+def _from_csv(data: str | bytes | bytearray, column: str | None, default_column: str) -> Prepared:
+    """CSV with a header row: the column is picked as for a dict.
+
+    The result is CSV of the output names (one row per input row, NaN an empty
+    field), of the same type (str or bytes). Only the picked column is parsed.
+    """
+    table = read_csv(data)
+    key = _pick(table.header, column, default_column)
+
+    return Prepared(table.column(key), restore_csv(table.as_bytes), (key,))
