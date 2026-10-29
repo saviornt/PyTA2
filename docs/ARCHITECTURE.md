@@ -342,7 +342,7 @@ Every step runs even if one fails, and the report is written to `tests/results/t
 
 ## 9. Benchmarks
 
-- `scripts/benchmark.sh (--single | --batch | --all) [--rust | --python] [--indicator NAME] [--quick]` runs the benchmarks and writes `benches/results/benchmark_<datetime>.txt` (options, environment and summaries on top, full output below). Keep the reports: they are the record to compare against. See `scripts/README.md`.
+- `scripts/benchmark.sh (--single | --batch | --all) [--rust | --python] [--indicator NAME] [--quick]` runs the benchmarks and writes `benches/results/benchmark_<datetime>.txt` (options, environment and summaries on top, full output below). Keep the reports: they are the long-term record. A change is judged by a same-session A/B run against its base, not by an old report. See `scripts/README.md`.
 - Single calls: Criterion `single_call` (cost of each stage of one call, per indicator) and `benches/python/bench_boundary.py` (Python layer vs native).
 - Batch calls: Criterion `workloads` (`sequential`, `parallel`, `batch`, and planner `auto` for one to four requests, plus many-dataset runs of 10 / 100 / 1,000 datasets) and `benches/python/bench_batch.py` (`pyta.batch` vs a loop of single calls).
 - `scripts/benchmark_summary.py` turns the Criterion output into tables.

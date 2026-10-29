@@ -1,6 +1,6 @@
 # Scripts
 
-Two scripts run everything: `test-suite.sh` checks correctness and `benchmark.sh` measures performance. Both print progress as they run and write a timestamped report with a summary at the top and the full output of every step below it. Keep the reports: they are the history to compare against.
+Two scripts run everything: `test-suite.sh` checks correctness and `benchmark.sh` measures performance. Both print progress as they run and write a timestamped report with a summary at the top and the full output of every step below it. Keep the reports: they are the long-term performance history. To judge one change, compare it with its base in the same session (see "Getting reliable numbers").
 
 | File | Purpose |
 |---|---|
@@ -125,6 +125,7 @@ The Python benchmarks use a release build of the extension, which the script ins
 - Run on a quiet machine and close other work. Run-to-run noise is about 5%.
 - A `powersave` CPU governor (shown in the report) adds variance. Setting it to `performance` for the run makes results more repeatable.
 - Compare reports from the same machine, governor, and mode (full vs quick).
+- To judge a change, run its base and the branch in the same session, alternating (base, branch, base, branch), with the base in a scratch worktree. Reports from different days can differ by more than the effect being measured. The `pyta-benchmarks` skill has the steps.
 - Planner constants in `rust/crates/pyta-common` are measured on a specific machine; re-measure them after changing the kernels or the engine.
 
 ### Adding an indicator
