@@ -1,10 +1,11 @@
 """CCI, a momentum indicator on high, low and close (single call and batch)."""
 
 from collections.abc import Sequence
-from typing import Any
+from typing import Any, overload
 
 from pyta import _native
 from pyta._api import run_columns, run_columns_batch
+from pyta._export import Output
 from pyta._outputs import OutputNames
 from pyta._validation import ADJ_CLOSE, CLOSE, HIGH, LOW, Slot, validate_period
 
@@ -16,13 +17,36 @@ OUTPUTS = ("cci",)
 _NAMES = OutputNames("cci", OUTPUTS, abbreviations=("cci",))
 
 
+@overload
 def cci[T](
     data: T,
     period: int = 14,
     *,
     columns: Sequence[str] | None = None,
     column: None = None,
-) -> T:
+    output: None = None,
+) -> T: ...
+
+
+@overload
+def cci(
+    data: object,
+    period: int = 14,
+    *,
+    columns: Sequence[str] | None = None,
+    column: None = None,
+    output: Output,
+) -> Any: ...
+
+
+def cci(
+    data: object,
+    period: int = 14,
+    *,
+    columns: Sequence[str] | None = None,
+    column: None = None,
+    output: Output | None = None,
+) -> Any:
     """Commodity Channel Index (TA-Lib convention).
 
     The typical price is (high + low + close) / 3; CCI is its distance from its
@@ -42,6 +66,11 @@ def cci[T](
             adj_close). Names follow the same rules as `column=` in single-column
             indicators. By default the columns are found by role.
         column: Not valid here (CCI uses several columns); raises ValueError.
+        output: Container to return instead of the input's own: "list",
+            "tuple", "numpy", "pandas", "dict", "json", "json_bytes", "csv" or
+            "csv_bytes", each in one fixed shape, with a pandas index carried to
+            the named targets (see docs/API.md "Output conversion"). None (the
+            default) keeps the input's container.
 
     Returns:
         The same kind of container as `data`, holding float64 values and the
@@ -56,14 +85,14 @@ def cci[T](
     Raises:
         TypeError: Unsupported input type or dtype, a one-series input, or a
             wrong `period` or `columns` type.
-        ValueError: Invalid period; a required column missing (the message
-            names the required and the available columns); an invalid
-            `columns=` or any `column=`; NaN after the leading run, or a
-            non-finite or out-of-range value; high below low on a row; or
-            fewer than `period` rows.
+        ValueError: An unknown `output`; invalid period; a required column missing (the message
+            names the required and the available columns); an invalid `columns=` or any `column=`;
+            NaN after the leading run, or a non-finite or out-of-range value; high below low on a
+            row; or fewer than `period` rows.
+        ModuleNotFoundError: `output="pandas"` and pandas is not installed.
     """
     params = (validate_period(period),)
-    return run_columns(_native.cci, _NAMES, data, params, columns, SLOTS, column)
+    return run_columns(_native.cci, _NAMES, data, params, columns, SLOTS, column, output)
 
 
 def cci_batch[D: (list[Any], dict[Any, Any])](
@@ -72,6 +101,7 @@ def cci_batch[D: (list[Any], dict[Any, Any])](
     *,
     columns: Sequence[str] | None = None,
     column: None = None,
+    output: Output | None = None,
 ) -> D:
     """Commodity Channel Index of many datasets.
 
@@ -82,6 +112,8 @@ def cci_batch[D: (list[Any], dict[Any, Any])](
         period: Number of typical prices in each window, shared by every dataset.
         columns: Columns to use for every named dataset, in any order.
         column: Not valid here (CCI uses several columns); raises ValueError.
+        output: Container to return for every dataset, as for `pyta.cci`;
+            None (the default) keeps each dataset's own container.
 
     Returns:
         A list or dict of the same shape and order. Each entry is the result in
@@ -90,7 +122,10 @@ def cci_batch[D: (list[Any], dict[Any, Any])](
     Raises:
         TypeError: `datasets` is not a list or mapping, or `period` or `columns`
             has the wrong type.
-        ValueError: Invalid `period`, or a `column=`.
+        ValueError: An unknown `output`; invalid `period`, or a `column=`.
+        ModuleNotFoundError: `output="pandas"` and pandas is not installed.
     """
     params = (validate_period(period),)
-    return run_columns_batch(_native.cci_batch, _NAMES, datasets, params, columns, SLOTS, column)
+    return run_columns_batch(
+        _native.cci_batch, _NAMES, datasets, params, columns, SLOTS, column, output
+    )

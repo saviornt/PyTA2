@@ -437,9 +437,9 @@ Scripts, CI and docs:
 
 ### Tasks: `output=` conversion
 
-- [ ] One shared export layer in Python. Each indicator restores from the native result through it, so no indicator has conversion code of its own; `output=None` keeps today's path and cost.
-- [ ] `output=` on every single and batch function (SMA, EMA, MACD, RSI, CCI, and every later indicator through the `add-indicator` skill), in the stubs and docstrings.
-- [ ] Tests: every input container × every `output=` target × indicator shape, checking type, names, casing, the index carried over or dropped, `null` in JSON, an empty CSV field for `NaN`, an invalid target, and `"pandas"` without pandas installed (simulated).
+- [x] One shared export layer in Python. Each indicator restores from the native result through it, so no indicator has conversion code of its own; `output=None` keeps today's path and cost. *(2026-10-29: `python/pyta/_export.py`, applied by the `_api` runners; `output=None` 1-8% faster than 2dc64a1 at 100 rows, interleaved timeit.)*
+- [x] `output=` on every single and batch function (SMA, EMA, MACD, RSI, CCI, and every later indicator through the `add-indicator` skill), in the stubs and docstrings. *(2026-10-29: Python signatures and docstrings with a `Literal` type; `_native.pyi` needs no change, since conversion is Python-only.)*
+- [x] Tests: every input container × every `output=` target × indicator shape, checking type, names, casing, the index carried over or dropped, `null` in JSON, an empty CSV field for `NaN`, an invalid target, and `"pandas"` without pandas installed (simulated). *(2026-10-29: `tests/python/test_output.py`; `tests/results/test-suite_2026-10-29_02-01-57.txt` PASSED (Python 1148, was 640; Rust 145; coverage 99%).)*
 
 ### Tasks: close
 

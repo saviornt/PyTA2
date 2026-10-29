@@ -267,8 +267,12 @@ def _prepared(
     roles: Sequence[str],
     restore: Restore,
     named: bool = True,
+    index: Any = None,
 ) -> PreparedColumns:
-    """Checks the columns' lengths; `named` is False when `labels` are positions."""
+    """Checks the columns' lengths; `named` is False when `labels` are positions.
+
+    `index` is the input's pandas index, or None.
+    """
     lengths = {array.shape[0] for array in values}
 
     if len(lengths) > 1:
@@ -278,7 +282,7 @@ def _prepared(
         raise ValueError(f"columns have different lengths ({sizes})")
 
     text = tuple(map(str, labels))
-    return PreparedColumns(tuple(values), text, tuple(roles), restore, text if named else ())
+    return PreparedColumns(tuple(values), text, tuple(roles), restore, text if named else (), index)
 
 
 # --- containers -----------------------------------------------------------------------------
@@ -472,7 +476,9 @@ def _from_series(
         by_name = dict(zip(names, items, strict=True))
         arrays = [from_pandas_series(pd, by_name[key], None).values for key, _ in chosen]
 
-        return _prepared(arrays, [key for key, _ in chosen], [role for _, role in chosen], restore)
+        return _prepared(
+            arrays, [key for key, _ in chosen], [role for _, role in chosen], restore, index=index
+        )
 
     if columns is not None:
         order = ", ".join(slot.name for slot in slots)
@@ -484,7 +490,7 @@ def _from_series(
     arrays = [from_pandas_series(pd, item, None).values for item in items]
     labels, roles = _unnamed(arrays, label, slots, f"the {kind}")
 
-    return _prepared(arrays, labels, roles, restore, named=False)
+    return _prepared(arrays, labels, roles, restore, named=False, index=index)
 
 
 def _from_pandas_frame(
@@ -501,6 +507,7 @@ def _from_pandas_frame(
         [key for key, _ in chosen],
         [role for _, role in chosen],
         restore_frame(pd, data.index),
+        index=data.index,
     )
 
 
@@ -515,6 +522,7 @@ def _from_mapping(
         [key for key, _ in chosen],
         [role for _, role in chosen],
         restore_columns(prepared[0].restore),
+        index=prepared[0].index,
     )
 
 

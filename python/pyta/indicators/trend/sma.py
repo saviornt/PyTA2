@@ -1,9 +1,10 @@
 """SMA, a trend indicator (single call and batch)."""
 
-from typing import Any
+from typing import Any, overload
 
 from pyta import _native
 from pyta._api import run, run_batch
+from pyta._export import Output
 from pyta._outputs import OutputNames
 from pyta._validation import CLOSE, validate_period
 
@@ -12,7 +13,26 @@ OUTPUTS = ("sma",)
 _NAMES = OutputNames("sma", OUTPUTS, abbreviations=("sma",))
 
 
-def sma[T](data: T, period: int, *, column: str | None = None, columns: None = None) -> T:
+@overload
+def sma[T](
+    data: T, period: int, *, column: str | None = None, columns: None = None, output: None = None
+) -> T: ...
+
+
+@overload
+def sma(
+    data: object, period: int, *, column: str | None = None, columns: None = None, output: Output
+) -> Any: ...
+
+
+def sma(
+    data: object,
+    period: int,
+    *,
+    column: str | None = None,
+    columns: None = None,
+    output: Output | None = None,
+) -> Any:
     """Simple Moving Average.
 
     Each value is the mean of the current price and the preceding
@@ -28,6 +48,11 @@ def sma[T](data: T, period: int, *, column: str | None = None, columns: None = N
             volume) or an alias; case, whitespace and . _ - are ignored.
             See docs/API.md.
         columns: Not valid here (SMA uses one column); raises ValueError.
+        output: Container to return instead of the input's own: "list",
+            "tuple", "numpy", "pandas", "dict", "json", "json_bytes", "csv" or
+            "csv_bytes", each in one fixed shape, with a pandas index carried to
+            the named targets (see docs/API.md "Output conversion"). None (the
+            default) keeps the input's container.
 
     Returns:
         The same kind of container as `data`, holding float64 values and the
@@ -39,14 +64,22 @@ def sma[T](data: T, period: int, *, column: str | None = None, columns: None = N
 
     Raises:
         TypeError: Unsupported input type, dtype, or period type.
-        ValueError: Invalid period, a `columns=`, empty, non-finite or out-of-range input, or a
-            period larger than the series.
+        ValueError: An unknown `output`; invalid period, a `columns=`, empty, non-finite or
+            out-of-range input, or a period larger than the series.
+        ModuleNotFoundError: `output="pandas"` and pandas is not installed.
     """
-    return run(_native.sma, _NAMES, data, (validate_period(period),), column, CLOSE, columns)
+    return run(
+        _native.sma, _NAMES, data, (validate_period(period),), column, CLOSE, columns, output
+    )
 
 
 def sma_batch[D: (list[Any], dict[Any, Any])](
-    datasets: D, period: int, *, column: str | None = None, columns: None = None
+    datasets: D,
+    period: int,
+    *,
+    column: str | None = None,
+    columns: None = None,
+    output: Output | None = None,
 ) -> D:
     """Simple Moving Average of many datasets.
 
@@ -57,6 +90,8 @@ def sma_batch[D: (list[Any], dict[Any, Any])](
         period: Window length, an integer of at least 1, shared by every dataset.
         column: Column to use for every dataset that has columns.
         columns: Not valid here (SMA uses one column); raises ValueError.
+        output: Container to return for every dataset, as for `pyta.sma`;
+            None (the default) keeps each dataset's own container.
 
     Returns:
         A list or dict of the same shape and order. Each entry is the result in
@@ -65,7 +100,8 @@ def sma_batch[D: (list[Any], dict[Any, Any])](
     Raises:
         TypeError: `datasets` is not a list or mapping, or `period` or `column`
             has the wrong type.
-        ValueError: Invalid `period`, or a `columns=`.
+        ValueError: An unknown `output`; invalid `period`, or a `columns=`.
+        ModuleNotFoundError: `output="pandas"` and pandas is not installed.
     """
     params = (validate_period(period),)
-    return run_batch(_native.sma_batch, _NAMES, datasets, params, column, CLOSE, columns)
+    return run_batch(_native.sma_batch, _NAMES, datasets, params, column, CLOSE, columns, output)

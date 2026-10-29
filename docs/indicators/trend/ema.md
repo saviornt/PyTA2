@@ -54,6 +54,7 @@ pyta.batch.trend.ema([df1, df2, df3])                  # same as pyta.batch.ema
 | `data` | list, tuple, array, Series, DataFrame, dict, JSON | required | Prices |
 | `period` | `int` | `30` | Smoothing period, at least `1` (TA-Lib's default). Shorter follows the price more closely; `1` returns the input unchanged |
 | `column` | `str` or `None` | `None` | Column to use when the input has columns. `None` means the close column, or the only column if there is just one. Must be a standard column name or alias, such as `open` or `adj close`. See [column selection](../../API.md#column-selection) |
+| `output` | `str` or `None` | `None` | Container to return instead of the input's own: `"list"`, `"tuple"`, `"numpy"`, `"pandas"`, `"dict"`, `"json"`, `"json_bytes"`, `"csv"` or `"csv_bytes"`, each in one fixed shape, with a pandas index carried to the named targets. See [output conversion](../../API.md#output-conversion-output) |
 
 ## Output
 

@@ -62,6 +62,7 @@ pyta.batch.trend.macd([df1, df2], fast=8, slow=17)     # same as pyta.batch.macd
 | `slow` | `int` | `26` | Period of the slow EMA, at least `2` |
 | `signal` | `int` | `9` | Period of the signal line's EMA, at least `1` |
 | `column` | `str` or `None` | `None` | Column to use when the input has columns. `None` means the close column, or the only column if there is just one. Must be a standard column name or alias. See [column selection](../../API.md#column-selection) |
+| `output` | `str` or `None` | `None` | Container to return instead of the input's own: `"list"`, `"tuple"`, `"numpy"`, `"pandas"`, `"dict"`, `"json"`, `"json_bytes"`, `"csv"` or `"csv_bytes"`, each in one fixed shape (a tuple of three, a DataFrame, or one key or column per output), with a pandas index carried to the named targets. See [output conversion](../../API.md#output-conversion-output) |
 
 If `slow` is less than `fast`, the two are swapped, as TA-Lib does, so `macd(close, 26, 12, 9)` equals `macd(close, 12, 26, 9)`. The ranges are TA-Lib's lower bounds; a parameter out of range raises `ValueError` naming it (`fast must be between 2 and 2147483647, got 1`).
 

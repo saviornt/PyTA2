@@ -56,6 +56,7 @@ pyta.batch.momentum.rsi([df1, df2, df3])               # same as pyta.batch.rsi
 | `data` | list, tuple, array, Series, DataFrame, dict, JSON | required | Prices |
 | `period` | `int` | `14` | Number of price changes in the first average, at least `1`. Wilder's choice is 14; shorter is more sensitive, longer is smoother |
 | `column` | `str` or `None` | `None` | Column to use when the input has columns. `None` means the close column, or the only column if there is just one. Must be a standard column name or alias, such as `open` or `adj close`. See [column selection](../../API.md#column-selection) |
+| `output` | `str` or `None` | `None` | Container to return instead of the input's own: `"list"`, `"tuple"`, `"numpy"`, `"pandas"`, `"dict"`, `"json"`, `"json_bytes"`, `"csv"` or `"csv_bytes"`, each in one fixed shape, with a pandas index carried to the named targets. See [output conversion](../../API.md#output-conversion-output) |
 
 ## Output
 

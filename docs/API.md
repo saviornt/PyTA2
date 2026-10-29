@@ -40,13 +40,13 @@ Each indicator lives in its own module in a category subpackage, `pyta.indicator
 
 | Function | Category | Signature |
 |---|---|---|
-| `sma` | Trend | `sma(data, period, *, column=None)` |
-| `ema` | Trend | `ema(data, period=30, *, column=None)` |
-| `macd` | Trend | `macd(data, fast=12, slow=26, signal=9, *, column=None)` |
-| `rsi` | Momentum | `rsi(data, period=14, *, column=None)` |
-| `cci` | Momentum | `cci(data, period=14, *, columns=None)` |
+| `sma` | Trend | `sma(data, period, *, column=None, output=None)` |
+| `ema` | Trend | `ema(data, period=30, *, column=None, output=None)` |
+| `macd` | Trend | `macd(data, fast=12, slow=26, signal=9, *, column=None, output=None)` |
+| `rsi` | Momentum | `rsi(data, period=14, *, column=None, output=None)` |
+| `cci` | Momentum | `cci(data, period=14, *, columns=None, output=None)` |
 
-Each indicator has its own parameters, with TA-Lib's defaults where TA-Lib has one: `period` is required for `sma`; `macd` takes `fast`, `slow` and `signal` instead of `period`. Every parameter is an integer (NumPy integers too); out-of-range values raise `ValueError` and other types `TypeError`, naming the parameter. `column` selects a column for inputs that have columns (see [Column selection](#column-selection)); `None` means the indicator's default column, which is `close` for every single-column indicator so far. `cci` needs several columns, found by name, and takes `columns=` instead (see [Multi-column indicators](#10-multi-column-indicators)). `macd` returns three outputs (see [Multi-output indicators](#11-multi-output-indicators)). Each indicator has a page in the [indicator wiki](indicators/): [SMA](indicators/trend/sma.md), [EMA](indicators/trend/ema.md), [MACD](indicators/trend/macd.md), [RSI](indicators/momentum/rsi.md), [CCI](indicators/momentum/cci.md).
+Each indicator has its own parameters, with TA-Lib's defaults where TA-Lib has one: `period` is required for `sma`; `macd` takes `fast`, `slow` and `signal` instead of `period`. Every parameter is an integer (NumPy integers too); out-of-range values raise `ValueError` and other types `TypeError`, naming the parameter. `column` selects a column for inputs that have columns (see [Column selection](#column-selection)); `None` means the indicator's default column, which is `close` for every single-column indicator so far. `cci` needs several columns, found by name, and takes `columns=` instead (see [Multi-column indicators](#10-multi-column-indicators)). `macd` returns three outputs (see [Multi-output indicators](#11-multi-output-indicators)). Every indicator takes `output=` to return another container than the input's (see [Output conversion](#output-conversion-output)). Each indicator has a page in the [indicator wiki](indicators/): [SMA](indicators/trend/sma.md), [EMA](indicators/trend/ema.md), [MACD](indicators/trend/macd.md), [RSI](indicators/momentum/rsi.md), [CCI](indicators/momentum/cci.md).
 
 ### SMA (Simple Moving Average)
 
@@ -87,7 +87,7 @@ Follows TA-Lib. The typical price is `TP = (high + low + close) / 3`; over each 
 
 ## 4. Input containers
 
-Every supported container is converted to one-dimensional `float64` series (one per input column the indicator needs), and the result is returned in the same kind of container.
+Every supported container is converted to one-dimensional `float64` series (one per input column the indicator needs), and the result is returned in the same kind of container. To get another container instead (DataFrame in, JSON out), pass `output=` ([Output conversion](#output-conversion-output)); the matrix below is the default, `output=None`.
 
 ### Container matrix
 
@@ -169,6 +169,37 @@ pyta.sma(df, period=20, column="adjusted close") # the "Adj Close" column
 - A pandas result keeps the input's index; positions are never reordered.
 - Outputs are named after the indicator, without parameters (`sma`, not `sma_20`); a multi-output indicator names each output `<indicator>_<part>` after the main one (`macd`, `macd_signal`, `macd_hist`). The casing follows the input's columns ([§11](#11-multi-output-indicators)).
 
+### Output conversion (`output=`)
+
+By default (`output=None`) the result comes back in the input's own container ([§4](#4-input-containers)). `output=` converts it to another one, from any supported input, for every indicator, single and batch:
+
+```python
+pyta.sma(df, period=20, output="json")      # DataFrame in, JSON text out
+pyta.macd(csv_text, output="pandas")        # CSV in, a DataFrame of three columns out
+pyta.cci(ohlcv_dict, period=20, output="numpy")
+```
+
+Each target has one fixed shape, whatever the input was, so asking for the input's own kind still gives the target's shape (`output="dict"` always holds NumPy arrays, even for a dict of lists; `output="json"` is always an object of arrays, even for JSON records):
+
+| `output=` | One output | Several outputs | Input's pandas index |
+|---|---|---|---|
+| `None` (default) | the input's container ([§4](#4-input-containers)) | as in [§4](#4-input-containers) | kept by pandas results |
+| `"list"` | `list` of floats | tuple of lists | dropped |
+| `"tuple"` | `tuple` of floats | tuple of tuples | dropped |
+| `"numpy"` | `float64` array | tuple of arrays | dropped |
+| `"pandas"` | Series named by the output | DataFrame, one column per output | the index (a default `RangeIndex` without one) |
+| `"dict"` | `{name: array}` | one key per output, NumPy array values | a key placed first, NumPy array of its values |
+| `"json"`, `"json_bytes"` | object of arrays, `str` or `bytes` | one key per output | a field placed first |
+| `"csv"`, `"csv_bytes"` | header row, then one row per input row, `str` or `bytes` | one column per output | the first column |
+
+- **Names and casing** are those of the default output (`SMA` for a yfinance `Close` column, `MACD_Signal`, ...).
+- **Values** equal the default call's exactly. JSON writes `NaN` as `null`; CSV writes it as an empty field, numbers in Python's shortest round-trip form (`repr`), and ends lines with `\n`, as for CSV input ([§4](#4-input-containers)).
+- **The index** comes from a pandas input: a Series or DataFrame, a list or tuple of Series, or a dict whose column used (a multi-column indicator's first input column) is a Series. JSON, CSV, lists and arrays have no index, so their results have none. The index field is named after the index, or `index` when it has no name; a MultiIndex gives one field per level, named after the level or `level_0`, `level_1`, ... (as pandas' `reset_index` names them), and is kept whole by `"pandas"`. An index name equal to an output name raises `ValueError`; rename the index (`rename_axis`).
+- **Dates in JSON and CSV** become ISO 8601 strings: an index whose values are all tz-naive midnights is written as dates (`2024-01-02`), any other as timestamps (`2024-01-02T09:30:00`, with the offset when tz-aware: `2024-01-02T09:30:00-05:00`). Python `date` and `datetime` values are written the same way; `NaT` and missing values are `null` or an empty field. Other index values must be numbers or strings (CSV quotes a string holding `,`, `"` or a line break); anything else (`Period`, `Timedelta`, tuples, infinite floats) raises `TypeError` naming the value and position. `"pandas"` and `"dict"` keep any index as it is.
+- **pandas is imported only for `output="pandas"`**, when the call is made (`import pyta` never imports it). Without pandas installed it raises `ModuleNotFoundError` saying to install the `pandas` extra (`pip install 'pyta[pandas]'`).
+- **An invalid name** (anything but `None` or the names above, including `"JSON"`) raises `ValueError` listing the valid ones, before any data is read.
+- **Batch:** one `output=` applies to every dataset ([§9](#9-batch-calculation)).
+
 ## 6. Missing and non-finite values
 
 | Input value | Behavior |
@@ -223,8 +254,9 @@ The examples show the current wording, which may change between releases, so cat
 
 | Exception | Raised for |
 |---|---|
-| `TypeError` | Unsupported container or dtype (booleans, complex numbers, dates), text that is not a number (naming the column and index), DataFrames with MultiIndex columns, non-integer `period`, `fast`, `slow` or `signal` (including `bool`), non-string `column`, `columns` that is not a list of strings, JSON of the wrong shape (including arrays that mix records and numbers), one series (list, 1-D array, Series) given to a multi-column indicator |
-| `ValueError` | `period` or `signal` outside `1` to `2**31 - 1`, `fast` or `slow` outside `2` to `2**31 - 1`, period larger than the series (`sma`) or fewer than `period` values (`ema`), `period + 1` values (`rsi`), `period` rows (`cci`) or `slow + signal - 1` values (`macd`), empty input or input with no valid values, a non-finite value after the first valid value, a value larger in magnitude than `1e290`, multidimensional or ragged input, invalid JSON, CSV without a header row or with a row of the wrong field count (or bytes that are not UTF-8), a missing or ambiguous column, `column=` on input without columns; for multi-column indicators: an invalid `columns=` (see [§10](#10-multi-column-indicators)), columns of different lengths, a high below its low on any row, the wrong number of unnamed columns (or a 2-D table with neither axis of that length), Series that do not share one index, and `column=` on a multi-column indicator or `columns=` on a single-column one |
+| `TypeError` | Unsupported container or dtype (booleans, complex numbers, dates), text that is not a number (naming the column and index), DataFrames with MultiIndex columns, non-integer `period`, `fast`, `slow` or `signal` (including `bool`), non-string `column`, `columns` that is not a list of strings, JSON of the wrong shape (including arrays that mix records and numbers), one series (list, 1-D array, Series) given to a multi-column indicator, an index value that JSON or CSV cannot hold (`output=`) |
+| `ValueError` | An unknown `output=` name, an index named like an output (`output=` with an index), `period` or `signal` outside `1` to `2**31 - 1`, `fast` or `slow` outside `2` to `2**31 - 1`, period larger than the series (`sma`) or fewer than `period` values (`ema`), `period + 1` values (`rsi`), `period` rows (`cci`) or `slow + signal - 1` values (`macd`), empty input or input with no valid values, a non-finite value after the first valid value, a value larger in magnitude than `1e290`, multidimensional or ragged input, invalid JSON, CSV without a header row or with a row of the wrong field count (or bytes that are not UTF-8), a missing or ambiguous column, `column=` on input without columns; for multi-column indicators: an invalid `columns=` (see [§10](#10-multi-column-indicators)), columns of different lengths, a high below its low on any row, the wrong number of unnamed columns (or a 2-D table with neither axis of that length), Series that do not share one index, and `column=` on a multi-column indicator or `columns=` on a single-column one |
+| `ModuleNotFoundError` | `output="pandas"` without pandas installed |
 | `RuntimeError` | An internal calculation failure |
 
 NumPy integers are accepted for every integer parameter.
@@ -245,7 +277,8 @@ results = pyta.batch.sma(datasets, period=14)
 
 - `pyta.batch` mirrors the top-level indicator functions (`pyta.batch.sma`, `pyta.batch.ema`, `pyta.batch.macd`, `pyta.batch.rsi`, `pyta.batch.cci`), with the same names and parameters, and the category namespaces too (`pyta.batch.trend.sma is pyta.batch.sma`). One call applies one indicator.
 - `datasets` can be a **list** or a **mapping** (for example, ticker to data); anything else raises `TypeError`. Each dataset can be any supported container, and the result has the same shape and order as the input, with each result in its own input's container type (for MACD, the three outputs in the form a single call returns them). Output names are cased per dataset, from that dataset's own columns. An empty list or mapping returns an empty one.
-- The indicator's parameters (`period`; `fast`, `slow`, `signal`) and `column` are shared by every dataset. An invalid one raises, because it affects the whole call.
+- The indicator's parameters (`period`; `fast`, `slow`, `signal`), `column` and `output` are shared by every dataset. An invalid one raises, because it affects the whole call.
+- With `output=` ([Output conversion](#output-conversion-output)), every dataset's result is in that target's shape (`pyta.batch.sma(frames, period=20, output="json")` gives a list of JSON strings). A dataset whose result cannot be converted (an index JSON cannot hold) gets its exception in place, like any other failure.
 - **A failure never cancels the others.** Each dataset gets a result. A dataset that fails is represented by the exception that explains why, in the same position or under the same key, so you can see which dataset failed and the reason. This covers malformed datasets (unsupported type, missing column, a `NaN` after the first valid value) as well as calculation errors (such as a period longer than the series). Fix the dataset and call again.
 
 ```python

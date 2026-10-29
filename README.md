@@ -71,6 +71,12 @@ result = pyta.macd(df)                         # columns macd, macd_signal, macd
 macd, signal, hist = pyta.macd(close, fast=12, slow=26, signal=9)
 ```
 
+Results come back in the input's container unless you ask for another with `output=` (`"list"`, `"tuple"`, `"numpy"`, `"pandas"`, `"dict"`, `"json"`, `"json_bytes"`, `"csv"`, `"csv_bytes"`); a DataFrame's index goes along to the named targets, with dates as ISO 8601 in JSON and CSV (see [Output conversion](docs/API.md#output-conversion-output)):
+
+```python
+text = pyta.sma(df, period=20, output="json")  # '{"Date":["2024-01-02",...],"SMA":[null,...]}'
+```
+
 PyTA logs through Python's standard `logging` (Rust messages included) under the `pyta` logger and is silent unless you configure logging. For example, `logging.getLogger("pyta").setLevel(logging.DEBUG)` shows how batches are scheduled; see [Logging](docs/API.md#14-logging).
 
 ## Indicators

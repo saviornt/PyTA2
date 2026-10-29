@@ -5,6 +5,10 @@ which are passed to the native function positionally after the input. A native
 function returns one float64 array for a single-output indicator, or a list of
 arrays in documented output order for a multi-output one; each output is
 re-padded for a skipped leading NaN run and named in the input's casing.
+
+`output=None` (the default) restores the input's own container through
+`Prepared.restore`; any other `output` is resolved by `_export.exporter` before
+any work and converts the result to that target instead.
 """
 
 import logging
@@ -14,6 +18,7 @@ from typing import Any, cast
 import numpy as np
 
 from ._columns import ORDERED_ROLES, normalize_columns, validate_columns
+from ._export import Export, exporter
 from ._native import MAX_ABS_INPUT
 from ._outputs import OutputNames
 from ._types import Float64Array, Prepared, PreparedColumns
@@ -42,13 +47,17 @@ def run(
     column: object,
     default_column: str,
     columns: object = None,
+    output: object = None,
 ) -> Any:
     """Runs one single-series indicator on validated `params` and restores the container.
 
     `default_column` is the column role the indicator calculates on; it is used
     when the caller passes no `column` and the input has more than one.
-    `columns` must be None: it is the multi-column override.
+    `columns` must be None: it is the multi-column override. `output` names
+    the container to return (`_export.TARGETS`), or is None for the input's own.
     """
+    export = None if output is None else exporter(output)
+
     if columns is not None:
         _reject_columns(outputs.indicator, columns)
 
@@ -59,7 +68,9 @@ def run(
     first, valid = _trim(prepared.values)
     results = _pad_all(native(valid, *params), first, prepared.values.shape[0])
 
-    return prepared.restore(outputs.cased(prepared.names), results)
+    if export is None:
+        return prepared.restore(outputs.cased(prepared.names), results)
+    return export(outputs.cased(prepared.names), results, prepared.index)
 
 
 def _pad_all(result: NativeResult, first: int, length: int) -> Sequence[Float64Array]:
@@ -141,14 +152,16 @@ def run_batch(
     column: object,
     default_column: str,
     columns: object = None,
+    output: object = None,
 ) -> Any:
     """Runs one indicator over many datasets and returns results in the same shape.
 
-    `params` and `column` are shared by every dataset, so an invalid one raises
-    (the indicator validates `params` before calling). A dataset that is
-    malformed or fails to calculate is not raised: its exception is returned in
-    its place so the other datasets still complete.
+    `params`, `column` and `output` are shared by every dataset, so an invalid
+    one raises (the indicator validates `params` before calling). A dataset that
+    is malformed or fails to calculate or convert is not raised: its exception
+    is returned in its place so the other datasets still complete.
     """
+    export = None if output is None else exporter(output)
     label = outputs.indicator
     _reject_columns(label, columns)
 
@@ -183,12 +196,37 @@ def run_batch(
             failed += 1
         else:
             padded = _pad_all(result, first, prepared.values.shape[0])
-            outcomes[position] = prepared.restore(outputs.cased(prepared.names), padded)
+            cased = outputs.cased(prepared.names)
+
+            if export is None:
+                outcomes[position] = prepared.restore(cased, padded)
+            elif not _export_into(outcomes, position, export, cased, padded, prepared.index):
+                failed += 1
 
     if failed:
         _log_failures(label, outcomes, keys, failed)
 
     return outcomes if keys is None else dict(zip(keys, outcomes, strict=True))
+
+
+def _export_into(
+    outcomes: list[Any],
+    position: int,
+    export: Export,
+    names: Sequence[str],
+    results: Sequence[Float64Array],
+    index: Any,
+) -> bool:
+    """Stores one dataset's exported result, or its conversion error, at `position`.
+
+    False when the conversion failed (an index that JSON or CSV cannot hold).
+    """
+    try:
+        outcomes[position] = export(names, results, index)
+    except (TypeError, ValueError) as error:
+        outcomes[position] = error
+        return False
+    return True
 
 
 def _datasets(datasets: object) -> tuple[list[Any] | None, list[Any]]:
@@ -231,12 +269,15 @@ def run_columns(
     columns: object,
     slots: Sequence[Slot],
     column: object = None,
+    output: object = None,
 ) -> Any:
     """Runs one multi-column indicator on validated `params` and restores the container.
 
     `slots` are the indicator's inputs in the order the native function takes
-    them. `column` must be None: it is the single-column override.
+    them. `column` must be None: it is the single-column override. `output` is
+    as for `run`.
     """
+    export = None if output is None else exporter(output)
     label = outputs.indicator
     _reject_column(label, column)
     names = validate_columns(columns)
@@ -253,7 +294,10 @@ def run_columns(
         raise explained from None
 
     results = _pad_all(result, first, prepared.values[0].shape[0])
-    return prepared.restore(outputs.cased_text(prepared.names), results)
+
+    if export is None:
+        return prepared.restore(outputs.cased_text(prepared.names), results)
+    return export(outputs.cased_text(prepared.names), results, prepared.index)
 
 
 def run_columns_batch(
@@ -264,8 +308,10 @@ def run_columns_batch(
     columns: object,
     slots: Sequence[Slot],
     column: object = None,
+    output: object = None,
 ) -> Any:
-    """`run_batch` for a multi-column indicator; `columns` is shared by every dataset."""
+    """`run_batch` for a multi-column indicator; `columns` and `output` are shared."""
+    export = None if output is None else exporter(output)
     label = outputs.indicator
     _reject_column(label, column)
     names = validate_columns(columns)
@@ -299,7 +345,12 @@ def run_columns_batch(
             failed += 1
         else:
             padded = _pad_all(result, first, prepared.values[0].shape[0])
-            outcomes[position] = prepared.restore(outputs.cased_text(prepared.names), padded)
+            cased = outputs.cased_text(prepared.names)
+
+            if export is None:
+                outcomes[position] = prepared.restore(cased, padded)
+            elif not _export_into(outcomes, position, export, cased, padded, prepared.index):
+                failed += 1
 
     if failed:
         _log_failures(label, outcomes, keys, failed)

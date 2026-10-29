@@ -38,6 +38,7 @@ PyTA/
 │       ├── __init__.py             # Public exports
 │       ├── _api.py                 # Shared execution boundary
 │       ├── _columns.py             # Multi-column normalization (slots matched by role)
+│       ├── _export.py              # output= conversion to a named target container
 │       ├── _native.pyi             # Type stubs for the extension
 │       ├── _types.py               # Internal types
 │       ├── _validation.py          # Normalization, validation, role registry
@@ -105,9 +106,10 @@ Category crate       formula kernel (pyta-trend, pyta-momentum, ...)
     |
     v
 Python layer         restore the user's container type, with labeled outputs
+                     (or, with output=, convert to that target in _export)
     |
     v
-User receives results in the container type they supplied
+User receives results in the container type they supplied, or the one output= named
 ```
 
 ### Dependency rules
@@ -249,8 +251,9 @@ Adding a category or an indicator only adds names; no existing import path chang
 | `_api.py` | `run()` / `run_batch()`: normalize data, call native with the indicator's validated parameters, restore the container with every output named; also skip and re-pad a leading `NaN` run (for each output). `run_columns()` / `run_columns_batch()`: the same for multi-column indicators, plus the row-order check (`ORDERED_ROLES`) and column-named value errors |
 | `_validation.py` | Parameter validators (`validate_period`, `validate_fast`, `validate_slow`, `validate_signal`) and `normalize` for every supported container; single-column selection; the role registry (`register_role`, `role_of`) and `Slot` |
 | `_columns.py` | `normalize_columns`: every named container matched to an indicator's slots by role (or by `columns=`), unnamed ones in slot order |
+| `_export.py` | The shared export layer for `output=`: `exporter(output)` checks the name (`TARGETS`, the `Output` literal type) and returns the function that turns (names, results, index) into that target's fixed shape; it reuses `_validation`'s restores, JSON helpers and CSV writer (`csv_fields`, `csv_quote`, `csv_text`) |
 | `_outputs.py` | `OutputNames` (an indicator's output names in lower, upper and title case) and the casing rule that picks one from the input's column names |
-| `_types.py` | `Prepared` (a normalized series) and `PreparedColumns` (one series per slot, with labels and roles), each with the input column names used and a function that rebuilds the caller's container from (name, values) pairs |
+| `_types.py` | `Prepared` (a normalized series) and `PreparedColumns` (one series per slot, with labels and roles), each with the input column names used, a function that rebuilds the caller's container from (name, values) pairs, and the input's pandas index (or None) for `output=` |
 | `_native.pyi` | Type stubs for the native module |
 
 ### Input and output contract
@@ -272,6 +275,8 @@ Every supported container is reduced to one 1-D, C-contiguous `float64` array, w
 **Numbers as strings.** One parser, `_validation.parse_numbers`, reads strings everywhere: CSV fields, and strings in lists, tuples, dict values, JSON, NumPy string arrays and pandas `object` or string columns. Surrounding whitespace is ignored; an empty string or `NaN` text is a gap; anything else (including a bool) raises `TypeError` naming the column (when there is one) and the index. It runs only when NumPy gives a string or object dtype (an object array only when it holds a string or bool, as before), so numeric dtypes keep their fast path. A bool among numbers in a Python list or JSON array is read as 1 or 0, because NumPy converts the list to numbers before PyTA sees it; rejecting it would need a scan of every list.
 
 **Output names.** Each indicator module declares `OUTPUTS` (lower case, documented order: `("macd", "macd_signal", "macd_hist")`) and which parts are abbreviations, as an `OutputNames`; names are bare, without parameters. Their casing follows the input column names the call used, as written (`_outputs.casing`): all lower → lower; no lower-case letters → upper (`MACD_SIGNAL`); title case, where each word is capitalized or all capitals and words without letters are ignored (`Close`, `Adj Close`, `4. Close`, and PyTA's own `MACD_Signal`, so outputs chain) → abbreviations upper and words title (`SMA`, `MACD_Signal`); mixed, disagreeing or unnamed → lower. The separator is always `_`.
+
+**Output conversion (`output=`).** Every indicator function and batch function takes `output: Output | None = None` (keyword-only) and passes it straight to its `_api` runner; no indicator has conversion code of its own. Each runner calls `_export.exporter(output)` first, when `output` is not None, so an unknown name (`ValueError`) or `"pandas"` without pandas (`ModuleNotFoundError`; pandas is imported with `importlib` only then) raises before any data is read. After the native call, the runner either restores the input's container (`Prepared.restore`, the default path, unchanged) or calls the export function with the cased output names, the re-padded results and `Prepared.index`. The index is set by the pandas normalizers (Series, DataFrame, a dict's Series column, a list of Series) and is None for every other container. Each target has one fixed shape: unnamed targets (`list`, `tuple`, `numpy`) reuse the default restores and drop the index; `pandas`, `dict`, `json`/`json_bytes` and `csv`/`csv_bytes` carry it first (a MultiIndex as one field per level), with dates as ISO 8601 strings in JSON and CSV. In a batch, a conversion error (an index JSON cannot hold) is that dataset's exception in place. `Prepared` and `PreparedColumns` are plain (not frozen) slotted dataclasses, since a frozen one costs ~80 ns per field per call; adding the index field to frozen ones measured +0.25 µs on a 100-row dict call.
 
 **Parameters.** Each indicator module validates its own parameters with the shared validators in `_validation.py` and passes them, in its native function's order, to the runners (`run(native, OUTPUTS, data, params, ...)`), which call `native(values, *params)`. A batch shares them across datasets, so an invalid one raises for the whole call.
 
@@ -314,7 +319,7 @@ results = pyta.batch.sma(datasets, period=14)
 - `pyta.batch` mirrors the top-level indicator functions, with the same names and parameters. A new indicator gets a batch variant by following the same pattern.
 - `datasets` is a list (or mapping) of any supported containers. Results are returned in the same shape and order, each in its own input's container type.
 - The call is synchronous from the user's perspective; the planner decides internally whether to run sequentially or concurrently.
-- The parameters (`period`, or MACD's `fast`, `slow`, `signal`) and `column` (or `columns` for a multi-column indicator) are shared by the whole batch. One indicator per call; mixed-indicator batches are a later sprint.
+- The parameters (`period`, or MACD's `fast`, `slow`, `signal`), `column` (or `columns` for a multi-column indicator) and `output` are shared by the whole batch. One indicator per call; mixed-indicator batches are a later sprint.
 - **Error policy.** Nothing is raised for a bad dataset, so the others still complete. Python normalizes and validates each dataset first (`_api.run_batch`); a dataset that fails there becomes its exception. The rest go to Rust in a single call, and a per-request engine error becomes the matching exception (`ValueError`, or `RuntimeError` for internal failures). Invalid parameters or `column` raise, because they affect every dataset.
 - **Native side.** `pyta._native.sma_batch` / `rsi_batch` / `ema_batch` / `macd_batch` take a list of arrays (`cci_batch` a list of lists of arrays, one per slot), copy and validate each, release the GIL, and return a list in input order whose entries are each an array (a list of arrays for `macd_batch`) or an exception. The bridge asks `should_parallelize` and then runs `execute_sequential` or `execute_parallel` on its own Rayon pool.
 

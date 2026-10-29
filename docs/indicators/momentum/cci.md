@@ -77,6 +77,7 @@ pyta.batch.momentum.cci({"SPY": spy, "QQQ": qqq})      # dict of results, same k
 | `data` | DataFrame, dict, JSON, 2-D array, list of rows or columns, tuple of arrays, list or tuple of Series | required | High, low and close prices; other columns are ignored |
 | `period` | `int` | `14` | Number of bars in each window, at least `1`. TA-Lib's default is 14; Lambert and StockCharts use 20 |
 | `columns` | list of `str` or `None` | `None` | The three columns to use, in any order: a high, a low, and a close or adjusted close. `None` finds them by name. Names are standard column names or aliases, such as `High` or `adj close`. See [multi-column indicators](../../API.md#10-multi-column-indicators) |
+| `output` | `str` or `None` | `None` | Container to return instead of the input's own: `"list"`, `"tuple"`, `"numpy"`, `"pandas"`, `"dict"`, `"json"`, `"json_bytes"`, `"csv"` or `"csv_bytes"`, each in one fixed shape, with a pandas index carried to the named targets. See [output conversion](../../API.md#output-conversion-output) |
 
 `column=` (singular) is for single-column indicators and raises `ValueError` here.
 

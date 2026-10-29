@@ -4,6 +4,7 @@ from typing import Any
 
 from pyta import _native
 from pyta._api import run, run_batch
+from pyta._export import Output
 from pyta._outputs import OutputNames
 from pyta._validation import CLOSE, validate_fast, validate_signal, validate_slow
 
@@ -26,6 +27,7 @@ def macd(
     *,
     column: str | None = None,
     columns: None = None,
+    output: Output | None = None,
 ) -> Any:
     """Moving Average Convergence/Divergence (TA-Lib convention).
 
@@ -50,6 +52,11 @@ def macd(
             volume) or an alias; case, whitespace and . _ - are ignored.
             See docs/API.md.
         columns: Not valid here (MACD uses one column); raises ValueError.
+        output: Container to return instead of the input's own: "list",
+            "tuple", "numpy", "pandas", "dict", "json", "json_bytes", "csv" or
+            "csv_bytes", each in one fixed shape, with a pandas index carried to
+            the named targets (see docs/API.md "Output conversion"). None (the
+            default) keeps the input's container.
 
     Returns:
         Three outputs, "macd", "macd_signal" and "macd_hist" in that order,
@@ -68,12 +75,12 @@ def macd(
     Raises:
         TypeError: Unsupported input type or dtype, or a non-integer `fast`,
             `slow` or `signal`.
-        ValueError: `fast` or `slow` below 2 or `signal` below 1, a `columns=`,
-            empty, non-finite or out-of-range input, or fewer than
-            `slow + signal - 1` values.
+        ValueError: An unknown `output`; `fast` or `slow` below 2 or `signal` below 1, a `columns=`,
+            empty, non-finite or out-of-range input, or fewer than `slow + signal - 1` values.
+        ModuleNotFoundError: `output="pandas"` and pandas is not installed.
     """
     params = _params(fast, slow, signal)
-    return run(_native.macd, _NAMES, data, params, column, CLOSE, columns)
+    return run(_native.macd, _NAMES, data, params, column, CLOSE, columns, output)
 
 
 def macd_batch[D: (list[Any], dict[Any, Any])](
@@ -84,6 +91,7 @@ def macd_batch[D: (list[Any], dict[Any, Any])](
     *,
     column: str | None = None,
     columns: None = None,
+    output: Output | None = None,
 ) -> D:
     """Moving Average Convergence/Divergence of many datasets.
 
@@ -96,6 +104,8 @@ def macd_batch[D: (list[Any], dict[Any, Any])](
         signal: Period of the signal line's EMA, at least 1, shared by every dataset.
         column: Column to use for every dataset that has columns.
         columns: Not valid here (MACD uses one column); raises ValueError.
+        output: Container to return for every dataset, as for `pyta.macd`;
+            None (the default) keeps each dataset's own container.
 
     Returns:
         A list or dict of the same shape and order. Each entry is the three
@@ -105,7 +115,8 @@ def macd_batch[D: (list[Any], dict[Any, Any])](
     Raises:
         TypeError: `datasets` is not a list or mapping, or `fast`, `slow`,
             `signal` or `column` has the wrong type.
-        ValueError: Invalid `fast`, `slow` or `signal`, or a `columns=`.
+        ValueError: An unknown `output`; invalid `fast`, `slow` or `signal`, or a `columns=`.
+        ModuleNotFoundError: `output="pandas"` and pandas is not installed.
     """
     params = _params(fast, slow, signal)
-    return run_batch(_native.macd_batch, _NAMES, datasets, params, column, CLOSE, columns)
+    return run_batch(_native.macd_batch, _NAMES, datasets, params, column, CLOSE, columns, output)

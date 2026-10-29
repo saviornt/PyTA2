@@ -519,9 +519,25 @@ def restore_json_object(dump: Callable[[Any], str | bytes]) -> Restore:
     )
 
 
-def _csv_fields(values: Float64Array) -> list[str]:
+def csv_fields(values: Float64Array) -> list[str]:
     """CSV fields: Python's shortest round-trip `repr`, and an empty field for NaN."""
     return [repr(value) if value == value else "" for value in values.tolist()]
+
+
+def csv_quote(text: str) -> str:
+    """One CSV field, quoted (with `"` doubled) only when it holds `,`, `"` or a line break."""
+    if any(char in text for char in ',"\r\n'):
+        return '"' + text.replace('"', '""') + '"'
+    return text
+
+
+def csv_text(header: Sequence[str], columns: Sequence[Sequence[str]]) -> str:
+    """CSV of a header row and equal-length columns of fields, each line ending in `\\n`.
+
+    Fields are written as given (`csv_fields`, `csv_quote`), so the caller decides quoting.
+    """
+    rows = columns[0] if len(columns) == 1 else map(",".join, zip(*columns, strict=True))
+    return "\n".join((",".join(header), *rows)) + "\n"
 
 
 def restore_csv(as_bytes: bool) -> Restore:
@@ -534,9 +550,7 @@ def restore_csv(as_bytes: bool) -> Restore:
 
 
 def _restore_csv_text(names: Sequence[str], results: Sequence[Float64Array]) -> str:
-    columns = [_csv_fields(values) for values in results]
-    rows = columns[0] if len(columns) == 1 else map(",".join, zip(*columns, strict=True))
-    return "\n".join((",".join(names), *rows)) + "\n"
+    return csv_text(names, [csv_fields(values) for values in results])
 
 
 def _restore_csv_bytes(names: Sequence[str], results: Sequence[Float64Array]) -> bytes:
@@ -608,7 +622,7 @@ def from_pandas_series(pd: Any, data: Any, column: str | None) -> Prepared:
         )
 
     label = data.name
-    return Prepared(to_float64(values), restore, () if label is None else (label,))
+    return Prepared(to_float64(values), restore, () if label is None else (label,), index)
 
 
 def _from_pandas_frame(pd: Any, data: Any, column: str | None, default_column: str) -> Prepared:
@@ -618,7 +632,7 @@ def _from_pandas_frame(pd: Any, data: Any, column: str | None, default_column: s
     label = _pick(list(data.columns), column, default_column)
     series = from_pandas_series(pd, data[label], None)
 
-    return Prepared(series.values, restore_frame(pd, data.index), (label,))
+    return Prepared(series.values, restore_frame(pd, data.index), (label,), data.index)
 
 
 def from_column(value: object, key: object) -> Prepared:
@@ -645,7 +659,7 @@ def _from_mapping(
     inner = from_column(data[key], key)
 
     # Each output keeps the input column's container type.
-    return Prepared(inner.values, restore_columns(inner.restore), (key,))
+    return Prepared(inner.values, restore_columns(inner.restore), (key,), inner.index)
 
 
 def nulls(values: Float64Array) -> list[float | None]:
