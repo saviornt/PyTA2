@@ -586,14 +586,14 @@ The shapes are a starting point; each indicator's spec (the `add-indicator` skil
 
 ---
 
-## Sprint 15 — Expand indicators within existing categories
+## Sprint 15 — Indicators beyond the major set
 
-**Goal:** Add indicators without redesigning the infrastructure.
+**Goal:** Add the less common technical indicators after the first release, without redesigning the infrastructure. The major ones ship in Sprint 11.5.
 
 ### Tasks
 
-- [ ] Review the priority list for Trend and Momentum indicators (EMA, CCI, and Stochastic first).
-- [ ] Rank indicators by usefulness, implementation complexity, and validation requirements.
+- [ ] List candidates not covered by Sprint 11.5: the rest of TA-Lib's overlap, momentum, volatility and volume functions (for example PPO, CMO, Momentum, Stochastic RSI, ADXR, Chaikin Oscillator, NATR, T3, MAMA), widely used non-TA-Lib indicators (Hull MA, Supertrend, Pivot Points, Chandelier Exit), and anything parked during Sprint 11.5 (an `ma=` option, anchored VWAP).
+- [ ] Rank them by user demand, implementation complexity and validation requirements, and agree the list with the maintainer.
 - [ ] Add one indicator at a time using the standard workflow below.
 - [ ] Add formula documentation, reference tests, and edge-case tests for each indicator.
 - [ ] Add each indicator to dispatch, the cost estimates, direct execution, and batch execution.
@@ -612,25 +612,24 @@ The shapes are a starting point; each indicator's spec (the `add-indicator` skil
 
 ---
 
-## Sprint 16 — Additional indicator categories
+## Sprint 16 — Valuation category
 
-**Goal:** Expand the architecture into a broader technical analysis library.
+**Goal:** Add valuation indicators, price-relative and fundamental, as their own category. Volatility and Volume are built in Sprint 11.5.
 
 ### Tasks
 
-- [ ] Prioritize additional categories: Volatility, Volume, and Valuation (see [Valuation plan](#valuation-plan)).
-- [ ] Create each new category as a separate `pyta-<category>` crate and Python namespace.
+- [ ] Build the price-relative and fundamental indicators in the [Valuation plan](#valuation-plan) below.
+- [ ] Register the fundamental roles (`eps`, `book_value`, `sales`, `dividends`, `ebitda`, ...) with `register_role`, as the Sprint 9 registry allows.
 - [ ] Reuse the shared core and engine contracts.
-- [ ] Implement and validate the first indicator in each new category.
 - [ ] Add each indicator to batch execution.
 - [ ] Expand integration tests.
-- [ ] Review cross-category naming, parameter conventions, and output consistency.
+- [ ] Review cross-category naming, parameter conventions, and output consistency across all five categories.
 
 ### Acceptance criteria
 
-- New categories integrate with the same public Python interface.
+- The Valuation category integrates with the same public Python interface.
 - Core behavior is consistent across categories.
-- New indicators have numerical reference tests and documented edge cases.
+- New indicators have numerical reference tests and documented edge cases, including look-ahead rules for fundamentals.
 - The engine does not accumulate category-specific special cases.
 
 **Retrospective:**  
@@ -658,7 +657,7 @@ Valuation indicators come in three kinds, and only the first two belong in PyTA.
 - [ ] TTM: decide whether callers pass trailing-twelve-month values or PyTA provides a `ttm()` helper (sum of the last four quarters).
 - [ ] EV/EBITDA: EV = market cap + debt + preferred + minority interest − cash. Decide whether to accept EV directly or its components.
 - [ ] PEG: P/E ÷ growth rate, with growth supplied by the caller. Never estimate it.
-- [ ] Output names: extend the `<indicator>_<period>` convention with a no-period form for ratios (`pe`, `pb`, `ev_ebitda`).
+- [ ] Output names follow the bare-name rule from Sprint 10 (`mayer_multiple`, `zscore`, `pe`, `pb`, `ev_ebitda`), with casing from the input's columns.
 
 #### Rules
 

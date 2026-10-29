@@ -1,6 +1,6 @@
 ---
 name: add-indicator
-description: Step-by-step procedure for adding a technical indicator to PyTA, from formula spec through Rust kernel, engine dispatch and cost, PyO3 bindings, Python API, batch, tests, benchmarks and docs. Use this whenever the user asks to add, implement or port an indicator (EMA, WMA, MACD, Bollinger Bands, ATR, Stochastic, CCI, ADX, OBV, ROC, or any other), works on a Sprint 15 or 16 indicator task, or invokes /add-indicator <name>. Also covers indicators that need more than one input series, extra parameters or several outputs, by extending the engine contracts.
+description: Step-by-step procedure for adding a technical indicator to PyTA, from formula spec through Rust kernel, engine dispatch and cost, PyO3 bindings, Python API, batch, tests, benchmarks and docs. Use this whenever the user asks to add, implement or port an indicator (EMA, WMA, MACD, Bollinger Bands, ATR, Stochastic, CCI, ADX, OBV, ROC, or any other), works on a Sprint 11.5, 15 or 16 indicator task, or invokes /add-indicator <name>. Also covers indicators that need more than one input series, extra parameters or several outputs, by extending the engine contracts.
 ---
 
 # Add an indicator to PyTA
