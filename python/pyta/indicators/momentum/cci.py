@@ -5,10 +5,15 @@ from typing import Any
 
 from pyta import _native
 from pyta._api import run_columns, run_columns_batch
-from pyta._validation import ADJ_CLOSE, CLOSE, HIGH, LOW, Slot
+from pyta._outputs import OutputNames
+from pyta._validation import ADJ_CLOSE, CLOSE, HIGH, LOW, Slot, validate_period
 
 #: CCI's inputs, in the order `_native.cci` takes them and unnamed input uses.
 SLOTS = (Slot("high", (HIGH,)), Slot("low", (LOW,)), Slot("close", (CLOSE, ADJ_CLOSE)))
+
+#: CCI's output name; title-case input gives "CCI".
+OUTPUTS = ("cci",)
+_NAMES = OutputNames("cci", OUTPUTS, abbreviations=("cci",))
 
 
 def cci[T](
@@ -40,8 +45,10 @@ def cci[T](
 
     Returns:
         The same kind of container as `data`, holding float64 values and the
-        same length. A DataFrame, dict, or JSON object holds one
-        "cci_<period>" column (a dict keeps the high column's container type);
+        same length. A DataFrame, dict, or JSON object holds one "cci"
+        column, cased like the input's columns ("CCI" for "HIGH, LOW, CLOSE"
+        or "High, Low, Close"; see docs/API.md); a dict keeps the high
+        column's container type;
         a 2-D array gives a 1-D array and a tuple a tuple. JSON writes NaN as
         null. Rows before the last leading NaN of any column are skipped and
         carried over as NaN, so indicators can be chained.
@@ -55,7 +62,8 @@ def cci[T](
             non-finite or out-of-range value; high below low on a row; or
             fewer than `period` rows.
     """
-    return run_columns(_native.cci, "cci", data, period, columns, SLOTS, column)
+    params = (validate_period(period),)
+    return run_columns(_native.cci, _NAMES, data, params, columns, SLOTS, column)
 
 
 def cci_batch[D: (list[Any], dict[Any, Any])](
@@ -84,4 +92,5 @@ def cci_batch[D: (list[Any], dict[Any, Any])](
             has the wrong type.
         ValueError: Invalid `period`, or a `column=`.
     """
-    return run_columns_batch(_native.cci_batch, "cci", datasets, period, columns, SLOTS, column)
+    params = (validate_period(period),)
+    return run_columns_batch(_native.cci_batch, _NAMES, datasets, params, columns, SLOTS, column)

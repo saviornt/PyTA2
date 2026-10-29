@@ -5,6 +5,8 @@ For each indicator and input size it times:
   native   pyta._native.<indicator>(ndarray, period)   no validation or restore
   copy     ndarray.copy()                              a memcpy of the same input
 
+(MACD takes fast=, slow=, signal= instead of period=, and returns three outputs.)
+
 A multi-column indicator gets a dict of high, low and close arrays (found by
 role) in the public call, the list of arrays in the native call, and `copy`
 copies every column.
@@ -31,11 +33,14 @@ import numpy as np
 import pyta
 from pyta import _native
 
-# indicator name -> (period used for the benchmark, number of input columns)
-INDICATORS: dict[str, tuple[int, int]] = {
-    "sma": (20, 1),
-    "rsi": (14, 1),
-    "cci": (14, 3),
+# indicator name -> (keyword parameters for the benchmark, TA-Lib's defaults where it has
+# them; number of input columns). The native call takes the same values positionally.
+INDICATORS: dict[str, tuple[dict[str, int], int]] = {
+    "sma": ({"period": 20}, 1),
+    "rsi": ({"period": 14}, 1),
+    "cci": ({"period": 14}, 3),
+    "ema": ({"period": 30}, 1),
+    "macd": ({"fast": 12, "slow": 26, "signal": 9}, 1),
 }
 
 SIZES = (100, 10_000, 1_000_000)
@@ -94,15 +99,15 @@ def main() -> None:
     print("-" * len(header))
 
     for name in names:
-        period, width = INDICATORS[name]
+        params, width = INDICATORS[name]
         public = getattr(pyta, name)
         native = getattr(_native, name)
 
         for size in SIZES:
             data, native_data, copy = inputs(size, width)
 
-            t_public = best_time(lambda: public(data, period=period), repeats)
-            t_native = best_time(lambda: native(native_data, period), repeats)
+            t_public = best_time(lambda: public(data, **params), repeats)
+            t_native = best_time(lambda: native(native_data, *params.values()), repeats)
             t_copy = best_time(copy, repeats)
 
             print(

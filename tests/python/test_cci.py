@@ -31,7 +31,7 @@ def test_known_values() -> None:
 
 @pytest.mark.parametrize("period", [2, 14, 20, 50, 200])
 def test_matches_an_independent_calculation_on_real_prices(ohlcv: Ohlcv, period: int) -> None:
-    result = pyta.cci(ohlcv.columns(), period=period)[f"cci_{period}"]
+    result = pyta.cci(ohlcv.columns(), period=period)["cci"]
 
     np.testing.assert_allclose(
         result,
@@ -44,13 +44,13 @@ def test_matches_an_independent_calculation_on_real_prices(ohlcv: Ohlcv, period:
 
 def test_default_period_is_fourteen(ohlcv: Ohlcv) -> None:
     np.testing.assert_array_equal(
-        pyta.cci(ohlcv.columns())["cci_14"], pyta.cci(ohlcv.columns(), 14)["cci_14"]
+        pyta.cci(ohlcv.columns())["cci"], pyta.cci(ohlcv.columns(), 14)["cci"]
     )
 
 
 @pytest.mark.parametrize("period", [2, 14, 50])
 def test_real_prices_stay_within_the_bound(ohlcv: Ohlcv, period: int) -> None:
-    result = pyta.cci(ohlcv.columns(), period=period)[f"cci_{period}"]
+    result = pyta.cci(ohlcv.columns(), period=period)["cci"]
 
     assert np.isnan(result[: period - 1]).all()
     assert np.isfinite(result[period - 1 :]).all()
@@ -91,7 +91,7 @@ def test_rejects_a_non_integer_period() -> None:
 
 
 def test_cci_output_can_be_chained(ohlcv: Ohlcv) -> None:
-    cci = pyta.cci(ohlcv.columns(), period=20)["cci_20"]
+    cci = pyta.cci(ohlcv.columns(), period=20)["cci"]
 
     smoothed = pyta.sma(cci, period=5)
 
@@ -105,8 +105,8 @@ def test_chained_inputs_are_aligned_on_the_longest_warm_up(ohlcv: Ohlcv) -> None
     for name, gap in (("high", 4), ("low", 9), ("close", 19)):
         gapped[name][:gap] = np.nan
 
-    result = pyta.cci(gapped, period=14)["cci_14"]
+    result = pyta.cci(gapped, period=14)["cci"]
 
     assert np.isnan(result[: 19 + 13]).all()
     trimmed = {name: values[19:] for name, values in gapped.items()}
-    np.testing.assert_array_equal(result[19:], pyta.cci(trimmed, period=14)["cci_14"])
+    np.testing.assert_array_equal(result[19:], pyta.cci(trimmed, period=14)["cci"])

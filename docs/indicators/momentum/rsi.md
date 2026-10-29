@@ -62,7 +62,7 @@ pyta.batch.momentum.rsi([df1, df2, df3])               # same as pyta.batch.rsi
 - Same length as the input, `float64`, always between 0 and 100.
 - The first `period` values are `NaN` (warm-up): `period` changes need `period + 1` prices.
 - At least `period + 1` values are required.
-- Named `rsi_<period>` (for example `rsi_14`) in a Series, DataFrame, dict, or JSON object.
+- Named `rsi` in a Series, DataFrame, dict, or JSON object (`RSI` when the input column is `CLOSE` or `Close`; see [names and casing](../../API.md#11-multi-output-indicators)).
 
 ## Edge cases
 

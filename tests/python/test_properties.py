@@ -1,4 +1,6 @@
-"""Property tests (Hypothesis) for containers and the NaN policy."""
+"""Property tests (Hypothesis) for containers, the NaN policy and multi-output results."""
+
+import json
 
 import numpy as np
 import pyta
@@ -74,3 +76,62 @@ def test_batch_matches_single_calls(cases: list[tuple[list[float], int]]) -> Non
 
     for dataset, result in zip(datasets, results, strict=True):
         np.testing.assert_array_equal(result, pyta.sma(dataset, period=period))
+
+
+@st.composite
+def macd_case(draw: st.DrawFn) -> tuple[list[float], int, int, int]:
+    """A series with MACD parameters that fit it (at least `slow + signal - 1` values)."""
+    fast = draw(st.integers(min_value=2, max_value=20))
+    slow = draw(st.integers(min_value=2, max_value=30))
+    signal = draw(st.integers(min_value=1, max_value=10))
+    size = draw(st.integers(min_value=max(fast, slow) + signal - 1, max_value=120))
+    values = draw(st.lists(PRICE, min_size=size, max_size=size))
+    return values, fast, slow, signal
+
+
+@given(macd_case())
+def test_macd_hist_is_macd_minus_signal_and_lengths_match(
+    case: tuple[list[float], int, int, int],
+) -> None:
+    values, fast, slow, signal = case
+
+    line, sig, hist = pyta.macd(np.array(values), fast, slow, signal)
+
+    for output in (line, sig, hist):
+        assert output.shape == (len(values),)
+    np.testing.assert_array_equal(hist, line - sig)
+    longer = max(fast, slow)
+    assert np.isnan(line[: longer - 1]).all()
+    assert np.isfinite(line[longer - 1 :]).all()
+    assert np.isfinite(sig[longer + signal - 2 :]).all()
+
+
+@given(macd_case(), st.sampled_from(["list", "tuple", "dict", "json", "records"]))
+def test_macd_results_do_not_depend_on_the_container(
+    case: tuple[list[float], int, int, int], kind: str
+) -> None:
+    values, fast, slow, signal = case
+    want = pyta.macd(np.array(values), fast, slow, signal)
+    names = ["macd", "macd_signal", "macd_hist"]
+
+    data: object = {
+        "list": values,
+        "tuple": tuple(values),
+        "dict": {"close": values},
+        "json": json.dumps(values),
+        "records": json.dumps([{"close": value} for value in values]),
+    }[kind]
+    result = pyta.macd(data, fast, slow, signal)
+
+    if kind in ("list", "tuple"):
+        got = [np.array(output, dtype=np.float64) for output in result]
+    elif kind == "dict":
+        got = [np.array(result[name]) for name in names]
+    else:
+        parsed = json.loads(result)
+        if kind == "records":
+            parsed = {name: [row[name] for row in parsed] for name in names}
+        got = [np.array(parsed[name], dtype=np.float64) for name in names]
+
+    for got_one, want_one in zip(got, want, strict=True):
+        np.testing.assert_array_equal(got_one, want_one)

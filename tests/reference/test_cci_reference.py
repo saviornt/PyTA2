@@ -8,7 +8,7 @@ from reference_data import load
 def test_cci_matches_the_published_example() -> None:
     reference = load("cci_20_stockcharts.csv")
 
-    result = pyta.cci(reference.columns, period=reference.period)["cci_20"]
+    result = pyta.cci(reference.columns, period=reference.period)["cci"]
 
     np.testing.assert_allclose(
         result, reference.expected, rtol=0, atol=reference.tolerance, equal_nan=True
@@ -30,5 +30,5 @@ def test_batch_cci_matches_the_published_example() -> None:
     (result,) = pyta.batch.cci([reference.columns, reference.columns], reference.period)[:1]
 
     np.testing.assert_allclose(
-        result["cci_20"], reference.expected, rtol=0, atol=reference.tolerance, equal_nan=True
+        result["cci"], reference.expected, rtol=0, atol=reference.tolerance, equal_nan=True
     )

@@ -1,4 +1,11 @@
-"""Shared execution boundary between the public API and the native module."""
+"""Shared execution boundary between the public API and the native module.
+
+Every runner takes the indicator's `OutputNames` and its validated parameters,
+which are passed to the native function positionally after the input. A native
+function returns one float64 array for a single-output indicator, or a list of
+arrays in documented output order for a multi-output one; each output is
+re-padded for a skipped leading NaN run and named in the input's casing.
+"""
 
 import logging
 from collections.abc import Callable, Mapping, Sequence
@@ -8,46 +15,65 @@ import numpy as np
 
 from ._columns import ORDERED_ROLES, normalize_columns, validate_columns
 from ._native import MAX_ABS_INPUT
-from ._types import Float64Array, Prepared, PreparedColumns
-from ._validation import Slot, normalize, validate_period
+from ._outputs import OutputNames
+from ._types import Float64Array, Outputs, Prepared, PreparedColumns, Restore
+from ._validation import Slot, normalize
 
 _log = logging.getLogger("pyta.api")
 
-type NativeIndicator = Callable[[Float64Array, int], Float64Array]
-type NativeBatchIndicator = Callable[[list[Float64Array], int], list[Float64Array | Exception]]
-type NativeColumnsIndicator = Callable[[list[Float64Array], int], Float64Array]
-type NativeColumnsBatchIndicator = Callable[
-    [list[list[Float64Array]], int], list[Float64Array | Exception]
-]
+#: One float64 array, or one per output in documented order.
+type NativeResult = Float64Array | Sequence[Float64Array]
+
+#: `native(values, *params)`: one series and the indicator's parameters.
+type NativeIndicator = Callable[..., NativeResult]
+#: `native(datasets, *params)`: each entry a result or the dataset's exception.
+type NativeBatchIndicator = Callable[..., Sequence[NativeResult | Exception]]
+#: `native(columns, *params)`: one array per slot.
+type NativeColumnsIndicator = Callable[..., NativeResult]
+#: `native(datasets, *params)`: one list of slot arrays per dataset.
+type NativeColumnsBatchIndicator = Callable[..., Sequence[NativeResult | Exception]]
 
 
 def run(
     native: NativeIndicator,
-    label: str,
+    outputs: OutputNames,
     data: object,
-    period: object,
+    params: tuple[int, ...],
     column: object,
     default_column: str,
     columns: object = None,
 ) -> Any:
-    """Validates inputs, runs one single-series indicator, and restores the container.
+    """Runs one single-series indicator on validated `params` and restores the container.
 
     `default_column` is the column role the indicator calculates on; it is used
     when the caller passes no `column` and the input has more than one.
     `columns` must be None: it is the multi-column override.
     """
-    period = validate_period(period)
-
     if columns is not None:
-        _reject_columns(label, columns)
+        _reject_columns(outputs.indicator, columns)
 
     if column is not None and not isinstance(column, str):
         raise TypeError(f"column must be a str or None, got {type(column).__name__}")
 
     prepared = normalize(data, column, default_column)
-    result = _calculate(native, prepared.values, period)
+    first, valid = _trim(prepared.values)
+    results = _pad_all(native(valid, *params), first, prepared.values.shape[0])
 
-    return prepared.restore(result, f"{label}_{period}")
+    return _restore(prepared.restore, outputs.cased(prepared.names), results)
+
+
+def _pad_all(result: NativeResult, first: int, length: int) -> list[Float64Array]:
+    """`_pad` applied to every output of a native result."""
+    if isinstance(result, np.ndarray):
+        return [_pad(result, first, length)]
+
+    return [_pad(values, first, length) for values in result]
+
+
+def _restore(restore: Restore, names: tuple[str, ...], results: list[Float64Array]) -> Any:
+    """Pairs each output with its name and rebuilds the caller's container."""
+    named: Outputs = tuple(zip(names, results, strict=True))
+    return restore(named)
 
 
 def _leading_nan_count(values: Float64Array) -> int:
@@ -113,29 +139,23 @@ def _pad(result: Float64Array, first: int, length: int) -> Float64Array:
     return padded
 
 
-def _calculate(native: NativeIndicator, values: Float64Array, period: int) -> Float64Array:
-    """Runs the native calculation, skipping and re-padding a leading NaN run."""
-    first, valid = _trim(values)
-
-    return _pad(native(valid, period), first, values.shape[0])
-
-
 def run_batch(
     native: NativeBatchIndicator,
-    label: str,
+    outputs: OutputNames,
     datasets: object,
-    period: object,
+    params: tuple[int, ...],
     column: object,
     default_column: str,
     columns: object = None,
 ) -> Any:
     """Runs one indicator over many datasets and returns results in the same shape.
 
-    `period` and `column` are shared by every dataset, so an invalid one raises.
-    A dataset that is malformed or fails to calculate is not raised: its
-    exception is returned in its place so the other datasets still complete.
+    `params` and `column` are shared by every dataset, so an invalid one raises
+    (the indicator validates `params` before calling). A dataset that is
+    malformed or fails to calculate is not raised: its exception is returned in
+    its place so the other datasets still complete.
     """
-    period = validate_period(period)
+    label = outputs.indicator
     _reject_columns(label, columns)
 
     if column is not None and not isinstance(column, str):
@@ -161,15 +181,15 @@ def run_batch(
         pending.append((position, prepared, first))
         arrays.append(valid)
 
-    results = native(arrays, period) if arrays else []
+    results: Sequence[NativeResult | Exception] = native(arrays, *params) if arrays else ()
 
     for (position, prepared, first), result in zip(pending, results, strict=True):
         if isinstance(result, BaseException):
             outcomes[position] = result
             failed += 1
         else:
-            padded = _pad(result, first, prepared.values.shape[0])
-            outcomes[position] = prepared.restore(padded, f"{label}_{period}")
+            padded = _pad_all(result, first, prepared.values.shape[0])
+            outcomes[position] = _restore(prepared.restore, outputs.cased(prepared.names), padded)
 
     if failed:
         _log_failures(label, outcomes, keys, failed)
@@ -211,19 +231,19 @@ def _reject_column(label: str, column: object) -> None:
 
 def run_columns(
     native: NativeColumnsIndicator,
-    label: str,
+    outputs: OutputNames,
     data: object,
-    period: object,
+    params: tuple[int, ...],
     columns: object,
     slots: Sequence[Slot],
     column: object = None,
 ) -> Any:
-    """Validates inputs, runs one multi-column indicator, and restores the container.
+    """Runs one multi-column indicator on validated `params` and restores the container.
 
     `slots` are the indicator's inputs in the order the native function takes
     them. `column` must be None: it is the single-column override.
     """
-    period = validate_period(period)
+    label = outputs.indicator
     _reject_column(label, column)
     names = validate_columns(columns)
 
@@ -231,27 +251,28 @@ def run_columns(
     first, valid = _trim_columns(prepared)
 
     try:
-        result = _pad(native(valid, period), first, prepared.values[0].shape[0])
+        result = native(valid, *params)
     except ValueError:
         explained = _value_error(prepared, first, valid)
         if explained is None:
             raise
         raise explained from None
 
-    return prepared.restore(result, f"{label}_{period}")
+    results = _pad_all(result, first, prepared.values[0].shape[0])
+    return _restore(prepared.restore, outputs.cased(prepared.names), results)
 
 
 def run_columns_batch(
     native: NativeColumnsBatchIndicator,
-    label: str,
+    outputs: OutputNames,
     datasets: object,
-    period: object,
+    params: tuple[int, ...],
     columns: object,
     slots: Sequence[Slot],
     column: object = None,
 ) -> Any:
     """`run_batch` for a multi-column indicator; `columns` is shared by every dataset."""
-    period = validate_period(period)
+    label = outputs.indicator
     _reject_column(label, column)
     names = validate_columns(columns)
     keys, items = _datasets(datasets)
@@ -273,7 +294,7 @@ def run_columns_batch(
         pending.append((position, prepared, first))
         inputs.append(valid)
 
-    results = native(inputs, period) if inputs else []
+    results: Sequence[NativeResult | Exception] = native(inputs, *params) if inputs else ()
 
     for (position, prepared, first), valid, result in zip(pending, inputs, results, strict=True):
         if isinstance(result, BaseException):
@@ -283,8 +304,8 @@ def run_columns_batch(
             outcomes[position] = explained or result
             failed += 1
         else:
-            padded = _pad(result, first, prepared.values[0].shape[0])
-            outcomes[position] = prepared.restore(padded, f"{label}_{period}")
+            padded = _pad_all(result, first, prepared.values[0].shape[0])
+            outcomes[position] = _restore(prepared.restore, outputs.cased(prepared.names), padded)
 
     if failed:
         _log_failures(label, outcomes, keys, failed)

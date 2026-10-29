@@ -4,7 +4,8 @@ For each indicator, dataset count, and points per dataset it times:
   loop    [pyta.<indicator>(d, period=...) for d in datasets]   one call per dataset
   batch   pyta.batch.<indicator>(datasets, period=...)          one call for all
 
-and reports the time per dataset for each, plus `speedup = loop / batch`.
+(MACD takes fast=, slow=, signal= instead of period=), and reports the time per
+dataset for each, plus `speedup = loop / batch`.
 Both include the Python layer (validation and container restore), so this is
 what a user sees. Speedup below 1.0 means the batch call is slower; expect that
 for many tiny datasets, where per-dataset Python cost dominates the kernel.
@@ -26,11 +27,14 @@ from collections.abc import Callable
 import numpy as np
 import pyta
 
-# indicator name -> (period used for the benchmark, number of input columns)
-INDICATORS: dict[str, tuple[int, int]] = {
-    "sma": (20, 1),
-    "rsi": (14, 1),
-    "cci": (14, 3),
+# indicator name -> (keyword parameters for the benchmark, TA-Lib's defaults where it has
+# them; number of input columns).
+INDICATORS: dict[str, tuple[dict[str, int], int]] = {
+    "sma": ({"period": 20}, 1),
+    "rsi": ({"period": 14}, 1),
+    "cci": ({"period": 14}, 3),
+    "ema": ({"period": 30}, 1),
+    "macd": ({"fast": 12, "slow": 26, "signal": 9}, 1),
 }
 
 COUNTS = (10, 100, 1_000)
@@ -87,7 +91,7 @@ def main() -> None:
     print("-" * len(header))
 
     for name in names:
-        period, width = INDICATORS[name]
+        params, width = INDICATORS[name]
         single = getattr(pyta, name)
         batch = getattr(pyta.batch, name)
 
@@ -95,8 +99,8 @@ def main() -> None:
             for size in SIZES:
                 data = datasets(count, size, width)
 
-                t_loop = best_time(lambda: [single(d, period=period) for d in data], repeats)
-                t_batch = best_time(lambda: batch(data, period=period), repeats)
+                t_loop = best_time(lambda: [single(d, **params) for d in data], repeats)
+                t_batch = best_time(lambda: batch(data, **params), repeats)
 
                 print(
                     f"{name:<10} {count:>8,} {size:>7,} | {format_time(t_loop / count):>11} "

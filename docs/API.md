@@ -41,10 +41,12 @@ Each indicator lives in its own module in a category subpackage, `pyta.indicator
 | Function | Category | Signature |
 |---|---|---|
 | `sma` | Trend | `sma(data, period, *, column=None)` |
+| `ema` | Trend | `ema(data, period=30, *, column=None)` |
+| `macd` | Trend | `macd(data, fast=12, slow=26, signal=9, *, column=None)` |
 | `rsi` | Momentum | `rsi(data, period=14, *, column=None)` |
 | `cci` | Momentum | `cci(data, period=14, *, columns=None)` |
 
-`period` is required for `sma`. `column` selects a column for inputs that have columns (see [Column selection](#column-selection)); `None` means the indicator's default column, which is `close` for both. `cci` needs several columns, found by name, and takes `columns=` instead (see [Multi-column indicators](#10-multi-column-indicators)). Each indicator has a page in the [indicator wiki](indicators/): [SMA](indicators/trend/sma.md), [RSI](indicators/momentum/rsi.md), [CCI](indicators/momentum/cci.md).
+Each indicator has its own parameters, with TA-Lib's defaults where TA-Lib has one: `period` is required for `sma`; `macd` takes `fast`, `slow` and `signal` instead of `period`. Every parameter is an integer (NumPy integers too); out-of-range values raise `ValueError` and other types `TypeError`, naming the parameter. `column` selects a column for inputs that have columns (see [Column selection](#column-selection)); `None` means the indicator's default column, which is `close` for every single-column indicator so far. `cci` needs several columns, found by name, and takes `columns=` instead (see [Multi-column indicators](#10-multi-column-indicators)). `macd` returns three outputs (see [Multi-output indicators](#11-multi-output-indicators)). Each indicator has a page in the [indicator wiki](indicators/): [SMA](indicators/trend/sma.md), [EMA](indicators/trend/ema.md), [MACD](indicators/trend/macd.md), [RSI](indicators/momentum/rsi.md), [CCI](indicators/momentum/cci.md).
 
 ### SMA (Simple Moving Average)
 
@@ -52,6 +54,21 @@ Each value is the arithmetic mean of the current price and the preceding `period
 
 - The first `period - 1` results are `NaN` (warm-up).
 - `period` must not exceed the series length.
+
+### EMA (Exponential Moving Average)
+
+Follows TA-Lib. The first value is the simple mean of the first `period` prices; after that `EMA = prev + k * (price - prev)` with `k = 2 / (period + 1)`.
+
+- Needs at least `period` values. The first `period - 1` results are `NaN` (warm-up).
+- `period=1` returns the input unchanged. The default `period` is 30, as in TA-Lib.
+
+### MACD (Moving Average Convergence/Divergence)
+
+Follows TA-Lib. `macd` is the `fast` EMA minus the `slow` EMA; both start at row `slow - 1`, the fast EMA seeded with the mean of the `fast` prices ending there. `macd_signal` is the `signal` EMA of `macd`, and `macd_hist = macd - macd_signal`.
+
+- Needs at least `slow + signal - 1` values, so every output has at least one value.
+- Each output has its own warm-up: `macd` has values from row `slow - 1`, `macd_signal` and `macd_hist` from row `slow + signal - 2`. (TA-Lib blanks all three until the signal exists; where TA-Lib has a value, PyTA's is the same.)
+- `fast` and `slow` are at least 2 and `signal` at least 1, as in TA-Lib. If `slow` is less than `fast`, the two are swapped, as TA-Lib does, so the result is the one you meant; `fast == slow` gives `0` throughout.
 
 ### RSI (Relative Strength Index)
 
@@ -77,15 +94,17 @@ Every supported container is converted to a one-dimensional `float64` series, an
 | `list` | `list` |
 | `tuple` | `tuple` |
 | NumPy array (any real numeric dtype) | `float64` array |
-| pandas Series | Series with the same index, named `<indicator>_<period>` |
-| pandas DataFrame | DataFrame with the same index and one `<indicator>_<period>` column |
-| `dict` of columns | `dict` with one `<indicator>_<period>` key; the value keeps its container type |
+| pandas Series | Series with the same index, named after the indicator (`sma`) |
+| pandas DataFrame | DataFrame with the same index and one column named after the indicator |
+| `dict` of columns | `dict` with one key named after the indicator; the value keeps its container type |
 | JSON `str` | JSON `str`, same shape |
 | JSON `bytes` or `bytearray` | JSON `bytes`, same shape |
 
+This table is for a single-output indicator; a multi-output one such as MACD returns one column or key per output, and a tuple for one-series input (see [§11](#11-multi-output-indicators)).
+
 Details:
 
-- **Output names** are lowercase, for example `sma_20` and `rsi_14`.
+- **Output names** are the indicator's name without its parameters (`sma`, `rsi`, `ema`, `cci`), with casing that follows the input's columns: `sma` for `close`, `SMA` for `CLOSE` or `Close` (see [§11](#11-multi-output-indicators) for the rule). To keep two runs of one indicator side by side (SMA 20 and SMA 50), rename one of them.
 - **Dict values** may be lists, tuples, NumPy arrays, or pandas Series.
 - **JSON** may be an array of numbers, an array of records (`[{"close": 1.0}, ...]`), or an object of arrays (`{"close": [1.0, ...]}`). Results use the same shape. `NaN` is written as `null`.
 - **pandas** is optional. PyTA only recognizes pandas objects when pandas has been imported by your program. DataFrames with MultiIndex columns are not supported; select a single column first.
@@ -124,6 +143,7 @@ pyta.sma(df, period=20, column="adjusted close") # the "Adj Close" column
 - Results are `float64` and the same length as the input.
 - Warm-up positions are `NaN` (`null` in JSON).
 - A pandas result keeps the input's index; positions are never reordered.
+- Outputs are named after the indicator, without parameters (`sma`, not `sma_20`); a multi-output indicator names each output `<indicator>_<part>` after the main one (`macd`, `macd_signal`, `macd_hist`). The casing follows the input's columns ([§11](#11-multi-output-indicators)).
 
 ## 6. Missing and non-finite values
 
@@ -169,17 +189,20 @@ ValueError: period must be between 1 and 2147483647, got 0
 
 >>> pyta.sma([1.0, 2.0, 3.0], period="14")
 TypeError: period must be an integer, got str
+
+>>> pyta.macd(close, fast=1)
+ValueError: fast must be between 2 and 2147483647, got 1
 ```
 
 The examples show the current wording, which may change between releases, so catch the exception type rather than matching message text.
 
 | Exception | Raised for |
 |---|---|
-| `TypeError` | Unsupported container or dtype (strings, booleans, complex numbers), DataFrames with MultiIndex columns, non-integer `period` (including `bool`), non-string `column`, `columns` that is not a list of strings, JSON of the wrong shape (including arrays that mix records and numbers), one series (list, 1-D array, Series) given to a multi-column indicator |
-| `ValueError` | `period` outside `1` to `2**31 - 1`, period larger than the series (`sma`) or fewer than `period + 1` values (`rsi`) or `period` rows (`cci`), empty input or input with no valid values, a non-finite value after the first valid value, a value larger in magnitude than `1e290`, multidimensional or ragged input, invalid JSON, a missing or ambiguous column, `column=` on input without columns; for multi-column indicators: an invalid `columns=` (see [§10](#10-multi-column-indicators)), columns of different lengths, a high below its low on any row, the wrong number of unnamed columns, and `column=` on a multi-column indicator or `columns=` on a single-column one |
+| `TypeError` | Unsupported container or dtype (strings, booleans, complex numbers), DataFrames with MultiIndex columns, non-integer `period`, `fast`, `slow` or `signal` (including `bool`), non-string `column`, `columns` that is not a list of strings, JSON of the wrong shape (including arrays that mix records and numbers), one series (list, 1-D array, Series) given to a multi-column indicator |
+| `ValueError` | `period` or `signal` outside `1` to `2**31 - 1`, `fast` or `slow` outside `2` to `2**31 - 1`, period larger than the series (`sma`) or fewer than `period` values (`ema`), `period + 1` values (`rsi`), `period` rows (`cci`) or `slow + signal - 1` values (`macd`), empty input or input with no valid values, a non-finite value after the first valid value, a value larger in magnitude than `1e290`, multidimensional or ragged input, invalid JSON, a missing or ambiguous column, `column=` on input without columns; for multi-column indicators: an invalid `columns=` (see [§10](#10-multi-column-indicators)), columns of different lengths, a high below its low on any row, the wrong number of unnamed columns, and `column=` on a multi-column indicator or `columns=` on a single-column one |
 | `RuntimeError` | An internal calculation failure |
 
-NumPy integers are accepted as `period`.
+NumPy integers are accepted for every integer parameter.
 
 ## 8. Calling from async code
 
@@ -195,9 +218,9 @@ Apply one indicator to many datasets in a single call. The engine decides intern
 results = pyta.batch.sma(datasets, period=14)
 ```
 
-- `pyta.batch` mirrors the top-level indicator functions (`pyta.batch.sma`, `pyta.batch.rsi`, `pyta.batch.cci`), with the same names and parameters, and the category namespaces too (`pyta.batch.trend.sma is pyta.batch.sma`). One call applies one indicator.
-- `datasets` can be a **list** or a **mapping** (for example, ticker to data); anything else raises `TypeError`. Each dataset can be any supported container, and the result has the same shape and order as the input, with each result in its own input's container type. An empty list or mapping returns an empty one.
-- `period` and `column` are shared by every dataset. An invalid `period` or `column` raises, because it affects the whole call.
+- `pyta.batch` mirrors the top-level indicator functions (`pyta.batch.sma`, `pyta.batch.ema`, `pyta.batch.macd`, `pyta.batch.rsi`, `pyta.batch.cci`), with the same names and parameters, and the category namespaces too (`pyta.batch.trend.sma is pyta.batch.sma`). One call applies one indicator.
+- `datasets` can be a **list** or a **mapping** (for example, ticker to data); anything else raises `TypeError`. Each dataset can be any supported container, and the result has the same shape and order as the input, with each result in its own input's container type (for MACD, the three outputs in the form a single call returns them). Output names are cased per dataset, from that dataset's own columns. An empty list or mapping returns an empty one.
+- The indicator's parameters (`period`; `fast`, `slow`, `signal`) and `column` are shared by every dataset. An invalid one raises, because it affects the whole call.
 - **A failure never cancels the others.** Each dataset gets a result. A dataset that fails is represented by the exception that explains why, in the same position or under the same key, so you can see which dataset failed and the reason. This covers malformed datasets (unsupported type, missing column, a `NaN` after the first valid value) as well as calculation errors (such as a period longer than the series). Fix the dataset and call again.
 
 ```python
@@ -213,7 +236,7 @@ for ticker, result in results.items():
 Some indicators need more than one column (for example CCI needs high, low, and close). Pass your OHLCV data in any named container (DataFrame, dict of columns, JSON array of records or object of arrays); PyTA finds the columns the indicator needs and returns the same kind of container.
 
 ```python
-cci = pyta.cci(df, period=20)   # a DataFrame with one column, "cci_20"
+cci = pyta.cci(df, period=20)   # a DataFrame with one column, "cci" ("CCI" for yfinance's "High", "Low", "Close")
 ```
 
 - **Automatic selection.** PyTA matches column names to the roles an indicator needs, with the same rules as `column=` (case, whitespace, and `. _ -` ignored; aliases such as `h` or `adjusted close`). If you pass more columns than needed (for example all of date, open, high, low, close, and volume), the extras are ignored, whatever they hold.
@@ -235,19 +258,45 @@ cci = pyta.cci(df, period=20)   # a DataFrame with one column, "cci_20"
 
 - **Leading NaN.** Rows up to the last leading `NaN` of any needed column are skipped and re-padded with `NaN`, so outputs of other indicators (each with its own warm-up) can be combined. `NaN` or `inf` after that raises `ValueError` naming the column and the row.
 - **Row checks.** A high below its low on any row raises `ValueError` naming both columns and the row (equal is fine).
-- **Results.** A DataFrame result keeps the input's index; a dict result keeps the container type of the indicator's first input column.
+- **Results.** A DataFrame result keeps the input's index; a dict result keeps the container type of the indicator's first input column. Output names are cased from the columns used ([§11](#11-multi-output-indicators)); unnamed input gives lower case.
 - **Batch.** `pyta.batch.cci(datasets, period, columns=None)` works as in [§9](#9-batch-calculation); `columns=` applies to every dataset, and a dataset with a missing column is returned as its `ValueError` in place.
 - Each indicator's documentation lists its required inputs and their order for unnamed input.
 
-## 11. Multi-output indicators *(planned)*
+## 11. Multi-output indicators
 
-Indicators that produce several series, such as MACD, return them in the input's container type:
+Indicators that produce several series return them all, in a documented order, in the input's container type.
 
-| Indicator | Output names |
+| Indicator | Outputs, in order | Parameters |
+|---|---|---|
+| MACD | `macd`, `macd_signal`, `macd_hist` | `fast=12`, `slow=26`, `signal=9` |
+
+```python
+out = pyta.macd(df)                      # DataFrame with columns macd, macd_signal, macd_hist
+macd, signal, hist = pyta.macd(close)    # one series in: a tuple of three, in order
+```
+
+| Input | Result |
 |---|---|
-| MACD | `macd`, `macd_signal`, `macd_hist` |
+| pandas DataFrame | DataFrame with one column per output, same index |
+| `dict` of columns | `dict` with one key per output; each value keeps the input column's container type |
+| JSON array of records | each record holds every output name |
+| JSON object of arrays | one key per output |
+| `list`, `tuple`, NumPy array, pandas Series | a `tuple` of outputs in documented order, each in the input's own single-output form (a Series is named by its output and keeps the index) |
+| JSON array of numbers | a JSON object keyed by output name |
+| 2-D array or tuple of arrays (multi-column indicators) | a `tuple` of outputs, each a 1-D array or a tuple |
 
-A DataFrame result has one column per output, and a dict or JSON object has one key per output. The casing of the output names follows the casing used by the input's columns.
+`NaN` is written as `null` in JSON. Each output has its own warm-up, and a leading `NaN` run in the input shifts every output alike. A single-output indicator returns exactly what the [§4](#4-input-containers) table says. To chain from a multi-output result, pass the output itself (`pyta.sma(out["macd_signal"], period=5)`); `column=` takes only the standard role names.
+
+**Names and casing.** Output names never include parameters: the main output is the indicator's name and the others are `<indicator>_<part>`. Their casing follows the input column names the call used (the picked column of a DataFrame, dict or JSON; the name of a Series; every column a multi-column indicator matched):
+
+| Input columns | Casing | Example names |
+|---|---|---|
+| no upper-case letters (`close`) | lower | `sma`, `macd_signal` |
+| no lower-case letters (`CLOSE`) | upper | `SMA`, `MACD_SIGNAL` |
+| each word a capital then lower case (`Close`, `Adj Close`, as yfinance) | title | `SMA`, `MACD_Signal`, `MACD_Hist` |
+| mixed (`cLose`), columns that disagree, or no names (lists, arrays, unnamed Series, JSON arrays of numbers, unnamed 2-D input) | lower | `sma`, `macd_signal` |
+
+In title case, abbreviations (`SMA`, `EMA`, `RSI`, `CCI`, `MACD`) are upper case and words (`Signal`, `Hist`) title case. The separator is always `_`.
 
 ## 12. Data sources *(planned)*
 
@@ -260,7 +309,7 @@ PyTA does not depend on any data provider. It accepts the data types that provid
 
 ## 13. Indicator catalog
 
-See the [README](../README.md#indicators) for implemented and planned indicators, and [`docs/indicators/`](indicators/) for one page per implemented indicator. Every indicator will follow the conventions in this document.
+Available: SMA, EMA and MACD (trend); RSI and CCI (momentum). See the [README](../README.md#indicators) for implemented and planned indicators, and [`docs/indicators/`](indicators/) for one page per implemented indicator. Every indicator will follow the conventions in this document.
 
 ## 14. Logging
 

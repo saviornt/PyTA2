@@ -20,7 +20,13 @@ from ohlcv_data import Ohlcv
 DOCS = Path(__file__).resolve().parents[2] / "docs" / "indicators"
 
 # Indicator name -> its category. Extend with each new indicator.
-INDICATORS = {"sma": "trend", "rsi": "momentum", "cci": "momentum"}
+INDICATORS = {
+    "sma": "trend",
+    "ema": "trend",
+    "macd": "trend",
+    "rsi": "momentum",
+    "cci": "momentum",
+}
 
 # Multi-column indicators, which take full OHLCV data rather than one series.
 MULTI_COLUMN = {"cci"}
@@ -46,6 +52,18 @@ DOCUMENTED_PATHS = [
     "pyta.batch.rsi",
     "pyta.batch.trend.sma",
     "pyta.batch.momentum.rsi",
+    "pyta.ema",
+    "pyta.trend.ema",
+    "pyta.indicators.ema",
+    "pyta.indicators.trend.ema",
+    "pyta.batch.ema",
+    "pyta.batch.trend.ema",
+    "pyta.macd",
+    "pyta.trend.macd",
+    "pyta.indicators.macd",
+    "pyta.indicators.trend.macd",
+    "pyta.batch.macd",
+    "pyta.batch.trend.macd",
 ]
 
 
@@ -97,14 +115,14 @@ def test_both_styles_give_the_same_results(name: str, category: str, ohlcv: Ohlc
     by_name = getattr(pyta, name)(data, 10)
     by_category = getattr(getattr(pyta, category), name)(data, 10)
     if name in MULTI_COLUMN:
-        by_name, by_category = by_name[f"{name}_10"], by_category[f"{name}_10"]
+        by_name, by_category = by_name[name], by_category[name]
     np.testing.assert_array_equal(by_category, by_name)
 
     batch_by_name = getattr(pyta.batch, name)(datasets, 10)
     batch_by_category = getattr(getattr(pyta.batch, category), name)(datasets, 10)
     for got, want in zip(batch_by_category, batch_by_name, strict=True):
         if name in MULTI_COLUMN:
-            got, want = got[f"{name}_10"], want[f"{name}_10"]
+            got, want = got[name], want[name]
         np.testing.assert_array_equal(got, want)
 
 

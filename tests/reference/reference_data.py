@@ -1,10 +1,14 @@
-"""Reads the published reference examples in `tests/fixtures/`.
+"""Reads the reference examples in `tests/fixtures/`.
 
 Each fixture is a CSV file whose `#` comment lines cite the source and give
-`period:` and `tolerance:`; its columns are `label`, one or more input columns
-and `expected`, with an empty `expected` for warm-up rows (NaN). A single-column
-example names its input `input`; a multi-column one names each column by role
-(`high,low,close`), in the indicator's slot order. The Rust tests read the same files.
+the parameters as `name: value` (`period:`, or `fast:`, `slow:` and `signal:`
+for MACD) and `tolerance:`. Its columns are `label`, one or more input columns,
+and one or more output columns: `expected` for a single-output indicator, or
+`expected_<output>` for each output in documented order. An empty output value
+is warm-up (NaN). A single-column example names its input `input`; a
+multi-column one names each column by role (`high,low,close`), in the
+indicator's slot order. The Rust tests read the same files
+(`rust/test-support/reference.rs`, same rules).
 """
 
 import csv
@@ -17,16 +21,35 @@ from numpy.typing import NDArray
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 
 
+def _is_output(column: str) -> bool:
+    return column == "expected" or column.startswith("expected_")
+
+
 @dataclass(frozen=True, slots=True)
 class Reference:
-    """One published example: input, expected output, period and tolerance."""
+    """One reference example: inputs, expected outputs, parameters and tolerance.
+
+    `outputs` maps each output name (`macd_signal` for `expected_macd_signal`,
+    `expected` for a single-output example) to its values in file order;
+    `expected` is the first of them.
+    """
 
     source: str
-    period: int
     tolerance: float
     input: NDArray[np.float64]
     columns: dict[str, NDArray[np.float64]]
-    expected: NDArray[np.float64]
+    outputs: dict[str, NDArray[np.float64]]
+    parameters: dict[str, int]
+
+    @property
+    def expected(self) -> NDArray[np.float64]:
+        """The first (for a single-output example, the only) expected output."""
+        return next(iter(self.outputs.values()))
+
+    @property
+    def period(self) -> int:
+        """The `period:` parameter."""
+        return self.parameters["period"]
 
 
 def load(name: str) -> Reference:
@@ -37,20 +60,30 @@ def load(name: str) -> Reference:
     for line in (FIXTURES / name).read_text().splitlines():
         if line.startswith("#"):
             key, sep, value = line[1:].strip().partition(": ")
-            if sep and key in ("source", "period", "tolerance"):
-                meta[key] = value
+            if sep:
+                meta[key] = value.strip()
         elif line:
             rows.append(line)
 
     table = list(csv.DictReader(rows))
-    names = [name for name in table[0] if name not in ("label", "expected")]
-    columns = {name: np.array([float(row[name]) for row in table]) for name in names}
+    header = [column for column in table[0] if column != "label"]
+    inputs = [column for column in header if not _is_output(column)]
+    outputs = [column for column in header if _is_output(column)]
+    assert inputs, f"{name}: has no input column"
+    assert outputs, f"{name}: has no expected column"
+
+    columns = {column: np.array([float(row[column]) for row in table]) for column in inputs}
 
     return Reference(
         source=meta["source"],
-        period=int(meta["period"]),
         tolerance=float(meta["tolerance"]),
-        input=columns[names[0]],
+        input=columns[inputs[0]],
         columns=columns,
-        expected=np.array([float(row["expected"] or "nan") for row in table]),
+        outputs={
+            column.removeprefix("expected_"): np.array(
+                [float(row[column] or "nan") for row in table]
+            )
+            for column in outputs
+        },
+        parameters={key: int(value) for key, value in meta.items() if value.isdigit()},
     )
