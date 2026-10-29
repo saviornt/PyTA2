@@ -104,6 +104,14 @@ def test_smoke() -> None:
     for line in (adx_values[27:], plus_di[14:], minus_di[14:]):
         assert ((line >= 0.0) & (line <= 100.0)).all()
 
+    sar_values = np.array(pyta.sar(data, acceleration=0.02, maximum=0.2)["sar"])
+    assert sar_values.dtype == np.float64
+    assert sar_values.shape == (length,), "SAR output length mismatch"
+    assert np.isnan(sar_values[0]), "SAR warm-up alignment is incorrect"
+    assert np.isfinite(sar_values[1:]).all()
+    high, low = np.array(data["high"]), np.array(data["low"])
+    assert ((sar_values[1:] <= low[1:]) | (sar_values[1:] >= high[1:])).all()
+
     stddev_values = np.array(pyta.stddev(data, period=20, k=2.0)["stddev"])
     assert stddev_values.dtype == np.float64
     assert stddev_values.shape == (length,), "STDDEV output length mismatch"

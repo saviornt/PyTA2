@@ -161,6 +161,19 @@ pub const KAMA_NS_PER_ELEMENT: f64 = 4.0;
 /// `--single --rust --indicator adx`.
 pub const ADX_NS_PER_ELEMENT: f64 = 10.6;
 
+/// Parabolic SAR, in nanoseconds per input row; independent of
+/// `acceleration` and `maximum` (one pass).
+///
+/// Provisional, from a quick run on 2026-10-29
+/// (`benches/results/benchmark_2026-10-29_11-44-46.txt`, `--single --rust
+/// --quick`, governor `performance`): kernels at 1,000,000 rows took
+/// 3.098 ms for SAR-0.02/0.2 and 2.811 ms for RSI-14, scaled here by
+/// `RSI_NS_PER_ELEMENT` (3.0 * 1.10). The kernel branches on every row, so
+/// its speed depends on the data: a random walk with frequent reversals
+/// took ~6 ms in a scratch run. Confirm with a full
+/// `--single --rust --indicator sar`.
+pub const SAR_NS_PER_ELEMENT: f64 = 3.3;
+
 /// Keltner Channels, in nanoseconds per input row; independent of `period`,
 /// `atr_period` and `k` (one EMA pass, one true-range and Wilder pass, one
 /// band pass).

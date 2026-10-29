@@ -21,6 +21,7 @@ LOWER = {
     "cci": ["cci"],
     "macd": ["macd", "macd_signal", "macd_hist"],
     "adx": ["adx", "adx_plus_di", "adx_minus_di"],
+    "sar": ["sar"],
 }
 UPPER = {name: [n.upper() for n in names] for name, names in LOWER.items()}
 TITLE = {
@@ -34,18 +35,24 @@ TITLE = {
     "cci": ["CCI"],
     "macd": ["MACD", "MACD_Signal", "MACD_Hist"],
     "adx": ["ADX", "ADX_Plus_DI", "ADX_Minus_DI"],
+    "sar": ["SAR"],
 }
 
 #: Indicators on high, low and close, cased by all three columns.
 MULTI_COLUMN = {"cci", "adx"}
+
+#: Indicators on high and low only, cased by those two columns.
+HIGH_LOW = {"sar"}
 
 #: yfinance's column names.
 YFINANCE = ["Open", "High", "Low", "Close", "Adj Close", "Volume"]
 
 
 def call(name: str, data: object) -> object:
-    """Calls an indicator with a period that fits the 300-row fixture."""
-    return getattr(pyta, name)(data) if name == "macd" else getattr(pyta, name)(data, 10)
+    """Calls an indicator with a period that fits the 300-row fixture (defaults if none)."""
+    if name in ("macd", "sar"):
+        return getattr(pyta, name)(data)
+    return getattr(pyta, name)(data, 10)
 
 
 def dict_with(ohlcv: Ohlcv, names: list[str]) -> dict[str, list[float]]:
@@ -126,17 +133,18 @@ def test_output_names_must_be_declared_lower_case() -> None:
 
 @pytest.mark.parametrize("name", LOWER)
 @pytest.mark.parametrize(
-    ("columns", "single", "multi"),
+    ("columns", "single", "multi", "high_low"),
     [
-        (["open", "high", "low", "close", "volume"], LOWER, LOWER),
-        (["OPEN", "HIGH", "LOW", "CLOSE", "VOLUME"], UPPER, UPPER),
-        (YFINANCE, TITLE, TITLE),
+        (["open", "high", "low", "close", "volume"], LOWER, LOWER, LOWER),
+        (["OPEN", "HIGH", "LOW", "CLOSE", "VOLUME"], UPPER, UPPER, UPPER),
+        (YFINANCE, TITLE, TITLE, TITLE),
         # Single-column indicators use only the close; CCI's and ADX's high, low and
-        # close disagree.
-        (["open", "HIGH", "low", "Close", "volume"], TITLE, LOWER),
-        (["OPEN", "High", "Low", "CLOSE", "Volume"], UPPER, LOWER),
+        # close disagree; SAR's high and low disagree in the first and agree in the
+        # second.
+        (["open", "HIGH", "low", "Close", "volume"], TITLE, LOWER, LOWER),
+        (["OPEN", "High", "Low", "CLOSE", "Volume"], UPPER, LOWER, TITLE),
         # Mixed casing in the column used.
-        (["open", "high", "low", "cLOSE", "volume"], LOWER, LOWER),
+        (["open", "high", "low", "cLOSE", "volume"], LOWER, LOWER, LOWER),
     ],
 )
 def test_dict_names_follow_the_columns_used(
@@ -145,10 +153,12 @@ def test_dict_names_follow_the_columns_used(
     columns: list[str],
     single: dict[str, list[str]],
     multi: dict[str, list[str]],
+    high_low: dict[str, list[str]],
 ) -> None:
     result = call(name, dict_with(ohlcv, columns))
+    expected = multi if name in MULTI_COLUMN else high_low if name in HIGH_LOW else single
 
-    assert list(result) == (multi if name in MULTI_COLUMN else single)[name]  # type: ignore[call-overload]
+    assert list(result) == expected[name]  # type: ignore[call-overload]
 
 
 @pytest.mark.pandas
@@ -227,7 +237,7 @@ def test_batch_cases_each_dataset_on_its_own(ohlcv: Ohlcv, name: str) -> None:
     ]
 
     batch = getattr(pyta.batch, name)
-    results = batch(datasets) if name == "macd" else batch(datasets, 10)
+    results = batch(datasets) if name in ("macd", "sar") else batch(datasets, 10)
 
     assert [list(result) for result in results] == [TITLE[name], LOWER[name]]
 

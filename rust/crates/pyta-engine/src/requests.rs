@@ -29,6 +29,8 @@ pub enum IndicatorKind {
     Macd,
     /// Relative Strength Index (`pyta-momentum`).
     Rsi,
+    /// Parabolic SAR (`pyta-trend`; high, low).
+    Sar,
     /// Simple Moving Average (`pyta-trend`).
     Sma,
     /// Standard Deviation (`pyta-volatility`).
@@ -123,6 +125,14 @@ pub enum Params {
         /// Price changes in the first average.
         period: usize,
     },
+    /// Parabolic SAR (stop and reverse).
+    Sar {
+        /// The acceleration factor's start and its step, finite, above 0 and
+        /// at most `maximum`.
+        acceleration: f64,
+        /// The acceleration factor's cap, finite and above 0.
+        maximum: f64,
+    },
     /// Simple Moving Average.
     Sma {
         /// Rows in each window.
@@ -163,6 +173,7 @@ impl Params {
             Self::Keltner { .. } => IndicatorKind::Keltner,
             Self::Macd { .. } => IndicatorKind::Macd,
             Self::Rsi { .. } => IndicatorKind::Rsi,
+            Self::Sar { .. } => IndicatorKind::Sar,
             Self::Sma { .. } => IndicatorKind::Sma,
             Self::Stddev { .. } => IndicatorKind::Stddev,
             Self::Tema { .. } => IndicatorKind::Tema,

@@ -1,9 +1,9 @@
-//! SMA, EMA, WMA, DEMA, TEMA, KAMA, MACD and ADX invariants that must hold
-//! for any valid input.
+//! SMA, EMA, WMA, DEMA, TEMA, KAMA, MACD, ADX and Parabolic SAR invariants
+//! that must hold for any valid input.
 
 use proptest::prelude::*;
 use pyta_core::{Series, kernels};
-use pyta_trend::{adx, dema, ema, kama, macd, sma, tema, wma};
+use pyta_trend::{adx, dema, ema, kama, macd, sar, sma, tema, wma};
 
 /// A series of 1 to 300 prices and a period that fits it.
 fn series_and_period() -> impl Strategy<Value = (Vec<f64>, usize)> {
@@ -602,6 +602,51 @@ proptest! {
         }
         for (plus, minus) in plus_di.iter().zip(&minus_di).skip(period) {
             prop_assert!(plus + minus <= 100.0 + slack, "+DI {} and -DI {} sum above 100", plus, minus);
+        }
+    }
+}
+
+/// High and low columns of 2 to 300 rows (high at or above low; some rows
+/// flat), with an acceleration at most its maximum.
+fn high_low_and_sar_parameters() -> impl Strategy<Value = (Vec<f64>, Vec<f64>, f64, f64)> {
+    let row = (-1.0e6..1.0e6_f64, prop_oneof![Just(0.0), 0.0..1.0e3_f64]);
+    (
+        prop::collection::vec(row, 2..300),
+        1.0e-4..1.0_f64,
+        1.0..4.0_f64,
+    )
+        .prop_map(|(rows, acceleration, ratio)| {
+            let low = rows.iter().map(|(low, _)| *low).collect();
+            let high = rows.iter().map(|(low, range)| low + range).collect();
+            (high, low, acceleration, acceleration * ratio)
+        })
+}
+
+proptest! {
+    #[test]
+    fn sar_has_exactly_one_warm_up_row((high, low, acceleration, maximum) in high_low_and_sar_parameters()) {
+        let length = high.len();
+        let output = sar(&Series::new(high).unwrap(), &Series::new(low).unwrap(), acceleration, maximum).unwrap();
+        let values = output.values();
+
+        prop_assert_eq!(output.output_count(), 1);
+        prop_assert_eq!(values.len(), length);
+        prop_assert!(values[0].is_nan());
+        prop_assert!(values[1..].iter().all(|value| value.is_finite()));
+    }
+
+    #[test]
+    fn sar_never_lies_inside_a_row_or_outside_the_series((high, low, acceleration, maximum) in high_low_and_sar_parameters()) {
+        // A long SAR is written below the row's low and a short one above
+        // its high; a reversal writes the old EP pushed out to the row's
+        // extreme. Every SAR is a price seen so far or a step between two.
+        let output = sar(&Series::new(high.clone()).unwrap(), &Series::new(low.clone()).unwrap(), acceleration, maximum).unwrap();
+        let floor = low.iter().copied().fold(f64::INFINITY, f64::min);
+        let ceiling = high.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+
+        for (index, value) in output.values().iter().enumerate().skip(1) {
+            prop_assert!(*value <= low[index] || *value >= high[index], "row {}: {} inside [{}, {}]", index, value, low[index], high[index]);
+            prop_assert!(*value >= floor && *value <= ceiling, "row {}: {} outside the series", index, value);
         }
     }
 }

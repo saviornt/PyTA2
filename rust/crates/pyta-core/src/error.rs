@@ -77,6 +77,21 @@ pub enum PytaError {
         value: f64,
     },
 
+    /// Two floating-point parameters that must be in order are not: `lower`
+    /// is above `upper` (SAR's `acceleration` above its `maximum`). PyTA
+    /// rejects them rather than clamping as TA-Lib does.
+    #[error("{lower} must be at most {upper}, got {lower}={lower_value} and {upper}={upper_value}")]
+    ParametersOutOfOrder {
+        /// The parameter that must be the smaller (`acceleration`).
+        lower: &'static str,
+        /// Its value.
+        lower_value: f64,
+        /// The parameter that must be the larger (`maximum`).
+        upper: &'static str,
+        /// Its value.
+        upper_value: f64,
+    },
+
     /// A request has the wrong number of input columns for its indicator.
     #[error("expected {expected} input columns, got {actual}")]
     ColumnCount {

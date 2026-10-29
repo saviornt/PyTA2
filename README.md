@@ -93,6 +93,7 @@ PyTA logs through Python's standard `logging` (Rust messages included) under the
 | Trend | [Kaufman Adaptive Moving Average](docs/indicators/trend/kama.md) (`kama`, an EMA whose weight follows the efficiency ratio) |
 | Trend | [Moving Average Convergence/Divergence](docs/indicators/trend/macd.md) (`macd`, three outputs) |
 | Trend | [Average Directional Index](docs/indicators/trend/adx.md) (`adx`, high, low and close; Wilder's ADX with +DI and -DI; three outputs) |
+| Trend | [Parabolic SAR](docs/indicators/trend/sar.md) (`sar`, high and low; Wilder's stop and reverse, TA-Lib's first direction) |
 | Momentum | [Relative Strength Index](docs/indicators/momentum/rsi.md) (`rsi`, Wilder's smoothing) |
 | Momentum | [Commodity Channel Index](docs/indicators/momentum/cci.md) (`cci`, high, low and close) |
 | Volatility | [Average True Range](docs/indicators/volatility/atr.md) (`atr`, high, low and close; Wilder's smoothing) |
@@ -106,7 +107,7 @@ PyTA logs through Python's standard `logging` (Rust messages included) under the
 The catalog below is the planned scope and is subject to change.
 
 **Trend Indicators**
-Parabolic SAR, Ichimoku Cloud, Aroon
+Ichimoku Cloud, Aroon
 
 **Momentum Indicators**
 Stochastic Oscillator, Williams %R, ROC, MFI, TRIX, Ultimate Oscillator

@@ -27,6 +27,8 @@ __all__ = [
     "macd_batch",
     "rsi",
     "rsi_batch",
+    "sar",
+    "sar_batch",
     "sma",
     "sma_batch",
     "stddev",
@@ -79,6 +81,12 @@ def adx(columns: list[NDArray[np.float64]], period: int) -> list[NDArray[np.floa
 def adx_batch(
     datasets: list[list[NDArray[np.float64]]], period: int
 ) -> list[list[NDArray[np.float64]] | Exception]: ...
+def sar(
+    columns: list[NDArray[np.float64]], acceleration: float, maximum: float
+) -> NDArray[np.float64]: ...
+def sar_batch(
+    datasets: list[list[NDArray[np.float64]]], acceleration: float, maximum: float
+) -> list[NDArray[np.float64] | Exception]: ...
 def macd(
     values: NDArray[np.float64], fast: int, slow: int, signal: int
 ) -> list[NDArray[np.float64]]: ...

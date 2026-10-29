@@ -29,6 +29,7 @@ fn params(kind: IndicatorKind, period: usize) -> Params {
             k: 2.0,
         },
         IndicatorKind::Macd => panic!("MACD takes three periods"),
+        IndicatorKind::Sar => panic!("SAR takes no period"),
     }
 }
 
@@ -309,6 +310,13 @@ fn the_kind_comes_from_the_params() {
             IndicatorKind::Macd,
         ),
         (Params::Rsi { period: 2 }, IndicatorKind::Rsi),
+        (
+            Params::Sar {
+                acceleration: 0.02,
+                maximum: 0.2,
+            },
+            IndicatorKind::Sar,
+        ),
         (Params::Sma { period: 2 }, IndicatorKind::Sma),
         (Params::Stddev { period: 2, k: 1.0 }, IndicatorKind::Stddev),
         (Params::Wma { period: 2 }, IndicatorKind::Wma),
@@ -734,6 +742,85 @@ async fn donchian_runs_through_the_engine_with_three_outputs_and_reports_its_err
     );
     assert_eq!(
         *error_of(&results[3]),
+        PytaError::ColumnCount {
+            expected: 2,
+            actual: 1,
+        }
+    );
+}
+
+/// A Parabolic SAR request on high and low.
+fn sar_request(columns: &[&[f64]], acceleration: f64, maximum: f64) -> IndicatorRequest {
+    let columns = columns
+        .iter()
+        .map(|values| Series::new(values.to_vec()).unwrap())
+        .collect();
+
+    IndicatorRequest::with_columns(
+        Columns::new(columns).unwrap(),
+        Params::Sar {
+            acceleration,
+            maximum,
+        },
+    )
+}
+
+#[tokio::test]
+async fn sar_runs_through_the_engine_and_reports_its_errors() {
+    // Acceleration 0.25, maximum 0.5 (exact in binary): long from SAR 8,
+    // EP 12; row 2 writes 9, and row 3's low 9 == SAR reverses to the EP 14
+    // raised to the row's high 15 (see the kernel tests).
+    let high: &[f64] = &[10.0, 12.0, 14.0, 15.0];
+    let low: &[f64] = &[8.0, 9.0, 10.0, 9.0];
+    let requests = vec![
+        sar_request(&[high, low], 0.25, 0.5),
+        sar_request(&[high, low], 0.3, 0.2),
+        sar_request(&[high, low], 0.02, 0.0),
+        sar_request(&[&high[..1], &low[..1]], 0.02, 0.2),
+        IndicatorRequest::new(
+            Series::new(high.to_vec()).unwrap(),
+            Params::Sar {
+                acceleration: 0.02,
+                maximum: 0.2,
+            },
+        ),
+    ];
+
+    let direct = execute_direct(&requests[0]).unwrap();
+    assert_eq!(direct.output_count(), 1);
+    assert_values(direct.values(), &[NAN, 8.0, 9.0, 15.0]);
+
+    let results = execute_batch(requests).await;
+
+    match &results[0].status {
+        IndicatorStatus::Success(output) => assert_values(output.values(), direct.values()),
+        IndicatorStatus::Error(error) => panic!("expected SAR success, got {error:?}"),
+    }
+    assert_eq!(
+        *error_of(&results[1]),
+        PytaError::ParametersOutOfOrder {
+            lower: "acceleration",
+            lower_value: 0.3,
+            upper: "maximum",
+            upper_value: 0.2,
+        }
+    );
+    assert_eq!(
+        *error_of(&results[2]),
+        PytaError::InvalidFloatParameter {
+            name: "maximum",
+            value: 0.0,
+        }
+    );
+    assert_eq!(
+        *error_of(&results[3]),
+        PytaError::InsufficientData {
+            required: 2,
+            length: 1,
+        }
+    );
+    assert_eq!(
+        *error_of(&results[4]),
         PytaError::ColumnCount {
             expected: 2,
             actual: 1,

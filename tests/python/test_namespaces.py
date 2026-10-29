@@ -28,6 +28,7 @@ INDICATORS = {
     "tema": "trend",
     "kama": "trend",
     "adx": "trend",
+    "sar": "trend",
     "macd": "trend",
     "rsi": "momentum",
     "cci": "momentum",
@@ -42,7 +43,11 @@ INDICATORS = {
 CATEGORIES = {"momentum", "trend", "volatility", "volume"}
 
 # Multi-column indicators, which take full OHLCV data rather than one series.
-MULTI_COLUMN = {"adx", "atr", "cci", "donchian", "keltner"}
+MULTI_COLUMN = {"adx", "atr", "cci", "donchian", "keltner", "sar"}
+
+# Positional arguments after the data for the calls below: a period of 10
+# (MACD's `fast`), except for indicators without a period.
+ARGS: dict[str, tuple[float, ...]] = {"sar": (0.02, 0.2)}
 
 # Documented function paths (README, docs/API.md, docs/indicators/). These must
 # keep resolving: never remove an entry, only add.
@@ -137,6 +142,12 @@ DOCUMENTED_PATHS = [
     "pyta.indicators.trend.adx",
     "pyta.batch.adx",
     "pyta.batch.trend.adx",
+    "pyta.sar",
+    "pyta.trend.sar",
+    "pyta.indicators.sar",
+    "pyta.indicators.trend.sar",
+    "pyta.batch.sar",
+    "pyta.batch.trend.sar",
 ]
 
 
@@ -185,15 +196,16 @@ def test_both_styles_give_the_same_results(name: str, category: str, ohlcv: Ohlc
         data = ohlcv.close
         datasets = [ohlcv.open.tolist(), ohlcv.close[-60:].tolist()]
 
-    by_name = getattr(pyta, name)(data, 10)
-    by_category = getattr(getattr(pyta, category), name)(data, 10)
+    args = ARGS.get(name, (10,))
+    by_name = getattr(pyta, name)(data, *args)
+    by_category = getattr(getattr(pyta, category), name)(data, *args)
     if name in MULTI_COLUMN:
         # Every output, in order (Donchian Channels have three).
         by_name, by_category = list(by_name.values()), list(by_category.values())
     np.testing.assert_array_equal(by_category, by_name)
 
-    batch_by_name = getattr(pyta.batch, name)(datasets, 10)
-    batch_by_category = getattr(getattr(pyta.batch, category), name)(datasets, 10)
+    batch_by_name = getattr(pyta.batch, name)(datasets, *args)
+    batch_by_category = getattr(getattr(pyta.batch, category), name)(datasets, *args)
     for got, want in zip(batch_by_category, batch_by_name, strict=True):
         if name in MULTI_COLUMN:
             got, want = list(got.values()), list(want.values())

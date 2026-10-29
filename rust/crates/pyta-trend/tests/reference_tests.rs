@@ -1,12 +1,12 @@
 //! SMA against published worked examples (StockCharts ChartSchool), and EMA,
-//! WMA, DEMA, TEMA, KAMA, MACD and ADX against TA-Lib's own output
-//! (generated fixtures, see their comments).
+//! WMA, DEMA, TEMA, KAMA, MACD, ADX and Parabolic SAR against TA-Lib's own
+//! output (generated fixtures, see their comments).
 
 #[path = "../../../test-support/reference.rs"]
 mod reference;
 
 use pyta_core::Series;
-use pyta_trend::{adx, dema, ema, kama, macd, sma, tema, wma};
+use pyta_trend::{adx, dema, ema, kama, macd, sar, sma, tema, wma};
 use reference::{assert_matches, assert_output_matches, load};
 
 fn check(name: &str) {
@@ -198,4 +198,52 @@ fn adx_14_matches_talib() {
 #[test]
 fn adx_14_matches_talib_on_the_edge_series() {
     check_adx("adx_14_edge_talib.csv");
+}
+
+fn check_sar(name: &str) {
+    let reference = load(name);
+    let [high, low] = [0, 1].map(|i| Series::new(reference.columns[i].clone()).unwrap());
+
+    let output = sar(
+        &high,
+        &low,
+        reference.float_parameter("acceleration"),
+        reference.float_parameter("maximum"),
+    )
+    .unwrap();
+
+    assert_matches(output.values(), &reference);
+    // TA-Lib writes the step as `fma`, which the wheel's build fuses; this
+    // kernel's plain multiply-add rounds twice. Measured on 2026-10-29: 8,
+    // 29 and 33 values of the three fixtures differ, each by one unit in
+    // the last place (at most 2.1e-16 relative); `f64::mul_add` matched all
+    // three bit for bit but made the kernel ~16% slower. Kept as a
+    // regression check far tighter than the fixtures' 1e-9.
+    for (index, (a, e)) in output
+        .values()
+        .iter()
+        .zip(&reference.outputs[0])
+        .enumerate()
+        .skip(1)
+    {
+        assert!(
+            (a - e).abs() <= 4e-16 * e.abs(),
+            "{name}, index {index}: {a:e} != {e:e}"
+        );
+    }
+}
+
+#[test]
+fn sar_0_02_0_2_matches_talib() {
+    check_sar("sar_0.02_0.2_talib.csv");
+}
+
+#[test]
+fn sar_0_01_0_1_matches_talib() {
+    check_sar("sar_0.01_0.1_talib.csv");
+}
+
+#[test]
+fn sar_0_02_0_2_matches_talib_on_the_edge_series() {
+    check_sar("sar_0.02_0.2_edge_talib.csv");
 }

@@ -105,6 +105,10 @@ fn params(kind: IndicatorKind) -> Params {
         IndicatorKind::Dema => Params::Dema { period: 30 },
         IndicatorKind::Tema => Params::Tema { period: 30 },
         IndicatorKind::Kama => Params::Kama { period: 30 },
+        IndicatorKind::Sar => Params::Sar {
+            acceleration: 0.02,
+            maximum: 0.2,
+        },
     }
 }
 
@@ -122,7 +126,7 @@ fn request(kind: IndicatorKind, close: Series) -> IndicatorRequest {
                 .expect("columns have equal lengths");
             IndicatorRequest::with_columns(columns, params(kind))
         }
-        IndicatorKind::Donchian => {
+        IndicatorKind::Donchian | IndicatorKind::Sar => {
             let columns =
                 Columns::new(vec![offset(0.5), offset(-0.5)]).expect("columns have equal lengths");
             IndicatorRequest::with_columns(columns, params(kind))
@@ -282,6 +286,7 @@ fn many_datasets(c: &mut Criterion) {
         (IndicatorKind::Tema, "tema"),
         (IndicatorKind::Kama, "kama"),
         (IndicatorKind::Adx, "adx"),
+        (IndicatorKind::Sar, "sar"),
         (IndicatorKind::Macd, "macd"),
         (IndicatorKind::Atr, "atr"),
         (IndicatorKind::Stddev, "stddev"),

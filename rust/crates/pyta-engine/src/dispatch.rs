@@ -2,12 +2,12 @@ use pyta_common::{
     ADX_NS_PER_ELEMENT, ATR_NS_PER_ELEMENT, BBANDS_NS_PER_ELEMENT, BBANDS_NS_PER_WINDOW_VALUE,
     CCI_NS_PER_ELEMENT, CCI_NS_PER_WINDOW_VALUE, DEMA_NS_PER_ELEMENT, DONCHIAN_NS_PER_ELEMENT,
     EMA_NS_PER_ELEMENT, KAMA_NS_PER_ELEMENT, KELTNER_NS_PER_ELEMENT, MACD_NS_PER_ELEMENT,
-    RSI_NS_PER_ELEMENT, SMA_NS_PER_ELEMENT, STDDEV_NS_PER_ELEMENT, STDDEV_NS_PER_WINDOW_VALUE,
-    TEMA_NS_PER_ELEMENT, WMA_NS_PER_ELEMENT,
+    RSI_NS_PER_ELEMENT, SAR_NS_PER_ELEMENT, SMA_NS_PER_ELEMENT, STDDEV_NS_PER_ELEMENT,
+    STDDEV_NS_PER_WINDOW_VALUE, TEMA_NS_PER_ELEMENT, WMA_NS_PER_ELEMENT,
 };
 use pyta_core::{IndicatorOutput, PytaResult};
 use pyta_momentum::{cci, rsi};
-use pyta_trend::{adx, dema, ema, kama, macd, sma, tema, wma};
+use pyta_trend::{adx, dema, ema, kama, macd, sar, sma, tema, wma};
 use pyta_volatility::{atr, bbands, donchian, keltner, stddev};
 
 use crate::requests::{IndicatorRequest, Params};
@@ -52,6 +52,13 @@ pub(crate) fn dispatch(request: &IndicatorRequest) -> PytaResult<IndicatorOutput
         }
         Params::Macd { fast, slow, signal } => macd(input.series()?, fast, slow, signal),
         Params::Rsi { period } => rsi(input.series()?, period),
+        Params::Sar {
+            acceleration,
+            maximum,
+        } => {
+            let [high, low] = input.columns()?;
+            sar(high, low, acceleration, maximum)
+        }
         Params::Sma { period } => sma(input.series()?, period),
         Params::Stddev { period, k } => stddev(input.series()?, period, k),
         Params::Tema { period } => tema(input.series()?, period),
@@ -87,6 +94,7 @@ pub(crate) fn estimated_cost_ns(request: &IndicatorRequest) -> f64 {
         Params::Keltner { .. } => KELTNER_NS_PER_ELEMENT,
         Params::Macd { .. } => MACD_NS_PER_ELEMENT,
         Params::Rsi { .. } => RSI_NS_PER_ELEMENT,
+        Params::Sar { .. } => SAR_NS_PER_ELEMENT,
         Params::Sma { .. } => SMA_NS_PER_ELEMENT,
         Params::Stddev { period, .. } => {
             STDDEV_NS_PER_ELEMENT + STDDEV_NS_PER_WINDOW_VALUE * period as f64
@@ -178,6 +186,20 @@ mod tests {
         assert_eq!(
             cost(Params::Bbands { period: 20, k: 1.0 }),
             cost(Params::Bbands { period: 20, k: 3.0 })
+        );
+    }
+
+    #[test]
+    fn sar_cost_does_not_depend_on_its_parameters() {
+        assert_eq!(
+            cost(Params::Sar {
+                acceleration: 0.02,
+                maximum: 0.2
+            }),
+            cost(Params::Sar {
+                acceleration: 0.01,
+                maximum: 0.5
+            })
         );
     }
 

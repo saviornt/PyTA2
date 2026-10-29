@@ -52,6 +52,15 @@ fn messages_name_the_problem_and_the_values_involved() {
             "k must be a finite number greater than 0, got -1.5",
         ),
         (
+            PytaError::ParametersOutOfOrder {
+                lower: "acceleration",
+                lower_value: 0.3,
+                upper: "maximum",
+                upper_value: 0.2,
+            },
+            "acceleration must be at most maximum, got acceleration=0.3 and maximum=0.2",
+        ),
+        (
             PytaError::ColumnCount {
                 expected: 3,
                 actual: 1,
