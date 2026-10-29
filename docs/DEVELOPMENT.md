@@ -400,11 +400,22 @@ Scripts, CI and docs:
 
 ## Sprint 11 — Data containers: CSV input and round-trip conformance
 
-**Goal:** Support the CSV data that AlphaVantage returns, and prove that every supported container (pandas, `dict`, `tuple`, JSON and CSV) imports correctly and exports back to the same container, for every indicator shape (one or several input columns, one or several outputs).
+**Goal:** Support the CSV data that AlphaVantage returns; prove that every supported container (pandas, `dict`, `tuple`, JSON and CSV) imports correctly and exports back to the same container, for every indicator shape (one or several input columns, one or several outputs); and let callers convert the result to another container with `output=`.
 
 ### Tasks: decide
 
-- [ ] **What "export" means.** *Recommended:* output keeps the input's container type, as today (guiding principle 3). The alternative is an `output=` option that converts, for example DataFrame in and JSON out; if wanted, it goes to the parking lot or a later sprint.
+- [x] **What "export" means.** *(2026-10-29, maintainer's decision.)* By default the output keeps the input's container type, as today (guiding principle 3). A new `output=` option converts the result to another container, for example DataFrame in and JSON out.
+- [ ] **`output=` design.** *Recommended:*
+  - `output=None` (the default) keeps the input's container; otherwise one of `"list"`, `"tuple"`, `"numpy"`, `"pandas"`, `"dict"`, `"json"`, `"json_bytes"`, `"csv"`, `"csv_bytes"`. Any other value raises `ValueError` listing the valid names.
+  - Names and casing are the same as in the default output.
+  - Each target has one fixed shape:
+    - `"pandas"` gives a Series for one output and a DataFrame for several.
+    - `"dict"` gives one key per output, with NumPy arrays as values.
+    - `"json"` and `"csv"` give an object of arrays and a CSV with a header row.
+    - Unnamed targets (`"list"`, `"tuple"`, `"numpy"`) give one sequence for one output and a tuple of sequences for several.
+  - A pandas index on the input becomes the pandas index, a `dict` key, a JSON field and a CSV column, named after the index (or `index`). It is dropped for unnamed targets.
+  - `"pandas"` imports pandas only when asked; if pandas isn't installed, it raises `ModuleNotFoundError` saying to install the `pandas` extra. `import pyta` still never imports pandas.
+  - In a batch, `output=` is shared by every dataset, and failures stay in place as exceptions.
 - [ ] **Container matrix.** Write down which input forms each indicator shape accepts and what each returns, as one table in `API.md` §4, covering every form listed below. Mark each pairing as supported, raising (with which exception), or out of scope.
 
 ### Tasks: CSV
@@ -424,6 +435,12 @@ Scripts, CI and docs:
 - [ ] **Hypothesis:** for random valid data, every container gives the same values as the plain NumPy call.
 - [ ] Fix every gap the matrix finds, or record it as a documented limitation in `API.md`.
 
+### Tasks: `output=` conversion
+
+- [ ] One shared export layer in Python. Each indicator restores from the native result through it, so no indicator has conversion code of its own; `output=None` keeps today's path and cost.
+- [ ] `output=` on every single and batch function (SMA, EMA, MACD, RSI, CCI, and every later indicator through the `add-indicator` skill), in the stubs and docstrings.
+- [ ] Tests: every input container × every `output=` target × indicator shape, checking type, names, casing, the index carried over or dropped, `null` in JSON, an empty CSV field for `NaN`, an invalid target, and `"pandas"` without pandas installed (simulated).
+
 ### Tasks: close
 
 - [ ] Same-session A/B against `main`: single and batch calls within ~5% for the containers that existed before.
@@ -433,6 +450,7 @@ Scripts, CI and docs:
 
 - CSV in produces CSV out, with the same conventions as JSON.
 - Every container in the matrix imports and exports correctly for every indicator shape, proven by the round-trip and Hypothesis tests; every unsupported form raises a clear error.
+- `output=` converts any supported input to every target for every indicator, single and batch, and `output=None` behaves exactly as before.
 - `API.md` documents the full container matrix and its limitations.
 - No provider dependency is added, and existing containers are no slower than on `main`.
 
