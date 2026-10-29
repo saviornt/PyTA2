@@ -1,8 +1,9 @@
-//! SMA, EMA, WMA and MACD invariants that must hold for any valid input.
+//! SMA, EMA, WMA, DEMA and MACD invariants that must hold for any valid
+//! input.
 
 use proptest::prelude::*;
-use pyta_core::Series;
-use pyta_trend::{ema, macd, sma, wma};
+use pyta_core::{Series, kernels};
+use pyta_trend::{dema, ema, macd, sma, wma};
 
 /// A series of 1 to 300 prices and a period that fits it.
 fn series_and_period() -> impl Strategy<Value = (Vec<f64>, usize)> {
@@ -350,6 +351,88 @@ proptest! {
                 (average - expected).abs() <= 1.0e-9 * scale.max(1.0),
                 "index {}: {} vs direct {}", index, average, expected
             );
+        }
+    }
+}
+
+/// A series of 1 to 300 prices and a period whose cascade of `depth` EMAs
+/// fits it (`depth * (period - 1) + 1` rows).
+fn series_and_cascade_period(depth: usize) -> impl Strategy<Value = (Vec<f64>, usize)> {
+    prop::collection::vec(-1.0e6..1.0e6_f64, 1..300).prop_flat_map(move |values| {
+        let longest = (values.len() - 1) / depth + 1;
+        (Just(values), 1..=longest)
+    })
+}
+
+/// The EMAs of a cascade, one `kernels::ema` pass each: the first over
+/// `values`, each later one over the previous one's values from its first
+/// value on, shifted back so every EMA is aligned with `values`.
+fn ema_cascade(values: &[f64], period: usize, depth: usize) -> Vec<Vec<f64>> {
+    let mut emas: Vec<Vec<f64>> = vec![kernels::ema(values, period)];
+    for level in 1..depth {
+        let offset = level * (period - 1);
+        let mut aligned = vec![f64::NAN; offset];
+        aligned.extend(kernels::ema(&emas[level - 1][offset..], period));
+        emas.push(aligned);
+    }
+    emas
+}
+
+/// DEMA as one `kernels::ema` pass after another: `2 * EMA1 - EMA2`.
+fn dema_by_passes(values: &[f64], period: usize) -> Vec<f64> {
+    if period == 1 {
+        return values.to_vec();
+    }
+    let emas = ema_cascade(values, period, 2);
+    let start = 2 * (period - 1);
+
+    (0..values.len())
+        .map(|index| {
+            if index < start {
+                f64::NAN
+            } else {
+                2.0 * emas[0][index] - emas[1][index]
+            }
+        })
+        .collect()
+}
+
+proptest! {
+    #[test]
+    fn fused_dema_matches_two_ema_passes_bit_for_bit(
+        (values, period) in series_and_cascade_period(2)
+    ) {
+        let required = 2 * period - 1;
+        for values in [&values[..], &values[..required]] {
+            let output = dema(&Series::new(values.to_vec()).unwrap(), period).unwrap();
+            assert_bits_equal(output.values(), &dema_by_passes(values, period), "dema");
+        }
+    }
+
+    #[test]
+    fn dema_output_length_and_warm_up_are_exact(
+        (values, period) in series_and_cascade_period(2)
+    ) {
+        let output = dema(&Series::new(values.clone()).unwrap(), period).unwrap();
+        let output = output.values();
+        let start = 2 * (period - 1);
+
+        prop_assert_eq!(output.len(), values.len());
+        prop_assert!(output[..start].iter().all(|value| value.is_nan()));
+        prop_assert!(output[start..].iter().all(|value| value.is_finite()));
+    }
+
+    #[test]
+    fn dema_of_constant_input_is_that_constant(
+        value in -1.0e6..1.0e6_f64,
+        length in 1_usize..300,
+        period_seed in 0_usize..300,
+    ) {
+        let period = period_seed % ((length - 1) / 2 + 1) + 1;
+        let output = dema(&Series::new(vec![value; length]).unwrap(), period).unwrap();
+
+        for average in &output.values()[2 * (period - 1)..] {
+            prop_assert!((average - value).abs() <= 1.0e-9 * value.abs().max(1.0));
         }
     }
 }

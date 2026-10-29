@@ -22,6 +22,7 @@ fn params(kind: IndicatorKind, period: usize) -> Params {
         IndicatorKind::Rsi => Params::Rsi { period },
         IndicatorKind::Sma => Params::Sma { period },
         IndicatorKind::Wma => Params::Wma { period },
+        IndicatorKind::Dema => Params::Dema { period },
         IndicatorKind::Bbands => Params::Bbands { period, k: 2.0 },
         IndicatorKind::Stddev => Params::Stddev { period, k: 1.0 },
         IndicatorKind::Keltner => Params::Keltner {
@@ -178,6 +179,7 @@ fn parallel_matches_sequential_on_multi_output_requests() {
             1 => macd_request(100 + 29 * i, 3 + i % 20, 2 + i % 7, i % 5),
             2 => request(IndicatorKind::Ema, 100 + 29 * i, 3 + i % 20),
             _ if i % 8 == 7 => request(IndicatorKind::Wma, 100 + 29 * i, 3 + i % 20),
+            _ if i % 8 == 6 => request(IndicatorKind::Dema, 100 + 29 * i, 3 + i % 20),
             _ => request(IndicatorKind::Sma, 100 + 29 * i, 3 + i % 20),
         })
         .collect();

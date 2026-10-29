@@ -116,6 +116,17 @@ pub const EMA_NS_PER_ELEMENT: f64 = 3.6;
 /// `--single --rust --indicator wma`.
 pub const WMA_NS_PER_ELEMENT: f64 = 2.7;
 
+/// Double Exponential Moving Average, in nanoseconds per input element;
+/// independent of `period` (one fused pass for both EMAs after their seeds).
+///
+/// Provisional, from a quick run on 2026-10-29
+/// (`benches/results/benchmark_2026-10-29_07-35-17.txt`, `--single --rust
+/// --quick`, governor `performance`): kernels at 1,000,000 rows took
+/// 3.220 ms for DEMA-30 and 2.555 ms for RSI-14, scaled here by
+/// `RSI_NS_PER_ELEMENT` (3.0 * 1.26). Confirm with a full
+/// `--single --rust --indicator dema`.
+pub const DEMA_NS_PER_ELEMENT: f64 = 3.8;
+
 /// Keltner Channels, in nanoseconds per input row; independent of `period`,
 /// `atr_period` and `k` (one EMA pass, one true-range and Wilder pass, one
 /// band pass).

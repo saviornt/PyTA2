@@ -16,7 +16,7 @@ def same(got, want):
     np.testing.assert_array_equal(got, want)
 
 
-@pytest.mark.parametrize("name", ["sma", "rsi", "ema", "wma", "stddev"])
+@pytest.mark.parametrize("name", ["sma", "rsi", "ema", "wma", "dema", "stddev"])
 def test_list_matches_single_calls_in_order(name, ohlcv: Ohlcv):
     # Each real column, at a different length, so positions cannot be swapped silently.
     datasets = [

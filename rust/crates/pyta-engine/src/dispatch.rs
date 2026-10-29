@@ -1,12 +1,12 @@
 use pyta_common::{
     ATR_NS_PER_ELEMENT, BBANDS_NS_PER_ELEMENT, BBANDS_NS_PER_WINDOW_VALUE, CCI_NS_PER_ELEMENT,
-    CCI_NS_PER_WINDOW_VALUE, DONCHIAN_NS_PER_ELEMENT, EMA_NS_PER_ELEMENT, KELTNER_NS_PER_ELEMENT,
-    MACD_NS_PER_ELEMENT, RSI_NS_PER_ELEMENT, SMA_NS_PER_ELEMENT, STDDEV_NS_PER_ELEMENT,
-    STDDEV_NS_PER_WINDOW_VALUE, WMA_NS_PER_ELEMENT,
+    CCI_NS_PER_WINDOW_VALUE, DEMA_NS_PER_ELEMENT, DONCHIAN_NS_PER_ELEMENT, EMA_NS_PER_ELEMENT,
+    KELTNER_NS_PER_ELEMENT, MACD_NS_PER_ELEMENT, RSI_NS_PER_ELEMENT, SMA_NS_PER_ELEMENT,
+    STDDEV_NS_PER_ELEMENT, STDDEV_NS_PER_WINDOW_VALUE, WMA_NS_PER_ELEMENT,
 };
 use pyta_core::{IndicatorOutput, PytaResult};
 use pyta_momentum::{cci, rsi};
-use pyta_trend::{ema, macd, sma, wma};
+use pyta_trend::{dema, ema, macd, sma, wma};
 use pyta_volatility::{atr, bbands, donchian, keltner, stddev};
 
 use crate::requests::{IndicatorRequest, Params};
@@ -30,6 +30,7 @@ pub(crate) fn dispatch(request: &IndicatorRequest) -> PytaResult<IndicatorOutput
             let [high, low, close] = input.columns()?;
             cci(high, low, close, period)
         }
+        Params::Dema { period } => dema(input.series()?, period),
         Params::Donchian { period } => {
             let [high, low] = input.columns()?;
             donchian(high, low, period)
@@ -71,6 +72,7 @@ pub(crate) fn estimated_cost_ns(request: &IndicatorRequest) -> f64 {
             BBANDS_NS_PER_ELEMENT + BBANDS_NS_PER_WINDOW_VALUE * period as f64
         }
         Params::Cci { period } => CCI_NS_PER_ELEMENT + CCI_NS_PER_WINDOW_VALUE * period as f64,
+        Params::Dema { .. } => DEMA_NS_PER_ELEMENT,
         Params::Donchian { .. } => DONCHIAN_NS_PER_ELEMENT,
         Params::Ema { .. } => EMA_NS_PER_ELEMENT,
         Params::Keltner { .. } => KELTNER_NS_PER_ELEMENT,
@@ -101,10 +103,14 @@ mod tests {
     }
 
     #[test]
-    fn ema_wma_and_macd_costs_do_not_depend_on_their_periods() {
+    fn ema_family_wma_and_macd_costs_do_not_depend_on_their_periods() {
         assert_eq!(
             cost(Params::Ema { period: 5 }),
             cost(Params::Ema { period: 200 })
+        );
+        assert_eq!(
+            cost(Params::Dema { period: 5 }),
+            cost(Params::Dema { period: 200 })
         );
         assert_eq!(
             cost(Params::Wma { period: 5 }),

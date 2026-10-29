@@ -9,6 +9,7 @@ mod atr;
 mod batch;
 mod bbands;
 mod cci;
+mod dema;
 mod donchian;
 mod ema;
 mod error;
@@ -39,6 +40,8 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(ema::ema_batch, m)?)?;
     m.add_function(wrap_pyfunction!(wma::wma, m)?)?;
     m.add_function(wrap_pyfunction!(wma::wma_batch, m)?)?;
+    m.add_function(wrap_pyfunction!(dema::dema, m)?)?;
+    m.add_function(wrap_pyfunction!(dema::dema_batch, m)?)?;
     m.add_function(wrap_pyfunction!(macd::macd, m)?)?;
     m.add_function(wrap_pyfunction!(macd::macd_batch, m)?)?;
     m.add_function(wrap_pyfunction!(stddev::stddev, m)?)?;

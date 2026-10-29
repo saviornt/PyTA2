@@ -8,7 +8,7 @@ import logging
 
 from . import batch, indicators, momentum, trend, volatility, volume
 from ._export import Output
-from .indicators import atr, bbands, cci, donchian, ema, keltner, macd, rsi, sma, stddev, wma
+from .indicators import atr, bbands, cci, dema, donchian, ema, keltner, macd, rsi, sma, stddev, wma
 
 # A library adds only a NullHandler and never sets levels; the application
 # configures logging. Rust records arrive through the same "pyta.*" loggers.
@@ -20,6 +20,7 @@ __all__ = [
     "batch",
     "bbands",
     "cci",
+    "dema",
     "donchian",
     "ema",
     "indicators",
