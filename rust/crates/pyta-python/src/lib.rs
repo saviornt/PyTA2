@@ -15,6 +15,7 @@ mod macd;
 mod rsi;
 mod single;
 mod sma;
+mod stddev;
 
 use pyo3::prelude::*;
 
@@ -34,5 +35,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(ema::ema_batch, m)?)?;
     m.add_function(wrap_pyfunction!(macd::macd, m)?)?;
     m.add_function(wrap_pyfunction!(macd::macd_batch, m)?)?;
+    m.add_function(wrap_pyfunction!(stddev::stddev, m)?)?;
+    m.add_function(wrap_pyfunction!(stddev::stddev_batch, m)?)?;
     Ok(())
 }

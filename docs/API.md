@@ -46,8 +46,9 @@ Each indicator lives in its own module in a category subpackage, `pyta.indicator
 | `rsi` | Momentum | `rsi(data, period=14, *, column=None, output=None)` |
 | `cci` | Momentum | `cci(data, period=14, *, columns=None, output=None)` |
 | `atr` | Volatility | `atr(data, period=14, *, columns=None, output=None)` |
+| `stddev` | Volatility | `stddev(data, period=5, k=1.0, *, column=None, output=None)` |
 
-Each indicator has its own parameters, with TA-Lib's defaults where TA-Lib has one: `period` is required for `sma`; `macd` takes `fast`, `slow` and `signal` instead of `period`. Every parameter so far is an integer (NumPy integers too); out-of-range values raise `ValueError` and other types `TypeError`, naming the parameter. Float parameters (from Sprint 11.5, such as a band multiplier) accept any finite number above 0, ints included, and reject `bool`; parameters that must be in order (an acceleration at most its maximum, three periods in increasing order) raise `ValueError` naming both when they are not, rather than being reordered or clamped as TA-Lib does. `column` selects a column for inputs that have columns (see [Column selection](#column-selection)); `None` means the indicator's default column, which is `close` for every single-column indicator so far. `cci` and `atr` need several columns, found by name, and take `columns=` instead (see [Multi-column indicators](#10-multi-column-indicators)). `macd` returns three outputs (see [Multi-output indicators](#11-multi-output-indicators)). Every indicator takes `output=` to return another container than the input's (see [Output conversion](#output-conversion-output)). Each indicator has a page in the [indicator wiki](indicators/): [SMA](indicators/trend/sma.md), [EMA](indicators/trend/ema.md), [MACD](indicators/trend/macd.md), [RSI](indicators/momentum/rsi.md), [CCI](indicators/momentum/cci.md), [ATR](indicators/volatility/atr.md).
+Each indicator has its own parameters, with TA-Lib's defaults where TA-Lib has one: `period` is required for `sma`; `macd` takes `fast`, `slow` and `signal` instead of `period`. Integer parameters accept NumPy integers too; out-of-range values raise `ValueError` and other types `TypeError`, naming the parameter. Float parameters (`stddev`'s `k`, the first; later band multipliers) accept any finite number above 0, ints and NumPy numbers included, and reject `bool` (`TypeError`) and zero, negative or non-finite values (`ValueError`: `k must be a finite number greater than 0, got -1.0`); Rust checks the same and reports `InvalidFloatParameter`, which reaches Python as the same `ValueError` message; parameters that must be in order (an acceleration at most its maximum, three periods in increasing order) raise `ValueError` naming both when they are not, rather than being reordered or clamped as TA-Lib does. `column` selects a column for inputs that have columns (see [Column selection](#column-selection)); `None` means the indicator's default column, which is `close` for every single-column indicator so far. `cci` and `atr` need several columns, found by name, and take `columns=` instead (see [Multi-column indicators](#10-multi-column-indicators)). `macd` returns three outputs (see [Multi-output indicators](#11-multi-output-indicators)). Every indicator takes `output=` to return another container than the input's (see [Output conversion](#output-conversion-output)). Each indicator has a page in the [indicator wiki](indicators/): [SMA](indicators/trend/sma.md), [EMA](indicators/trend/ema.md), [MACD](indicators/trend/macd.md), [RSI](indicators/momentum/rsi.md), [CCI](indicators/momentum/cci.md), [ATR](indicators/volatility/atr.md), [STDDEV](indicators/volatility/stddev.md).
 
 ### SMA (Simple Moving Average)
 
@@ -93,6 +94,14 @@ Follows TA-Lib (Wilder's definition). The true range of a row is `TR = max(high 
 - Needs at least `period + 1` rows. The first `period` results are `NaN` (warm-up).
 - Flat prices give `0`; `period=1` gives the true range itself from row 1.
 - Inputs: high, low, and close (or else the adjusted close). Unnamed input is in that order.
+
+### STDDEV (Standard Deviation)
+
+Follows TA-Lib (`TA_STDDEV`, `nbdev` named `k`). Over the last `period` values, `STDDEV = k * sqrt(sum((x - mean)^2) / period)`: the population deviation, dividing by `period`, not `period - 1` (pandas' default `rolling().std()` is the sample one). Each window is centred on its own mean and summed afresh, so a large price with a small spread keeps its precision (TA-Lib before 0.8.3 used a running sum of squares that did not).
+
+- `period` at least `2` (TA-Lib's minimum), default `5`; `k` a finite number above `0`, default `1.0`.
+- Needs at least `period` values. The first `period - 1` results are `NaN` (warm-up).
+- A flat window gives exactly `0`, as TA-Lib does (a deviation within `1e-14` of the window's mean is rounding, not spread).
 
 ## 4. Input containers
 
@@ -260,6 +269,9 @@ ValueError: period must be between 1 and 2147483647, got 0
 >>> pyta.sma([1.0, 2.0, 3.0], period="14")
 TypeError: period must be an integer, got str
 
+>>> pyta.stddev([1.0, 2.0, 3.0], period=2, k=-1.0)
+ValueError: k must be a finite number greater than 0, got -1.0
+
 >>> pyta.macd(close, fast=1)
 ValueError: fast must be between 2 and 2147483647, got 1
 ```
@@ -268,8 +280,8 @@ The examples show the current wording, which may change between releases, so cat
 
 | Exception | Raised for |
 |---|---|
-| `TypeError` | Unsupported container or dtype (booleans, complex numbers, dates), text that is not a number (naming the column and index), DataFrames with MultiIndex columns, non-integer `period`, `fast`, `slow` or `signal` (including `bool`), a float parameter that is not a number (including `bool`), non-string `column`, `columns` that is not a list of strings, JSON of the wrong shape (including arrays that mix records and numbers), one series (list, 1-D array, Series) given to a multi-column indicator, an index value that JSON or CSV cannot hold (`output=`) |
-| `ValueError` | An unknown `output=` name, an index named like an output (`output=` with an index), `period` or `signal` outside `1` to `2**31 - 1`, `fast` or `slow` outside `2` to `2**31 - 1`, a float parameter that is zero, negative or not finite, parameters out of their required order, period larger than the series (`sma`) or fewer than `period` values (`ema`), `period + 1` values (`rsi`) or rows (`atr`), `period` rows (`cci`) or `slow + signal - 1` values (`macd`), empty input or input with no valid values, a non-finite value after the first valid value, a value larger in magnitude than `1e290`, multidimensional or ragged input, invalid JSON, CSV without a header row or with a row of the wrong field count (or bytes that are not UTF-8), a missing or ambiguous column, `column=` on input without columns; for multi-column indicators: an invalid `columns=` (see [§10](#10-multi-column-indicators)), columns of different lengths, a high below its low on any row, a negative volume on any row (for an indicator with a volume input), the wrong number of unnamed columns (or a 2-D table with neither axis of that length), Series that do not share one index, and `column=` on a multi-column indicator or `columns=` on a single-column one |
+| `TypeError` | Unsupported container or dtype (booleans, complex numbers, dates), text that is not a number (naming the column and index), DataFrames with MultiIndex columns, non-integer `period`, `fast`, `slow` or `signal` (including `bool`), a float parameter such as `k` that is not a number (including `bool`), non-string `column`, `columns` that is not a list of strings, JSON of the wrong shape (including arrays that mix records and numbers), one series (list, 1-D array, Series) given to a multi-column indicator, an index value that JSON or CSV cannot hold (`output=`) |
+| `ValueError` | An unknown `output=` name, an index named like an output (`output=` with an index), `period` or `signal` outside `1` to `2**31 - 1` (`period` below `2` for `stddev`), `fast` or `slow` outside `2` to `2**31 - 1`, a float parameter that is zero, negative or not finite, parameters out of their required order, period larger than the series (`sma`, `stddev`) or fewer than `period` values (`ema`), `period + 1` values (`rsi`) or rows (`atr`), `period` rows (`cci`) or `slow + signal - 1` values (`macd`), empty input or input with no valid values, a non-finite value after the first valid value, a value larger in magnitude than `1e290`, multidimensional or ragged input, invalid JSON, CSV without a header row or with a row of the wrong field count (or bytes that are not UTF-8), a missing or ambiguous column, `column=` on input without columns; for multi-column indicators: an invalid `columns=` (see [§10](#10-multi-column-indicators)), columns of different lengths, a high below its low on any row, a negative volume on any row (for an indicator with a volume input), the wrong number of unnamed columns (or a 2-D table with neither axis of that length), Series that do not share one index, and `column=` on a multi-column indicator or `columns=` on a single-column one |
 | `ModuleNotFoundError` | `output="pandas"` without pandas installed |
 | `RuntimeError` | An internal calculation failure |
 
@@ -289,7 +301,7 @@ Apply one indicator to many datasets in a single call. The engine decides intern
 results = pyta.batch.sma(datasets, period=14)
 ```
 
-- `pyta.batch` mirrors the top-level indicator functions (`pyta.batch.sma`, `pyta.batch.ema`, `pyta.batch.macd`, `pyta.batch.rsi`, `pyta.batch.cci`, `pyta.batch.atr`), with the same names and parameters, and the category namespaces too (`pyta.batch.trend.sma is pyta.batch.sma`). One call applies one indicator.
+- `pyta.batch` mirrors the top-level indicator functions (`pyta.batch.sma`, `pyta.batch.ema`, `pyta.batch.macd`, `pyta.batch.rsi`, `pyta.batch.cci`, `pyta.batch.atr`, `pyta.batch.stddev`), with the same names and parameters, and the category namespaces too (`pyta.batch.trend.sma is pyta.batch.sma`). One call applies one indicator.
 - `datasets` can be a **list** or a **mapping** (for example, ticker to data); anything else raises `TypeError`. Each dataset can be any supported container, and the result has the same shape and order as the input, with each result in its own input's container type (for MACD, the three outputs in the form a single call returns them). Output names are cased per dataset, from that dataset's own columns. An empty list or mapping returns an empty one.
 - The indicator's parameters (`period`; `fast`, `slow`, `signal`), `column` and `output` are shared by every dataset. An invalid one raises, because it affects the whole call.
 - With `output=` ([Output conversion](#output-conversion-output)), every dataset's result is in that target's shape (`pyta.batch.sma(frames, period=20, output="json")` gives a list of JSON strings). A dataset whose result cannot be converted (an index JSON cannot hold) gets its exception in place, like any other failure.
@@ -396,7 +408,7 @@ Its JSON nests each day's values under the date (`{"Time Series (Daily)": {"2024
 
 ## 13. Indicator catalog
 
-Available: SMA, EMA and MACD (trend); RSI and CCI (momentum); ATR (volatility). See the [README](../README.md#indicators) for implemented and planned indicators, and [`docs/indicators/`](indicators/) for one page per implemented indicator. Every indicator will follow the conventions in this document.
+Available: SMA, EMA and MACD (trend); RSI and CCI (momentum); ATR and STDDEV (volatility). See the [README](../README.md#indicators) for implemented and planned indicators, and [`docs/indicators/`](indicators/) for one page per implemented indicator. Every indicator will follow the conventions in this document.
 
 ## 14. Logging
 

@@ -17,6 +17,8 @@ __all__ = [
     "rsi_batch",
     "sma",
     "sma_batch",
+    "stddev",
+    "stddev_batch",
 ]
 
 MAX_ABS_INPUT: float
@@ -47,3 +49,7 @@ def macd(
 def macd_batch(
     datasets: list[NDArray[np.float64]], fast: int, slow: int, signal: int
 ) -> list[list[NDArray[np.float64]] | Exception]: ...
+def stddev(values: NDArray[np.float64], period: int, k: float) -> NDArray[np.float64]: ...
+def stddev_batch(
+    datasets: list[NDArray[np.float64]], period: int, k: float
+) -> list[NDArray[np.float64] | Exception]: ...

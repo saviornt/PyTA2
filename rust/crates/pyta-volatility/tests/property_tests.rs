@@ -1,9 +1,9 @@
-//! ATR invariants that must hold for any valid input.
+//! ATR and STDDEV invariants that must hold for any valid input.
 
 use proptest::prelude::*;
 use pyta_core::Series;
 use pyta_core::kernels::true_range_at;
-use pyta_volatility::atr;
+use pyta_volatility::{atr, stddev};
 
 /// High, low and close columns of 2 to 300 rows (high at or above low,
 /// close between them) and a period that leaves at least one ATR value.
@@ -89,6 +89,67 @@ proptest! {
         let scale = columns[0].iter().chain(&columns[1]).fold(0.0_f64, |m, v| m.max(v.abs())) + shift.abs();
 
         for (a, b) in atr_of(&columns, period).iter().zip(atr_of(&moved, period)).skip(period) {
+            prop_assert!((a - b).abs() <= 1e-9 * (scale + 1.0), "{} vs {}", a, b);
+        }
+    }
+}
+
+/// A series of 2 to 300 values and a period from 2 to its length.
+fn values_and_period() -> impl Strategy<Value = (Vec<f64>, usize)> {
+    prop::collection::vec(-1.0e6..1.0e6_f64, 2..300).prop_flat_map(|values| {
+        let length = values.len();
+        (Just(values), 2..=length)
+    })
+}
+
+fn stddev_of(values: &[f64], period: usize, k: f64) -> Vec<f64> {
+    stddev(&Series::new(values.to_vec()).unwrap(), period, k)
+        .unwrap()
+        .into_values()
+}
+
+proptest! {
+    #[test]
+    fn stddev_output_length_and_warm_up_are_exact((values, period) in values_and_period()) {
+        let output = stddev_of(&values, period, 1.0);
+
+        prop_assert_eq!(output.len(), values.len());
+        prop_assert!(output[..period - 1].iter().all(|value| value.is_nan()));
+        prop_assert!(output[period - 1..].iter().all(|value| value.is_finite()));
+    }
+
+    #[test]
+    fn stddev_lies_between_zero_and_half_the_window_range((values, period) in values_and_period()) {
+        // A population deviation is at most half the window's range.
+        let output = stddev_of(&values, period, 1.0);
+
+        for (window, value) in values.windows(period).zip(&output[period - 1..]) {
+            let high = window.iter().copied().fold(f64::MIN, f64::max);
+            let low = window.iter().copied().fold(f64::MAX, f64::min);
+            let bound = (high - low) / 2.0 * (1.0 + 1e-12);
+            prop_assert!((0.0..=bound).contains(value), "{} outside [0, {}]", value, bound);
+        }
+    }
+
+    #[test]
+    fn stddev_scales_exactly_with_k((values, period) in values_and_period(), k in 0.01..100.0_f64) {
+        let one = stddev_of(&values, period, 1.0);
+        let scaled = stddev_of(&values, period, k);
+
+        for (a, b) in one.iter().zip(&scaled).skip(period - 1) {
+            prop_assert_eq!(*b, a * k);
+        }
+    }
+
+    #[test]
+    fn stddev_is_invariant_under_a_shift(
+        (values, period) in values_and_period(),
+        shift in -1.0e3..1.0e3_f64,
+    ) {
+        let moved: Vec<f64> = values.iter().map(|v| v + shift).collect();
+        let scale = values.iter().fold(0.0_f64, |m, v| m.max(v.abs())) + shift.abs();
+
+        for (a, b) in stddev_of(&values, period, 1.0).iter().zip(stddev_of(&moved, period, 1.0)).skip(period - 1) {
             prop_assert!((a - b).abs() <= 1e-9 * (scale + 1.0), "{} vs {}", a, b);
         }
     }

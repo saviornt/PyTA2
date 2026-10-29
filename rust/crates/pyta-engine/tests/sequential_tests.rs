@@ -20,6 +20,7 @@ fn params(kind: IndicatorKind, period: usize) -> Params {
         IndicatorKind::Ema => Params::Ema { period },
         IndicatorKind::Rsi => Params::Rsi { period },
         IndicatorKind::Sma => Params::Sma { period },
+        IndicatorKind::Stddev => Params::Stddev { period, k: 1.0 },
         IndicatorKind::Macd => panic!("MACD takes three periods"),
     }
 }
@@ -137,6 +138,7 @@ fn parallel_matches_sequential_on_multi_column_requests() {
         .map(|i| match i % 3 {
             0 => cci_request(100 + 29 * i, if i % 9 == 0 { 5_000 } else { 2 + i % 20 }),
             1 => request(IndicatorKind::Sma, 100 + 29 * i, 3 + i % 20),
+            _ if i % 4 == 0 => request(IndicatorKind::Stddev, 100 + 29 * i, 2 + i % 20),
             _ => request(IndicatorKind::Rsi, 100 + 29 * i, 3 + i % 20),
         })
         .collect();

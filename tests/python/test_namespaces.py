@@ -27,6 +27,7 @@ INDICATORS = {
     "rsi": "momentum",
     "cci": "momentum",
     "atr": "volatility",
+    "stddev": "volatility",
 }
 
 # Every category subpackage, including those without indicators yet.
@@ -74,6 +75,12 @@ DOCUMENTED_PATHS = [
     "pyta.indicators.volatility.atr",
     "pyta.batch.atr",
     "pyta.batch.volatility.atr",
+    "pyta.stddev",
+    "pyta.volatility.stddev",
+    "pyta.indicators.stddev",
+    "pyta.indicators.volatility.stddev",
+    "pyta.batch.stddev",
+    "pyta.batch.volatility.stddev",
 ]
 
 

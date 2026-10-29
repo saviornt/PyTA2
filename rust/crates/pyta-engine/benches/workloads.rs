@@ -92,6 +92,7 @@ fn params(kind: IndicatorKind) -> Params {
         },
         IndicatorKind::Rsi => Params::Rsi { period: 14 },
         IndicatorKind::Sma => Params::Sma { period: 20 },
+        IndicatorKind::Stddev => Params::Stddev { period: 5, k: 1.0 },
     }
 }
 
@@ -109,9 +110,11 @@ fn request(kind: IndicatorKind, close: Series) -> IndicatorRequest {
                 .expect("columns have equal lengths");
             IndicatorRequest::with_columns(columns, params(kind))
         }
-        IndicatorKind::Ema | IndicatorKind::Macd | IndicatorKind::Rsi | IndicatorKind::Sma => {
-            IndicatorRequest::new(close, params(kind))
-        }
+        IndicatorKind::Ema
+        | IndicatorKind::Macd
+        | IndicatorKind::Rsi
+        | IndicatorKind::Sma
+        | IndicatorKind::Stddev => IndicatorRequest::new(close, params(kind)),
     }
 }
 
@@ -254,6 +257,7 @@ fn many_datasets(c: &mut Criterion) {
         (IndicatorKind::Ema, "ema"),
         (IndicatorKind::Macd, "macd"),
         (IndicatorKind::Atr, "atr"),
+        (IndicatorKind::Stddev, "stddev"),
     ] {
         for count in MANY_DATASET_COUNTS {
             let mut group = c.benchmark_group(format!("many_{label}_x{count}"));

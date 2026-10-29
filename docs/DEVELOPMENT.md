@@ -482,7 +482,7 @@ Scripts, CI and docs:
 | Volatility | Bollinger Bands | `BBANDS` | close → 3 (`bbands_upper`, `bbands_middle`, `bbands_lower`); `period`, `k` (float) |
 | Volatility | Keltner Channels | none | high, low, close → 3; `period`, `atr_period`, `k` (float) |
 | Volatility | Donchian Channels | none | high, low → 3; `period` |
-| Volatility | Standard Deviation | `STDDEV` | close → 1; `period` |
+| Volatility | Standard Deviation | `STDDEV` | close → 1; `period`, `k` (float) |
 | Volume | OBV | `OBV` | close, volume → 1; none |
 | Volume | VWAP | none | high, low, close, volume → 1; none (cumulative) |
 | Volume | Accumulation/Distribution | `AD` | high, low, close, volume → 1; none |

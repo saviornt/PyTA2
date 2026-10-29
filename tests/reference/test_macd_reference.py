@@ -16,7 +16,7 @@ NAMES = ["macd", "macd_signal", "macd_hist"]
 
 def _parameters(fixture: str) -> tuple[int, int, int]:
     parameters = load(fixture).parameters
-    return parameters["fast"], parameters["slow"], parameters["signal"]
+    return int(parameters["fast"]), int(parameters["slow"]), int(parameters["signal"])
 
 
 @pytest.mark.parametrize("fixture", FIXTURES)

@@ -3,8 +3,8 @@
 //! Included by the kernel crates' reference tests with `#[path]`, so the
 //! Rust and Python tests check the same files. Each fixture is a CSV file
 //! whose `#` comment lines cite the source and give the parameters as
-//! `name: value` (`period:`, or `fast:`, `slow:` and `signal:` for MACD) and
-//! `tolerance:`. Its columns are `label`, one or more input columns, and one
+//! `name: value` (`period:`, or `fast:`, `slow:` and `signal:` for MACD;
+//! a float such as STDDEV's `k: 2.0`) and `tolerance:`. Its columns are `label`, one or more input columns, and one
 //! or more output columns: `expected` for a single-output indicator, or
 //! `expected_<output>` for each output in documented order. An empty output
 //! value is warm-up (NaN). A single-column example names its input column
@@ -44,15 +44,32 @@ impl Reference {
 
     /// A whole-number parameter given as a `name: value` comment.
     pub fn parameter(&self, name: &str) -> usize {
-        let (_, value) = self
-            .comments
-            .iter()
-            .rfind(|(key, _)| key == name)
-            .unwrap_or_else(|| panic!("fixture has no `{name}:` comment"));
+        let value = self.comment(name);
 
         value
             .parse()
             .unwrap_or_else(|_| panic!("`{name}: {value}` is not a whole number"))
+    }
+
+    /// A floating-point parameter given as a `name: value` comment
+    /// (`k: 2.0`).
+    pub fn float_parameter(&self, name: &str) -> f64 {
+        let value = self.comment(name);
+
+        value
+            .parse()
+            .unwrap_or_else(|_| panic!("`{name}: {value}` is not a number"))
+    }
+
+    /// The value of the last `name: value` comment.
+    fn comment(&self, name: &str) -> &str {
+        self.comments
+            .iter()
+            .rfind(|(key, _)| key == name)
+            .map_or_else(
+                || panic!("fixture has no `{name}:` comment"),
+                |(_, value)| value.as_str(),
+            )
     }
 }
 

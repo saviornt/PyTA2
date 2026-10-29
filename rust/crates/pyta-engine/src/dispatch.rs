@@ -1,11 +1,12 @@
 use pyta_common::{
     ATR_NS_PER_ELEMENT, CCI_NS_PER_ELEMENT, CCI_NS_PER_WINDOW_VALUE, EMA_NS_PER_ELEMENT,
-    MACD_NS_PER_ELEMENT, RSI_NS_PER_ELEMENT, SMA_NS_PER_ELEMENT,
+    MACD_NS_PER_ELEMENT, RSI_NS_PER_ELEMENT, SMA_NS_PER_ELEMENT, STDDEV_NS_PER_ELEMENT,
+    STDDEV_NS_PER_WINDOW_VALUE,
 };
 use pyta_core::{IndicatorOutput, PytaResult};
 use pyta_momentum::{cci, rsi};
 use pyta_trend::{ema, macd, sma};
-use pyta_volatility::atr;
+use pyta_volatility::{atr, stddev};
 
 use crate::requests::{IndicatorRequest, Params};
 
@@ -31,6 +32,7 @@ pub(crate) fn dispatch(request: &IndicatorRequest) -> PytaResult<IndicatorOutput
         Params::Macd { fast, slow, signal } => macd(input.series()?, fast, slow, signal),
         Params::Rsi { period } => rsi(input.series()?, period),
         Params::Sma { period } => sma(input.series()?, period),
+        Params::Stddev { period, k } => stddev(input.series()?, period, k),
     }
 }
 
@@ -44,7 +46,7 @@ pub(crate) fn dispatch(request: &IndicatorRequest) -> PytaResult<IndicatorOutput
 /// This match is exhaustive on purpose: adding a `Params` variant fails
 /// to compile until it has a cost. When adding an indicator, benchmark
 /// it and include any dependence on its parameters (for example O(n * period)
-/// algorithms, such as CCI) in its estimate. Cost scales with rows, not
+/// algorithms, such as CCI and STDDEV) in its estimate. Cost scales with rows, not
 /// rows times columns or outputs: a multi-column or multi-output constant is
 /// measured per row.
 pub(crate) fn estimated_cost_ns(request: &IndicatorRequest) -> f64 {
@@ -55,6 +57,9 @@ pub(crate) fn estimated_cost_ns(request: &IndicatorRequest) -> f64 {
         Params::Macd { .. } => MACD_NS_PER_ELEMENT,
         Params::Rsi { .. } => RSI_NS_PER_ELEMENT,
         Params::Sma { .. } => SMA_NS_PER_ELEMENT,
+        Params::Stddev { period, .. } => {
+            STDDEV_NS_PER_ELEMENT + STDDEV_NS_PER_WINDOW_VALUE * period as f64
+        }
     };
 
     request.input.len() as f64 * ns_per_element
@@ -97,5 +102,17 @@ mod tests {
     #[test]
     fn cci_cost_grows_with_its_period() {
         assert!(cost(Params::Cci { period: 50 }) > cost(Params::Cci { period: 5 }));
+    }
+
+    #[test]
+    fn stddev_cost_grows_with_its_period_but_not_with_k() {
+        assert!(
+            cost(Params::Stddev { period: 50, k: 1.0 })
+                > cost(Params::Stddev { period: 5, k: 1.0 })
+        );
+        assert_eq!(
+            cost(Params::Stddev { period: 5, k: 1.0 }),
+            cost(Params::Stddev { period: 5, k: 3.0 })
+        );
     }
 }

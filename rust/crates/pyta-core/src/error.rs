@@ -56,7 +56,8 @@ pub enum PytaError {
         length: usize,
     },
 
-    /// A parameter other than `period` is below its minimum.
+    /// An integer parameter is below its minimum: one other than `period`
+    /// (`fast`), or a `period` whose minimum is above 1 (STDDEV's 2).
     #[error("{name} must be at least {minimum}, got {value}")]
     InvalidParameter {
         /// The parameter's name, as the caller knows it (`fast`, `signal`).
@@ -65,6 +66,15 @@ pub enum PytaError {
         minimum: usize,
         /// The value given.
         value: usize,
+    },
+
+    /// A floating-point parameter is not a finite number above 0.
+    #[error("{name} must be a finite number greater than 0, got {value}")]
+    InvalidFloatParameter {
+        /// The parameter's name, as the caller knows it (`k`).
+        name: &'static str,
+        /// The value given.
+        value: f64,
     },
 
     /// A request has the wrong number of input columns for its indicator.

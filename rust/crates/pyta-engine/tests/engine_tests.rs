@@ -15,6 +15,7 @@ fn params(kind: IndicatorKind, period: usize) -> Params {
         IndicatorKind::Ema => Params::Ema { period },
         IndicatorKind::Rsi => Params::Rsi { period },
         IndicatorKind::Sma => Params::Sma { period },
+        IndicatorKind::Stddev => Params::Stddev { period, k: 1.0 },
         IndicatorKind::Macd => panic!("MACD takes three periods"),
     }
 }
@@ -286,6 +287,7 @@ fn the_kind_comes_from_the_params() {
         ),
         (Params::Rsi { period: 2 }, IndicatorKind::Rsi),
         (Params::Sma { period: 2 }, IndicatorKind::Sma),
+        (Params::Stddev { period: 2, k: 1.0 }, IndicatorKind::Stddev),
     ];
 
     for (params, kind) in cases {
@@ -422,6 +424,73 @@ async fn atr_runs_through_the_engine_and_reports_its_errors() {
         PytaError::ColumnCount {
             expected: 3,
             actual: 1,
+        }
+    );
+}
+
+#[tokio::test]
+async fn stddev_runs_through_the_engine_and_reports_its_errors() {
+    // Windows of 2: deviations 1, 2, 0.5 (half the gap), times k = 2.
+    let values = vec![1.0, 3.0, 7.0, 8.0];
+    let stddev = |values: Vec<f64>, period: usize, k: f64| {
+        IndicatorRequest::new(Series::new(values).unwrap(), Params::Stddev { period, k })
+    };
+    let requests = vec![
+        stddev(values.clone(), 2, 2.0),
+        stddev(values.clone(), 1, 1.0),
+        stddev(values.clone(), 2, 0.0),
+        stddev(values.clone(), 2, f64::NAN),
+        stddev(values.clone(), 5, 1.0),
+        IndicatorRequest::with_columns(
+            Columns::new(vec![
+                Series::new(values.clone()).unwrap(),
+                Series::new(values).unwrap(),
+            ])
+            .unwrap(),
+            Params::Stddev { period: 2, k: 1.0 },
+        ),
+    ];
+
+    let direct = execute_direct(&requests[0]).unwrap();
+    assert_values(direct.values(), &[NAN, 2.0, 4.0, 1.0]);
+
+    let results = execute_batch(requests).await;
+
+    match &results[0].status {
+        IndicatorStatus::Success(output) => assert_values(output.values(), direct.values()),
+        IndicatorStatus::Error(error) => panic!("expected STDDEV success, got {error:?}"),
+    }
+    assert_eq!(
+        *error_of(&results[1]),
+        PytaError::InvalidParameter {
+            name: "period",
+            minimum: 2,
+            value: 1,
+        }
+    );
+    assert_eq!(
+        *error_of(&results[2]),
+        PytaError::InvalidFloatParameter {
+            name: "k",
+            value: 0.0,
+        }
+    );
+    assert!(matches!(
+        *error_of(&results[3]),
+        PytaError::InvalidFloatParameter { name: "k", value } if value.is_nan()
+    ));
+    assert_eq!(
+        *error_of(&results[4]),
+        PytaError::PeriodExceedsLength {
+            period: 5,
+            length: 4,
+        }
+    );
+    assert_eq!(
+        *error_of(&results[5]),
+        PytaError::ColumnCount {
+            expected: 1,
+            actual: 2,
         }
     );
 }

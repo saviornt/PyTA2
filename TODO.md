@@ -46,8 +46,9 @@ Where things stand:
 
 ### Part C: Volatility (about 6 h)
 
-- [x] ATR · [ ] STDDEV · [ ] Bollinger Bands · [ ] Donchian Channels · [ ] Keltner Channels
+- [x] ATR · [x] STDDEV · [ ] Bollinger Bands · [ ] Donchian Channels · [ ] Keltner Channels
   - ATR *(2026-10-29: `pyta-volatility` on the shared `true_range` + `wilder_into`; both TA-Lib fixtures match (Rust absolute 1e-9, Python relative 1e-9); provisional `ATR_NS_PER_ELEMENT = 5.2` from `benchmark_2026-10-29_03-31-27.txt` (`--single --rust --quick`), to confirm with a full `--single --rust --indicator atr`; `tests/results/test-suite_2026-10-29_03-33-50.txt` PASSED (Rust 210, Python 1398).)*
+  - STDDEV *(2026-10-29: `pyta-volatility` on the shared `rolling_mean_std` (centred, two-pass per window), times `k`; flat windows snapped to exactly 0 with `is_zero_scaled` (TA-Lib gives 0; A/B within run noise); first float parameter: `PytaError::InvalidFloatParameter`, `period < 2` is `InvalidParameter`; all three TA-Lib fixtures match (Rust absolute 1e-9, Python relative 1e-9 with exact zeros), and a 1e5 + 1e-3·noise test matches a two-pass reference to 1e-9 (A10); reference loaders read float parameters; provisional `STDDEV_NS_PER_ELEMENT = 7.6` + `STDDEV_NS_PER_WINDOW_VALUE = 0.23 * period` from `benchmark_2026-10-29_06-18-35.txt` and a native period sweep, to confirm with a full `--single --rust --indicator stddev`; `tests/results/test-suite_2026-10-29_06-28-17.txt` PASSED (Rust 232, Python 1448).)*
 
 ### Part D: Trend (about 10 h)
 

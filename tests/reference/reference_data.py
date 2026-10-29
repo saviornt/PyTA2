@@ -2,15 +2,16 @@
 
 Each fixture is a CSV file whose `#` comment lines cite the source and give
 the parameters as `name: value` (`period:`, or `fast:`, `slow:` and `signal:`
-for MACD) and `tolerance:`. Its columns are `label`, one or more input columns,
-and one or more output columns: `expected` for a single-output indicator, or
-`expected_<output>` for each output in documented order. An empty output value
-is warm-up (NaN). A single-column example names its input `input`; a
-multi-column one names each column by role (`high,low,close`), in the
-indicator's slot order. The Rust tests read the same files
-(`rust/test-support/reference.rs`, same rules).
+for MACD; a float such as STDDEV's `k: 2.0`) and `tolerance:`. Its columns
+are `label`, one or more input columns, and one or more output columns:
+`expected` for a single-output indicator, or `expected_<output>` for each
+output in documented order. An empty output value is warm-up (NaN). A
+single-column example names its input `input`; a multi-column one names each
+column by role (`high,low,close`), in the indicator's slot order. The Rust
+tests read the same files (`rust/test-support/reference.rs`, same rules).
 """
 
+import contextlib
 import csv
 from dataclasses import dataclass
 from pathlib import Path
@@ -23,6 +24,24 @@ FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 
 def _is_output(column: str) -> bool:
     return column == "expected" or column.startswith("expected_")
+
+
+def _parameters(meta: dict[str, str]) -> dict[str, int | float]:
+    """The numeric `name: value` comments other than `tolerance`.
+
+    Whole numbers (`period: 14`) are ints; numbers with a point or exponent
+    (`k: 2.0`) are floats. Text (`source:`, `retrieved:`) is not a parameter.
+    """
+    parameters: dict[str, int | float] = {}
+    for key, value in meta.items():
+        if key == "tolerance":
+            continue
+        if value.isdigit():
+            parameters[key] = int(value)
+            continue
+        with contextlib.suppress(ValueError):
+            parameters[key] = float(value)
+    return parameters
 
 
 @dataclass(frozen=True, slots=True)
@@ -39,7 +58,7 @@ class Reference:
     input: NDArray[np.float64]
     columns: dict[str, NDArray[np.float64]]
     outputs: dict[str, NDArray[np.float64]]
-    parameters: dict[str, int]
+    parameters: dict[str, int | float]
 
     @property
     def expected(self) -> NDArray[np.float64]:
@@ -49,7 +68,7 @@ class Reference:
     @property
     def period(self) -> int:
         """The `period:` parameter."""
-        return self.parameters["period"]
+        return int(self.parameters["period"])
 
 
 def load(name: str) -> Reference:
@@ -85,5 +104,5 @@ def load(name: str) -> Reference:
             )
             for column in outputs
         },
-        parameters={key: int(value) for key, value in meta.items() if value.isdigit()},
+        parameters=_parameters(meta),
     )

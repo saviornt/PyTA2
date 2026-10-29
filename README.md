@@ -91,6 +91,7 @@ PyTA logs through Python's standard `logging` (Rust messages included) under the
 | Momentum | [Relative Strength Index](docs/indicators/momentum/rsi.md) (`rsi`, Wilder's smoothing) |
 | Momentum | [Commodity Channel Index](docs/indicators/momentum/cci.md) (`cci`, high, low and close) |
 | Volatility | [Average True Range](docs/indicators/volatility/atr.md) (`atr`, high, low and close; Wilder's smoothing) |
+| Volatility | [Standard Deviation](docs/indicators/volatility/stddev.md) (`stddev`, population, times `k`) |
 
 ### Planned
 
@@ -103,7 +104,7 @@ WMA, DEMA, TEMA, KAMA, ADX, Parabolic SAR, Ichimoku Cloud, Aroon
 Stochastic Oscillator, Williams %R, ROC, MFI, TRIX, Ultimate Oscillator
 
 **Volatility Indicators**
-Bollinger Bands, Keltner Channels, Donchian Channels, Standard Deviation
+Bollinger Bands, Keltner Channels, Donchian Channels
 
 **Volume Indicators**
 OBV, VWAP, Accumulation/Distribution, Chaikin Money Flow, Volume Rate of Change

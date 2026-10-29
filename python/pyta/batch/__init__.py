@@ -9,6 +9,18 @@ exception in place, so one bad dataset never prevents results for the others.
 from pyta.batch import momentum, trend, volatility, volume
 from pyta.batch.momentum import cci, rsi
 from pyta.batch.trend import ema, macd, sma
-from pyta.batch.volatility import atr
+from pyta.batch.volatility import atr, stddev
 
-__all__ = ["atr", "cci", "ema", "macd", "momentum", "rsi", "sma", "trend", "volatility", "volume"]
+__all__ = [
+    "atr",
+    "cci",
+    "ema",
+    "macd",
+    "momentum",
+    "rsi",
+    "sma",
+    "stddev",
+    "trend",
+    "volatility",
+    "volume",
+]

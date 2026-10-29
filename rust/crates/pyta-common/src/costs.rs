@@ -38,6 +38,27 @@ pub const CCI_NS_PER_ELEMENT: f64 = 7.2;
 /// cost is O(rows * period). Measured as [`CCI_NS_PER_ELEMENT`].
 pub const CCI_NS_PER_WINDOW_VALUE: f64 = 0.24;
 
+/// Standard Deviation, in nanoseconds per input row, excluding the
+/// per-window pass (see [`STDDEV_NS_PER_WINDOW_VALUE`]): the compensated
+/// rolling mean and the multiply.
+///
+/// Provisional, from a quick run on 2026-10-29
+/// (`benches/results/benchmark_2026-10-29_06-18-35.txt`, `--single --rust
+/// --quick`, governor `performance`: kernels at 1,000,000 rows took
+/// 9.079 ms for STDDEV-5 and 2.735 ms for RSI-14) and a period sweep of the
+/// release-built native call at 1,000,000 rows (periods 2 to 200, best of
+/// 15, twice): `7.5 + 0.214 * period` ms, less the native call's ~0.55 ms
+/// of copying (RSI's native call minus its kernel), so the kernel is about
+/// `6.95 + 0.214 * period` ns per row, scaled here by `RSI_NS_PER_ELEMENT`
+/// / RSI's kernel time (1.10). Confirm with a full
+/// `--single --rust --indicator stddev`.
+pub const STDDEV_NS_PER_ELEMENT: f64 = 7.6;
+
+/// Standard Deviation, in nanoseconds per row and per unit of `period`:
+/// each row's deviation is a fresh pass over its window, so the cost is
+/// O(rows * period). Measured as [`STDDEV_NS_PER_ELEMENT`].
+pub const STDDEV_NS_PER_WINDOW_VALUE: f64 = 0.23;
+
 /// Exponential Moving Average, in nanoseconds per input element; independent
 /// of `period` (one pass after the seed).
 ///

@@ -45,6 +45,13 @@ fn messages_name_the_problem_and_the_values_involved() {
             "fast must be at least 2, got 1",
         ),
         (
+            PytaError::InvalidFloatParameter {
+                name: "k",
+                value: -1.5,
+            },
+            "k must be a finite number greater than 0, got -1.5",
+        ),
+        (
             PytaError::ColumnCount {
                 expected: 3,
                 actual: 1,

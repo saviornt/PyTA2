@@ -18,6 +18,8 @@ pub enum IndicatorKind {
     Rsi,
     /// Simple Moving Average (`pyta-trend`).
     Sma,
+    /// Standard Deviation (`pyta-volatility`).
+    Stddev,
 }
 
 /// Which indicator to calculate, with its own parameters: one variant per
@@ -67,6 +69,13 @@ pub enum Params {
         /// Rows in each window.
         period: usize,
     },
+    /// Standard Deviation (population), times a multiplier.
+    Stddev {
+        /// Rows in each window, at least 2.
+        period: usize,
+        /// Multiplier, finite and above 0.
+        k: f64,
+    },
 }
 
 impl Params {
@@ -79,6 +88,7 @@ impl Params {
             Self::Macd { .. } => IndicatorKind::Macd,
             Self::Rsi { .. } => IndicatorKind::Rsi,
             Self::Sma { .. } => IndicatorKind::Sma,
+            Self::Stddev { .. } => IndicatorKind::Stddev,
         }
     }
 }

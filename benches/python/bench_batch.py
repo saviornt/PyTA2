@@ -29,13 +29,14 @@ import pyta
 
 # indicator name -> (keyword parameters for the benchmark, TA-Lib's defaults where it has
 # them; number of input columns).
-INDICATORS: dict[str, tuple[dict[str, int], int]] = {
+INDICATORS: dict[str, tuple[dict[str, int | float], int]] = {
     "sma": ({"period": 20}, 1),
     "rsi": ({"period": 14}, 1),
     "cci": ({"period": 14}, 3),
     "ema": ({"period": 30}, 1),
     "macd": ({"fast": 12, "slow": 26, "signal": 9}, 1),
     "atr": ({"period": 14}, 3),
+    "stddev": ({"period": 5, "k": 1.0}, 1),
 }
 
 COUNTS = (10, 100, 1_000)
