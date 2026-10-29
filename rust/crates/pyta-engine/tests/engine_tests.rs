@@ -18,6 +18,7 @@ fn params(kind: IndicatorKind, period: usize) -> Params {
         IndicatorKind::Sma => Params::Sma { period },
         IndicatorKind::Wma => Params::Wma { period },
         IndicatorKind::Dema => Params::Dema { period },
+        IndicatorKind::Tema => Params::Tema { period },
         IndicatorKind::Bbands => Params::Bbands { period, k: 2.0 },
         IndicatorKind::Stddev => Params::Stddev { period, k: 1.0 },
         IndicatorKind::Keltner => Params::Keltner {
@@ -309,6 +310,7 @@ fn the_kind_comes_from_the_params() {
         (Params::Stddev { period: 2, k: 1.0 }, IndicatorKind::Stddev),
         (Params::Wma { period: 2 }, IndicatorKind::Wma),
         (Params::Dema { period: 2 }, IndicatorKind::Dema),
+        (Params::Tema { period: 2 }, IndicatorKind::Tema),
     ];
 
     for (params, kind) in cases {
@@ -382,6 +384,34 @@ async fn dema_runs_through_the_engine_and_reports_its_errors() {
         PytaError::InsufficientData {
             required: 7,
             length: 6,
+        }
+    );
+}
+
+#[tokio::test]
+async fn tema_runs_through_the_engine_and_reports_its_errors() {
+    // Period 3 on a ramp: TEMA has no lag, so from index 6 it is the price.
+    let values: Vec<f64> = (1..=8).map(f64::from).collect();
+    let requests = vec![
+        request(IndicatorKind::Tema, values.clone(), 3),
+        request(IndicatorKind::Tema, values.clone(), 0),
+        request(IndicatorKind::Tema, values, 4),
+    ];
+
+    let results = execute_batch(requests).await;
+
+    match &results[0].status {
+        IndicatorStatus::Success(output) => {
+            assert_values(output.values(), &[NAN, NAN, NAN, NAN, NAN, NAN, 7.0, 8.0]);
+        }
+        IndicatorStatus::Error(error) => panic!("expected TEMA success, got {error:?}"),
+    }
+    assert_eq!(*error_of(&results[1]), PytaError::InvalidPeriod);
+    assert_eq!(
+        *error_of(&results[2]),
+        PytaError::InsufficientData {
+            required: 10,
+            length: 8,
         }
     );
 }

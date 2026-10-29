@@ -25,6 +25,7 @@ INDICATORS = {
     "ema": "trend",
     "wma": "trend",
     "dema": "trend",
+    "tema": "trend",
     "macd": "trend",
     "rsi": "momentum",
     "cci": "momentum",
@@ -116,6 +117,12 @@ DOCUMENTED_PATHS = [
     "pyta.indicators.trend.dema",
     "pyta.batch.dema",
     "pyta.batch.trend.dema",
+    "pyta.tema",
+    "pyta.trend.tema",
+    "pyta.indicators.tema",
+    "pyta.indicators.trend.tema",
+    "pyta.batch.tema",
+    "pyta.batch.trend.tema",
 ]
 
 

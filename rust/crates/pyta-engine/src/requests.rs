@@ -28,6 +28,8 @@ pub enum IndicatorKind {
     Sma,
     /// Standard Deviation (`pyta-volatility`).
     Stddev,
+    /// Triple Exponential Moving Average (`pyta-trend`).
+    Tema,
     /// Weighted Moving Average (`pyta-trend`).
     Wma,
 }
@@ -115,6 +117,12 @@ pub enum Params {
         /// Multiplier, finite and above 0.
         k: f64,
     },
+    /// Triple Exponential Moving Average:
+    /// `EMA3 + 3 * (EMA1 - EMA2)`, each EMA of the one before.
+    Tema {
+        /// Period of all three EMAs; sets their weight `2 / (period + 1)`.
+        period: usize,
+    },
     /// Weighted Moving Average: weights 1 (oldest) to `period` (newest).
     Wma {
         /// Rows in each window.
@@ -137,6 +145,7 @@ impl Params {
             Self::Rsi { .. } => IndicatorKind::Rsi,
             Self::Sma { .. } => IndicatorKind::Sma,
             Self::Stddev { .. } => IndicatorKind::Stddev,
+            Self::Tema { .. } => IndicatorKind::Tema,
             Self::Wma { .. } => IndicatorKind::Wma,
         }
     }
