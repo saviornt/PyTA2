@@ -66,7 +66,7 @@ Where things stand:
 
 ### Part F: benchmarks (about 45 min, `pyta-benchmarks` skill)
 
-- [ ] Before Part C: `main` baselines in a scratch worktree, `--single --python` and `--batch --python`.
+- [x] Before Part C: `main` baselines in a scratch worktree, `--single --python` and `--batch --python`. *(2026-10-29, governor `performance`, b165f12 in `.claude/worktrees/bench-base` (kept for the A/B): `benches/results/base-b165f12_benchmark_2026-10-29_00-54-40.txt` (single), `_00-56-14` (batch); public call at 100 rows SMA 4.37, RSI 4.36, CCI 13.96, EMA 4.22, MACD 5.17 µs.)*
 - [ ] Same-session A/B against `main`, alternating, twice each: existing containers within ~5% (single and batch), `output=None`.
 - [ ] Record CSV's per-call cost at 100 and 10,000 rows next to JSON's (information, no gate).
 
