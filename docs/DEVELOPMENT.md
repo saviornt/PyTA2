@@ -416,7 +416,7 @@ Scripts, CI and docs:
   - A pandas index on the input becomes the pandas index, a `dict` key, a JSON field and a CSV column, named after the index (or `index`). It is dropped for unnamed targets.
   - `"pandas"` imports pandas only when asked; if pandas isn't installed, it raises `ModuleNotFoundError` saying to install the `pandas` extra. `import pyta` still never imports pandas.
   - In a batch, `output=` is shared by every dataset, and failures stay in place as exceptions.
-- [ ] **Container matrix.** Write down which input forms each indicator shape accepts and what each returns, as one table in `API.md` §4, covering every form listed below. Mark each pairing as supported, raising (with which exception), or out of scope.
+- [x] **Container matrix.** Write down which input forms each indicator shape accepts and what each returns, as one table in `API.md` §4, covering every form listed below. Mark each pairing as supported, raising (with which exception), or out of scope. *(2026-10-29: `API.md` §4 "Container matrix" and Limitations, probed against the code; later fixes added (columns, rows) tables, lists of rows and lists of Series.)*
 
 ### Tasks: CSV
 
@@ -443,8 +443,8 @@ Scripts, CI and docs:
 
 ### Tasks: close
 
-- [ ] Same-session A/B against `main`: single and batch calls within ~5% for the containers that existed before.
-- [ ] Update `API.md` (§4 container matrix, CSV in §12 Data sources) and `ARCHITECTURE.md` if the normalization code changes shape.
+- [x] Same-session A/B against `main`: single and batch calls within ~5% for the containers that existed before. *(2026-10-29, b165f12 vs c51c111, two alternating runs each, governor `performance`: worst ratio 1.030, every row outside ±5% faster; `benches/results/base-b165f12_benchmark_2026-10-29_02-24-53.txt`, `_02-28-04` vs `benchmark_2026-10-29_02-26-27.txt`, `_02-29-38` (single); `base-b165f12_..._02-31-15`, `_02-37-36` vs `_02-34-22`, `_02-40-45` (batch).)*
+- [x] Update `API.md` (§4 container matrix, CSV in §12 Data sources) and `ARCHITECTURE.md` if the normalization code changes shape. *(2026-10-29: also §5 "Output conversion" and §9; ARCHITECTURE has `_export.py` and text input.)*
 
 ### Acceptance criteria
 
@@ -454,8 +454,8 @@ Scripts, CI and docs:
 - `API.md` documents the full container matrix and its limitations.
 - No provider dependency is added, and existing containers are no slower than on `main`.
 
-**Retrospective:**  
-**Sprint completion:** ☐
+**Retrospective:** *What worked:* probing the container matrix against the code before building turned up the gaps early (CSV, numeric strings, numbered names, unnamed multi-column forms), and the round-trip and Hypothesis tests then found no wrong result; `output=` went through one module, and keeping the default path untouched left every existing call within noise of `main` (most small calls 3-9% faster, as the `Prepared` types were unfrozen). *What did not:* implementers could not commit in the sprint worktree, so each part came back on its own branch to fast-forward; text input is slow (CSV 99 µs, JSON records 211 µs for 100 rows), since parsing dominates. *Next:* Sprint 11.5's indicators, with Stochastic as the first real multi-column, multi-output indicator (replacing the stand-in in the matrix tests) and `output=` from the start via the `add-indicator` skill.  
+**Sprint completion:** ✓
 
 ---
 

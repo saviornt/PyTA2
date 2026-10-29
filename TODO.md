@@ -1,6 +1,8 @@
 # TODO Scratchpad — PyTA
 
-## Sprint 11: data containers, CSV input and round-trip conformance ☐
+## Sprint 11: data containers, CSV input and round-trip conformance ✓ (closed 2026-10-29)
+
+All parts and acceptance criteria verified; nothing is open in the sprint. Follow-ups are in the parking lot. The plan below is the record until the next sprint is planned.
 
 Plan of record: `docs/DEVELOPMENT.md`, "Sprint 11 — Data containers: CSV input and round-trip conformance". Goal: CSV in and out (as AlphaVantage returns it); every container imports and exports correctly for every indicator shape; an `output=` option converts the result to another container.
 
@@ -67,30 +69,30 @@ Where things stand:
 ### Part F: benchmarks (about 45 min, `pyta-benchmarks` skill)
 
 - [x] Before Part C: `main` baselines in a scratch worktree, `--single --python` and `--batch --python`. *(2026-10-29, governor `performance`, b165f12 in `.claude/worktrees/bench-base` (kept for the A/B): `benches/results/base-b165f12_benchmark_2026-10-29_00-54-40.txt` (single), `_00-56-14` (batch); public call at 100 rows SMA 4.37, RSI 4.36, CCI 13.96, EMA 4.22, MACD 5.17 µs.)*
-- [ ] Same-session A/B against `main`, alternating, twice each: existing containers within ~5% (single and batch), `output=None`.
-- [ ] Record CSV's per-call cost at 100 and 10,000 rows next to JSON's (information, no gate).
+- [x] Same-session A/B against `main`, alternating, twice each: existing containers within ~5% (single and batch), `output=None`. *(2026-10-29, governor `performance`, b165f12 vs c51c111, alternating, two full runs each: `benches/results/base-b165f12_benchmark_2026-10-29_02-24-53.txt`, `_02-28-04` vs `benchmark_2026-10-29_02-26-27.txt`, `_02-29-38` (single); `base-b165f12_..._02-31-15`, `_02-37-36` vs `_02-34-22`, `_02-40-45` (batch). Worst ratio 1.030 (batch RSI 10 × 10,000, runs 0.999/1.061); every row outside ±5% is faster (single 100-row calls 0.96-0.97). PASS)*
+- [x] Record CSV's per-call cost at 100 and 10,000 rows next to JSON's (information, no gate). *(2026-10-29, interleaved timeit, release build: SMA 100/10,000 rows: JSON array 58.5 µs/4.65 ms, JSON records 211 µs/18.9 ms, CSV close only 99 µs/8.73 ms, CSV OHLCV 134 µs/12.2 ms; CCI JSON records 264 µs/22.6 ms vs CSV 223 µs/20.5 ms. Text parsing dominates)*
 
 ### Part G: docs and close (about 1 h)
 
-- [ ] `API.md`: §4 matrix and limitations, `output=` (new section), §12 Data sources (CSV available, AlphaVantage notes per A6), §9 batch `output=`.
-- [ ] `ARCHITECTURE.md`: the export layer and where `output=` is applied; CSV in normalization.
-- [ ] README, `docs/indicators/` pages (an `output=` line), `.claude/CLAUDE.md` architecture lines, `.claude/memory.md`.
-- [ ] `DEVELOPMENT.md`: tick Sprint 11 tasks as verified; retrospective and ✓ once the criteria pass.
+- [x] `API.md`: §4 matrix and limitations, `output=` (new section), §12 Data sources (CSV available, AlphaVantage notes per A6), §9 batch `output=`. *(§4 matrix and limitations, §5 "Output conversion", §9, §12 Data sources)*
+- [x] `ARCHITECTURE.md`: the export layer and where `output=` is applied; CSV in normalization. *(`_export.py` in the layout, data flow and private-modules table; text input and CSV in normalization)*
+- [x] README, `docs/indicators/` pages (an `output=` line), `.claude/CLAUDE.md` architecture lines, `.claude/memory.md`. *(README usage paragraph, an `output` row on every indicator page, `.claude/CLAUDE.md` "Containers and `output=`", memory "Sprint 11 design" and "`output=`")*
+- [x] `DEVELOPMENT.md`: tick Sprint 11 tasks as verified; retrospective and ✓ once the criteria pass. *(2026-10-29)*
 
 ### Acceptance criteria for Sprint 11
 
-- [ ] CSV in produces CSV out, with the same conventions as JSON.
-- [ ] Every container in the matrix imports and exports correctly for every indicator shape (round-trip and Hypothesis tests); every unsupported form raises a clear error.
-- [ ] `output=` converts any supported input to every target for every indicator, single and batch; `output=None` behaves exactly as before.
-- [ ] `API.md` documents the full container matrix and its limitations.
-- [ ] No provider dependency is added, and existing containers are no slower than on `main` (same-session A/B).
-- [ ] `./scripts/test-suite.sh` passes (Pyright strict and stubtest included).
+- [x] CSV in produces CSV out, with the same conventions as JSON. *(`test_csv.py`, `test_roundtrip.py`; `tests/results/test-suite_2026-10-29_02-45-40.txt`)*
+- [x] Every container in the matrix imports and exports correctly for every indicator shape (round-trip and Hypothesis tests); every unsupported form raises a clear error. *(`test_roundtrip.py` (154 cases + 2 Hypothesis properties), `test_inputs.py` error cases; `tests/results/test-suite_2026-10-29_02-45-40.txt`)*
+- [x] `output=` converts any supported input to every target for every indicator, single and batch; `output=None` behaves exactly as before. *(`test_output.py` (508 cases, single and batch); `output=None` round-trips unchanged in `test_roundtrip.py`)*
+- [x] `API.md` documents the full container matrix and its limitations. *(§4 "Container matrix" and Limitations)*
+- [x] No provider dependency is added, and existing containers are no slower than on `main` (same-session A/B). *(`pyproject.toml` dependencies unchanged; A/B above)*
+- [x] `./scripts/test-suite.sh` passes (Pyright strict and stubtest included). *(`tests/results/test-suite_2026-10-29_02-45-40.txt`: PASSED, Rust 145, Python 1319, branch coverage 99%, Pyright strict and stubtest pass)*
 
 ### Verification
 
-- [ ] `./scripts/test-suite.sh` after Part C, after Part D and at the end (cite the reports).
-- [ ] `./scripts/benchmark.sh --single --python` and `--batch --python`, A/B against `main` (Part F).
-- [ ] Manual: an AlphaVantage-shaped CSV string through `pyta.macd(text)` and `pyta.sma(text, 20, output="pandas")`.
+- [x] `./scripts/test-suite.sh` after Part C, after Part D and at the end (cite the reports). *(after Part C `test-suite_2026-10-29_01-34-55.txt`, after Part D `_02-01-57`, after Part E `_02-21-17` (implementers' worktrees); at the end `tests/results/test-suite_2026-10-29_02-45-40.txt`)*
+- [x] `./scripts/benchmark.sh --single --python` and `--batch --python`, A/B against `main` (Part F). *(Part F)*
+- [x] Manual: an AlphaVantage-shaped CSV string through `pyta.macd(text)` and `pyta.sma(text, 20, output="pandas")`. *(2026-10-29: the SPY fixture as AlphaVantage CSV, newest first, reversed as §12 shows: `pyta.macd(text)` last row 2.693378, 2.748233, −0.054854 (equal to Sprint 10's DataFrame check); `pyta.sma(text, 20, output="pandas")` a Series ending 683.853, 683.873)*
 
 Out of scope: AlphaVantage's nested JSON (A6), reordering newest-first data, CSV delimiters other than `,`, headerless CSV, new indicators (Sprint 11.5), mixed-indicator batches, per-dataset `output=` in a batch.
 
@@ -108,3 +110,8 @@ Out of scope: AlphaVantage's nested JSON (A6), reordering newest-first data, CSV
 - Chaining from a multi-output frame needs the Series (`pyta.sma(out["macd_signal"], ...)`), since `column=` takes role names only; revisit if users ask.
 - Bare output names (A5) collide when two runs of one indicator (say SMA 20 and SMA 50) are joined into one frame; the caller renames. Revisit if users ask for a `name=` option.
 - AlphaVantage's nested JSON time series (dates as keys, `1. open` names, numbers as strings) would need a provider adapter; decide whether one belongs in PyTA (Sprint 11, A6).
+- CSV and JSON text cost 15-70x an array call at 100 rows (parsing dominates: SMA CSV 99 µs, JSON records 211 µs); a faster parser (or `np.loadtxt`-style bulk conversion) is a Sprint 17 candidate if text input matters.
+- CCI on a DataFrame costs ~150 µs per call against ~13 µs for a dict of arrays: pandas column access, not PyTA work (Sprint 17).
+- A nested multi-column dict column reads `column 0 expected a 1-D series ...` (the slot number as the name); reword if users meet it.
+- `test_output.py` imports the stand-in from `test_multi_output.py`; move it to a shared helper if more tests need it.
+- Delete the merged agent worktrees and branches (`.claude/worktrees/agent-*`, `worktree-agent-*`) once the sprint is merged.
