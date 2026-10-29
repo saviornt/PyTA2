@@ -117,3 +117,4 @@ Out of scope: `ma=`/`matype` options, VWAP session anchoring, Ichimoku shifted o
 - `ma=` option (TA-Lib `matype`) for BBANDS and STOCH, reusing the Sprint 11.5 kernels (A5).
 - VWAP session or date anchoring; needs a datetime role (A9).
 - Further indicators: Stochastic RSI, PPO, Momentum, CMO, Hull MA, Supertrend, Pivot Points, ROCP/ROCR/ROCR100, ADXR, PLUS_DI/MINUS_DI alone (A14).
+- TA-Lib 0.8.3 updates EMAs as `fma(beta, prev, k*x)`; `kernels::ema_step` uses `(x - prev)*k + prev`, so EMA/DEMA/TEMA differ from TA-Lib by ~1e-15 (inside 1e-9). Check whether the `kernels::ema` doc claim "bit for bit with INT_EMA" still holds for 0.8.3, and decide whether to switch to `mul_add` (would change EMA/MACD bits).
