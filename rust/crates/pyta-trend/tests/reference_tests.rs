@@ -1,12 +1,12 @@
 //! SMA against published worked examples (StockCharts ChartSchool), and EMA,
-//! WMA, DEMA, TEMA, KAMA and MACD against TA-Lib's own output (generated
-//! fixtures, see their comments).
+//! WMA, DEMA, TEMA, KAMA, MACD and ADX against TA-Lib's own output
+//! (generated fixtures, see their comments).
 
 #[path = "../../../test-support/reference.rs"]
 mod reference;
 
 use pyta_core::Series;
-use pyta_trend::{dema, ema, kama, macd, sma, tema, wma};
+use pyta_trend::{adx, dema, ema, kama, macd, sma, tema, wma};
 use reference::{assert_matches, assert_output_matches, load};
 
 fn check(name: &str) {
@@ -163,4 +163,39 @@ fn macd_12_26_9_matches_talib() {
 #[test]
 fn macd_5_35_5_matches_talib() {
     check_macd("macd_5_35_5_talib.csv");
+}
+
+fn check_adx(name: &str) {
+    let reference = load(name);
+    let [high, low, close] = [0, 1, 2].map(|i| Series::new(reference.columns[i].clone()).unwrap());
+
+    let output = adx(&high, &low, &close, reference.period()).unwrap();
+
+    assert_eq!(output.output_count(), reference.outputs.len());
+    for (index, actual) in output.outputs().iter().enumerate() {
+        assert_output_matches(actual, &reference, index);
+    }
+    // Measured on 2026-10-29: every value of all three outputs is the
+    // wheel's own, bit for bit (the fixture prints them with `repr`). Kept
+    // as a regression check on TA-Lib 0.8.3's `* (1 / n)` smoothing and its
+    // order of operations.
+    for (output, (actual, expected)) in output.outputs().iter().zip(&reference.outputs).enumerate()
+    {
+        for (index, (a, e)) in actual.iter().zip(expected).enumerate() {
+            assert!(
+                (a.is_nan() && e.is_nan()) || a.to_bits() == e.to_bits(),
+                "{name}, output {output}, index {index}: {a:e} != {e:e}"
+            );
+        }
+    }
+}
+
+#[test]
+fn adx_14_matches_talib() {
+    check_adx("adx_14_talib.csv");
+}
+
+#[test]
+fn adx_14_matches_talib_on_the_edge_series() {
+    check_adx("adx_14_edge_talib.csv");
 }

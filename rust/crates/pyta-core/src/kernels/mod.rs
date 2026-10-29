@@ -28,4 +28,4 @@ pub use sum::{CompensatedSum, lane_sum, two_sum};
 pub use true_range::{true_range, true_range_at};
 pub use typical_price::{typical_price, typical_price_at};
 pub use wilder::{WilderAverage, WilderSum, wilder_into};
-pub use zero::is_zero_scaled;
+pub use zero::{is_zero, is_zero_scaled};

@@ -15,6 +15,7 @@ fn request(kind: IndicatorKind, len: usize, period: usize) -> IndicatorRequest {
 /// The parameters of a one-period indicator.
 fn params(kind: IndicatorKind, period: usize) -> Params {
     match kind {
+        IndicatorKind::Adx => Params::Adx { period },
         IndicatorKind::Atr => Params::Atr { period },
         IndicatorKind::Cci => Params::Cci { period },
         IndicatorKind::Donchian => Params::Donchian { period },
@@ -48,6 +49,17 @@ fn macd_request(len: usize, fast: usize, slow: usize, signal: usize) -> Indicato
 
 /// A CCI request on high, low and close made from one wave.
 fn cci_request(len: usize, period: usize) -> IndicatorRequest {
+    columns_request(len, Params::Cci { period })
+}
+
+/// An ADX request (three columns, three outputs) on the same columns as
+/// [`cci_request`].
+fn adx_request(len: usize, period: usize) -> IndicatorRequest {
+    columns_request(len, Params::Adx { period })
+}
+
+/// High, low and close made from one wave, with `params`.
+fn columns_request(len: usize, params: Params) -> IndicatorRequest {
     let column = |offset: f64| {
         Series::new(
             (0..len)
@@ -58,7 +70,7 @@ fn cci_request(len: usize, period: usize) -> IndicatorRequest {
     };
     let columns = Columns::new(vec![column(0.5), column(-0.5), column(0.0)]).unwrap();
 
-    IndicatorRequest::with_columns(columns, Params::Cci { period })
+    IndicatorRequest::with_columns(columns, params)
 }
 
 fn assert_same(left: &IndicatorResult, right: &IndicatorResult) {
@@ -144,11 +156,14 @@ fn parallel_matches_sequential_on_a_multi_thread_pool() {
 
 #[test]
 fn parallel_matches_sequential_on_multi_column_requests() {
-    // CCI mixed with single-column requests, including failures.
+    // CCI and ADX mixed with single-column requests, including failures.
     let requests: Vec<_> = (0..48)
         .map(|i| match i % 3 {
             0 => cci_request(100 + 29 * i, if i % 9 == 0 { 5_000 } else { 2 + i % 20 }),
             1 => request(IndicatorKind::Sma, 100 + 29 * i, 3 + i % 20),
+            _ if i % 4 == 2 => {
+                adx_request(100 + 29 * i, if i % 8 == 2 { 5_000 } else { 2 + i % 20 })
+            }
             _ if i % 4 == 0 => request(IndicatorKind::Stddev, 100 + 29 * i, 2 + i % 20),
             _ if i % 4 == 1 => request(IndicatorKind::Bbands, 100 + 29 * i, 2 + i % 20),
             _ => request(IndicatorKind::Rsi, 100 + 29 * i, 3 + i % 20),

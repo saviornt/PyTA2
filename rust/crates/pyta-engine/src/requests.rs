@@ -6,6 +6,9 @@ use pyta_core::{Columns, IndicatorOutput, PytaError, PytaResult, Series};
 /// disagree. Used for logging and benchmark labels.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IndicatorKind {
+    /// Average Directional Index with +DI and -DI (`pyta-trend`; high, low,
+    /// close; three outputs).
+    Adx,
     /// Average True Range (`pyta-volatility`; high, low, close).
     Atr,
     /// Bollinger Bands (`pyta-volatility`; three outputs).
@@ -49,6 +52,12 @@ pub enum IndicatorKind {
 /// variant (`Obv`).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Params {
+    /// Average Directional Index, with +DI and -DI.
+    Adx {
+        /// Wilder's smoothing period of the directional movement, true range
+        /// and ADX, at least 2.
+        period: usize,
+    },
     /// Average True Range.
     Atr {
         /// True ranges in the first average; Wilder's smoothing period.
@@ -143,6 +152,7 @@ impl Params {
     /// The indicator these parameters belong to.
     pub fn kind(&self) -> IndicatorKind {
         match self {
+            Self::Adx { .. } => IndicatorKind::Adx,
             Self::Atr { .. } => IndicatorKind::Atr,
             Self::Bbands { .. } => IndicatorKind::Bbands,
             Self::Cci { .. } => IndicatorKind::Cci,

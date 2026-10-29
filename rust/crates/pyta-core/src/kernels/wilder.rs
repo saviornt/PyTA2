@@ -46,16 +46,20 @@ impl WilderAverage {
     }
 }
 
-/// Wilder's smoothed sum: `sum - sum / n + value`, TA-Lib's form for ADX's
-/// directional movement and true range, in that order of operations.
+/// Wilder's smoothed sum: `sum - sum * (1 / n) + value`, TA-Lib 0.8.3's form
+/// for ADX's directional movement and true range, in that order of
+/// operations.
 ///
-/// It equals `n` times a [`WilderAverage`] in exact arithmetic. The seed is
-/// the caller's (TA-Lib's ADX starts from the sum of the first `n - 1`
-/// values and adds the `n`-th through this update).
+/// TA-Lib 0.8.3 multiplies by a precomputed `1 / n` (older releases divided
+/// by `n`, which rounds differently in the last bit); this form matches the
+/// 0.8.3 wheel's ADX, +DI and -DI bit for bit. It equals `n` times a
+/// [`WilderAverage`] in exact arithmetic. The seed is the caller's (TA-Lib's
+/// ADX starts from the sum of the first `n - 1` values and adds the `n`-th
+/// through this update).
 #[derive(Clone, Copy, Debug)]
 pub struct WilderSum {
     sum: f64,
-    period: f64,
+    inverse_period: f64,
 }
 
 impl WilderSum {
@@ -67,14 +71,14 @@ impl WilderSum {
         debug_assert!(period >= 1);
         Self {
             sum: seed,
-            period: period as f64,
+            inverse_period: 1.0 / period as f64,
         }
     }
 
     /// Adds `value` and returns the new sum.
     #[inline]
     pub fn update(&mut self, value: f64) -> f64 {
-        self.sum = self.sum - self.sum / self.period + value;
+        self.sum = self.sum - self.sum * self.inverse_period + value;
         self.sum
     }
 

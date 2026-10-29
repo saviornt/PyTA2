@@ -10,6 +10,7 @@ const NAN: f64 = f64::NAN;
 /// The parameters of a one-period indicator.
 fn params(kind: IndicatorKind, period: usize) -> Params {
     match kind {
+        IndicatorKind::Adx => Params::Adx { period },
         IndicatorKind::Atr => Params::Atr { period },
         IndicatorKind::Cci => Params::Cci { period },
         IndicatorKind::Donchian => Params::Donchian { period },
@@ -285,6 +286,7 @@ fn macd_request(values: Vec<f64>, fast: usize, slow: usize, signal: usize) -> In
 fn the_kind_comes_from_the_params() {
     let series = Series::new(vec![1.0, 2.0]).unwrap();
     let cases = [
+        (Params::Adx { period: 2 }, IndicatorKind::Adx),
         (Params::Atr { period: 2 }, IndicatorKind::Atr),
         (Params::Bbands { period: 2, k: 2.0 }, IndicatorKind::Bbands),
         (Params::Cci { period: 2 }, IndicatorKind::Cci),
@@ -734,6 +736,66 @@ async fn donchian_runs_through_the_engine_with_three_outputs_and_reports_its_err
         *error_of(&results[3]),
         PytaError::ColumnCount {
             expected: 2,
+            actual: 1,
+        }
+    );
+}
+
+#[tokio::test]
+async fn adx_runs_through_the_engine_with_three_outputs_and_reports_its_errors() {
+    // Period 2: row 1 seeds +DM 2 and TR 3; row 2 gives sums 2 and 4.5
+    // (+DI 100 * 2 / 4.5, -DI 0, DX 100); row 3 gives +1, -2 and 6.25
+    // (+DI 16, -DI 32, DX 100 / 3), so the first ADX is their mean.
+    let high: &[f64] = &[10.0, 12.0, 13.0, 12.0];
+    let low: &[f64] = &[8.0, 9.0, 10.0, 8.0];
+    let close: &[f64] = &[9.0, 11.0, 12.0, 9.0];
+    let requests = vec![
+        columns_request(IndicatorKind::Adx, &[high, low, close], 2),
+        columns_request(IndicatorKind::Adx, &[high, low, close], 1),
+        columns_request(IndicatorKind::Adx, &[high, low, close], 3),
+        request(IndicatorKind::Adx, close.to_vec(), 2),
+    ];
+
+    let direct = execute_direct(&requests[0]).unwrap();
+    let [adx, plus_di, minus_di] = direct.outputs() else {
+        panic!("expected three outputs, got {}", direct.output_count());
+    };
+    // Written in the kernel's order of operations, so they compare exactly.
+    let (plus, minus) = (100.0 * (1.0 / 6.25), 100.0 * (2.0 / 6.25));
+    let dx = 100.0 * ((minus - plus) / (minus + plus));
+    assert_values(adx, &[NAN, NAN, NAN, (100.0 + dx) / 2.0]);
+    assert_values(plus_di, &[NAN, NAN, 100.0 * (2.0 / 4.5), plus]);
+    assert_values(minus_di, &[NAN, NAN, 0.0, minus]);
+
+    let results = execute_batch(requests).await;
+
+    match &results[0].status {
+        IndicatorStatus::Success(output) => {
+            for (got, want) in output.outputs().iter().zip(direct.outputs()) {
+                assert_values(got, want);
+            }
+        }
+        IndicatorStatus::Error(error) => panic!("expected ADX success, got {error:?}"),
+    }
+    assert_eq!(
+        *error_of(&results[1]),
+        PytaError::InvalidParameter {
+            name: "period",
+            minimum: 2,
+            value: 1,
+        }
+    );
+    assert_eq!(
+        *error_of(&results[2]),
+        PytaError::InsufficientData {
+            required: 6,
+            length: 4,
+        }
+    );
+    assert_eq!(
+        *error_of(&results[3]),
+        PytaError::ColumnCount {
+            expected: 3,
             actual: 1,
         }
     );

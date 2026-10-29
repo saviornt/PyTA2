@@ -1,9 +1,9 @@
-//! SMA, EMA, WMA, DEMA, TEMA, KAMA and MACD invariants that must hold for any
-//! valid input.
+//! SMA, EMA, WMA, DEMA, TEMA, KAMA, MACD and ADX invariants that must hold
+//! for any valid input.
 
 use proptest::prelude::*;
 use pyta_core::{Series, kernels};
-use pyta_trend::{dema, ema, kama, macd, sma, tema, wma};
+use pyta_trend::{adx, dema, ema, kama, macd, sma, tema, wma};
 
 /// A series of 1 to 300 prices and a period that fits it.
 fn series_and_period() -> impl Strategy<Value = (Vec<f64>, usize)> {
@@ -548,6 +548,60 @@ proptest! {
                 *average >= low - slack && *average <= high + slack,
                 "index {}: {} outside [{}, {}]", index, average, low, high
             );
+        }
+    }
+}
+
+/// High, low and close columns of 4 to 300 rows (high at or above low,
+/// close between them; some rows flat) and an ADX period that fits them.
+fn ohlc_and_adx_period() -> impl Strategy<Value = ([Vec<f64>; 3], usize)> {
+    let row = (
+        -1.0e6..1.0e6_f64,
+        prop_oneof![Just(0.0), 0.0..1.0e3_f64],
+        0.0..=1.0_f64,
+    );
+    prop::collection::vec(row, 4..300).prop_flat_map(|rows| {
+        let length = rows.len();
+        let low: Vec<f64> = rows.iter().map(|(low, _, _)| *low).collect();
+        let high: Vec<f64> = rows.iter().map(|(low, range, _)| low + range).collect();
+        let close = rows
+            .iter()
+            .map(|(low, range, at)| low + range * at)
+            .collect();
+        (Just([high, low, close]), 2..=length / 2)
+    })
+}
+
+proptest! {
+    #[test]
+    fn adx_outputs_and_warm_ups_are_exact((columns, period) in ohlc_and_adx_period()) {
+        let [high, low, close] = columns.clone().map(|values| Series::new(values).unwrap());
+        let output = adx(&high, &low, &close, period).unwrap();
+        let starts = [2 * period - 1, period, period];
+
+        prop_assert_eq!(output.output_count(), 3);
+        for (line, start) in output.outputs().iter().zip(starts) {
+            prop_assert_eq!(line.len(), columns[0].len());
+            prop_assert!(line[..start].iter().all(|value| value.is_nan()));
+            prop_assert!(line[start..].iter().all(|value| value.is_finite()));
+        }
+    }
+
+    #[test]
+    fn adx_lines_stay_between_0_and_100((columns, period) in ohlc_and_adx_period()) {
+        // With the close inside each row's range, a row's +DM and -DM (only
+        // one is non-zero) never exceed its true range, so the DIs and their
+        // sum stay in [0, 100], and so do DX and ADX.
+        let [high, low, close] = columns.map(|values| Series::new(values).unwrap());
+        let output = adx(&high, &low, &close, period).unwrap();
+        let [adx, plus_di, minus_di] = [0, 1, 2].map(|index| output.outputs()[index].clone());
+        let slack = 1.0e-9;
+
+        for value in adx.iter().chain(&plus_di).chain(&minus_di).filter(|v| !v.is_nan()) {
+            prop_assert!(*value >= -slack && *value <= 100.0 + slack, "{} outside [0, 100]", value);
+        }
+        for (plus, minus) in plus_di.iter().zip(&minus_di).skip(period) {
+            prop_assert!(plus + minus <= 100.0 + slack, "+DI {} and -DI {} sum above 100", plus, minus);
         }
     }
 }

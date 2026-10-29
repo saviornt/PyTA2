@@ -27,6 +27,7 @@ INDICATORS = {
     "dema": "trend",
     "tema": "trend",
     "kama": "trend",
+    "adx": "trend",
     "macd": "trend",
     "rsi": "momentum",
     "cci": "momentum",
@@ -41,7 +42,7 @@ INDICATORS = {
 CATEGORIES = {"momentum", "trend", "volatility", "volume"}
 
 # Multi-column indicators, which take full OHLCV data rather than one series.
-MULTI_COLUMN = {"atr", "cci", "donchian", "keltner"}
+MULTI_COLUMN = {"adx", "atr", "cci", "donchian", "keltner"}
 
 # Documented function paths (README, docs/API.md, docs/indicators/). These must
 # keep resolving: never remove an entry, only add.
@@ -130,6 +131,12 @@ DOCUMENTED_PATHS = [
     "pyta.indicators.trend.kama",
     "pyta.batch.kama",
     "pyta.batch.trend.kama",
+    "pyta.adx",
+    "pyta.trend.adx",
+    "pyta.indicators.adx",
+    "pyta.indicators.trend.adx",
+    "pyta.batch.adx",
+    "pyta.batch.trend.adx",
 ]
 
 

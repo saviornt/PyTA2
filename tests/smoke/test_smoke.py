@@ -93,6 +93,17 @@ def test_smoke() -> None:
     assert (lower[19:] < middle[19:]).all()
     assert (middle[19:] < upper[19:]).all()
 
+    adx = pyta.adx(data, period=14)
+    assert list(adx) == ["adx", "adx_plus_di", "adx_minus_di"]
+    adx_values, plus_di, minus_di = (np.array(adx[name]) for name in adx)
+    assert adx_values.dtype == np.float64
+    assert adx_values.shape == plus_di.shape == minus_di.shape == (length,), "ADX length mismatch"
+    assert np.isnan(adx_values[:27]).all(), "ADX warm-up alignment is incorrect"
+    assert np.isnan(plus_di[:14]).all(), "+DI warm-up alignment is incorrect"
+    assert np.isnan(minus_di[:14]).all(), "-DI warm-up alignment is incorrect"
+    for line in (adx_values[27:], plus_di[14:], minus_di[14:]):
+        assert ((line >= 0.0) & (line <= 100.0)).all()
+
     stddev_values = np.array(pyta.stddev(data, period=20, k=2.0)["stddev"])
     assert stddev_values.dtype == np.float64
     assert stddev_values.shape == (length,), "STDDEV output length mismatch"

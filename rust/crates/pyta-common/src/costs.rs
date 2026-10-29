@@ -150,6 +150,17 @@ pub const TEMA_NS_PER_ELEMENT: f64 = 4.3;
 /// `--single --rust --indicator kama`.
 pub const KAMA_NS_PER_ELEMENT: f64 = 4.0;
 
+/// Average Directional Index with +DI and -DI, in nanoseconds per input
+/// row; independent of `period` (one fused pass of three Wilder sums).
+///
+/// Provisional, from a quick run on 2026-10-29
+/// (`benches/results/benchmark_2026-10-29_11-20-19.txt`, `--single --rust
+/// --quick`, governor `performance`): kernels at 1,000,000 rows took
+/// 9.388 ms for ADX-14 and 2.660 ms for RSI-14, scaled here by
+/// `RSI_NS_PER_ELEMENT` (3.0 * 3.53). Confirm with a full
+/// `--single --rust --indicator adx`.
+pub const ADX_NS_PER_ELEMENT: f64 = 10.6;
+
 /// Keltner Channels, in nanoseconds per input row; independent of `period`,
 /// `atr_period` and `k` (one EMA pass, one true-range and Wilder pass, one
 /// band pass).

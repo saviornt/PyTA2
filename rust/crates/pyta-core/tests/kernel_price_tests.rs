@@ -1,7 +1,7 @@
-//! Row-wise price kernels: true range, typical price, and the scaled zero test.
+//! Row-wise price kernels: true range, typical price, and the zero tests.
 
 use pyta_core::kernels::{
-    is_zero_scaled, true_range, true_range_at, typical_price, typical_price_at,
+    is_zero, is_zero_scaled, true_range, true_range_at, typical_price, typical_price_at,
 };
 
 #[test]
@@ -51,4 +51,16 @@ fn zero_test_is_relative_to_the_scale_and_inclusive() {
     // A zero scale accepts only zero.
     assert!(is_zero_scaled(0.0, 0.0));
     assert!(!is_zero_scaled(f64::MIN_POSITIVE, 0.0));
+}
+
+#[test]
+fn fixed_zero_test_is_an_open_band() {
+    assert!(is_zero(0.0));
+    assert!(is_zero(-0.0));
+    assert!(is_zero(9e-15));
+    assert!(is_zero(-9e-15));
+    // TA-Lib's band excludes both ends, unlike the scaled test.
+    assert!(!is_zero(1e-14));
+    assert!(!is_zero(-1e-14));
+    assert!(!is_zero(1e-10));
 }

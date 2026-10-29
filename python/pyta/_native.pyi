@@ -5,6 +5,8 @@ from numpy.typing import NDArray
 
 __all__ = [
     "MAX_ABS_INPUT",
+    "adx",
+    "adx_batch",
     "atr",
     "atr_batch",
     "bbands",
@@ -73,6 +75,10 @@ def cci(columns: list[NDArray[np.float64]], period: int) -> NDArray[np.float64]:
 def cci_batch(
     datasets: list[list[NDArray[np.float64]]], period: int
 ) -> list[NDArray[np.float64] | Exception]: ...
+def adx(columns: list[NDArray[np.float64]], period: int) -> list[NDArray[np.float64]]: ...
+def adx_batch(
+    datasets: list[list[NDArray[np.float64]]], period: int
+) -> list[list[NDArray[np.float64]] | Exception]: ...
 def macd(
     values: NDArray[np.float64], fast: int, slow: int, signal: int
 ) -> list[NDArray[np.float64]]: ...

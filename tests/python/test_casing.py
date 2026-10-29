@@ -20,6 +20,7 @@ LOWER = {
     "rsi": ["rsi"],
     "cci": ["cci"],
     "macd": ["macd", "macd_signal", "macd_hist"],
+    "adx": ["adx", "adx_plus_di", "adx_minus_di"],
 }
 UPPER = {name: [n.upper() for n in names] for name, names in LOWER.items()}
 TITLE = {
@@ -32,7 +33,11 @@ TITLE = {
     "rsi": ["RSI"],
     "cci": ["CCI"],
     "macd": ["MACD", "MACD_Signal", "MACD_Hist"],
+    "adx": ["ADX", "ADX_Plus_DI", "ADX_Minus_DI"],
 }
+
+#: Indicators on high, low and close, cased by all three columns.
+MULTI_COLUMN = {"cci", "adx"}
 
 #: yfinance's column names.
 YFINANCE = ["Open", "High", "Low", "Close", "Adj Close", "Volume"]
@@ -126,7 +131,8 @@ def test_output_names_must_be_declared_lower_case() -> None:
         (["open", "high", "low", "close", "volume"], LOWER, LOWER),
         (["OPEN", "HIGH", "LOW", "CLOSE", "VOLUME"], UPPER, UPPER),
         (YFINANCE, TITLE, TITLE),
-        # Single-column indicators use only the close; CCI's high, low and close disagree.
+        # Single-column indicators use only the close; CCI's and ADX's high, low and
+        # close disagree.
         (["open", "HIGH", "low", "Close", "volume"], TITLE, LOWER),
         (["OPEN", "High", "Low", "CLOSE", "Volume"], UPPER, LOWER),
         # Mixed casing in the column used.
@@ -142,7 +148,7 @@ def test_dict_names_follow_the_columns_used(
 ) -> None:
     result = call(name, dict_with(ohlcv, columns))
 
-    assert list(result) == (multi if name == "cci" else single)[name]  # type: ignore[call-overload]
+    assert list(result) == (multi if name in MULTI_COLUMN else single)[name]  # type: ignore[call-overload]
 
 
 @pytest.mark.pandas
