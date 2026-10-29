@@ -56,7 +56,7 @@ Then measure: run `./scripts/benchmark.sh --single --rust --quick` (all indicato
 
 - `rust/crates/pyta-python/src/<name>.rs`: copy `rsi.rs` (or `cci.rs` for several columns). `<name>` takes the indicator's parameters and calls `single::compute(py, values, Params::<Name> { ... })` (`compute_columns` for several columns), `<name>_batch` calls `batch::compute_batch(...)` (`compute_columns_batch`). Doc comments say what it calculates and what it returns.
 - `rust/crates/pyta-python/src/lib.rs`: `mod <name>;` (alphabetical) and two `m.add_function(wrap_pyfunction!(...))` lines. Nothing else belongs in `lib.rs`.
-- `python/pyta/_native.pyi`: stubs for `<name>` and `<name>_batch`, matching the existing signatures.
+- `python/pyta/_native.pyi`: stubs for `<name>` and `<name>_batch`, matching the existing signatures, and both names in its `__all__` (stubtest fails otherwise).
 
 ## Step 6: Python package
 
@@ -73,7 +73,7 @@ Then measure: run `./scripts/benchmark.sh --single --rust --quick` (all indicato
 ## Step 7: Python tests
 
 - `tests/python/test_<name>.py`: values against the fixture, the default period, warm-up length, error types and messages (`pytest.raises(..., match=...)`), and chaining with another indicator. If the older `test_trend.py`/`test_momentum.py` still exist, still use a per-indicator file (the Sprint 7.5 layout).
-- `tests/python/test_batch.py`: add the name to every `@pytest.mark.parametrize("name", [...])` list (single-column indicators only: those tests feed one series per dataset; a multi-column indicator's batch tests go in `test_<name>.py`).
+- `tests/python/test_batch.py`: add the name to every `@pytest.mark.parametrize("name", [...])` list (single-column, single-output indicators only; MACD and BBANDS keep theirs in `test_<name>.py`: those tests feed one series per dataset; a multi-column indicator's batch tests go in `test_<name>.py`).
 - `tests/python/test_namespaces.py`: add `"<name>": "<category>"` to `INDICATORS` (and the name to `MULTI_COLUMN` if it takes several columns) and its six paths (`pyta.<name>`, `pyta.<category>.<name>`, `pyta.indicators.<name>`, `pyta.indicators.<category>.<name>`, `pyta.batch.<name>`, `pyta.batch.<category>.<name>`) to `DOCUMENTED_PATHS`; the convention test then checks the exports and the wiki page.
 - `tests/python/test_output.py`: add the indicator's shape to `SHAPES` if it is a new one (Stochastic: several columns and several outputs replaces the `fake` stand-in); an indicator of an existing shape needs nothing there.
 - `tests/python/test_import.py`: the expected `__all__` lists gain the name (and the category, if new).
