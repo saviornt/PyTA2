@@ -6,25 +6,37 @@ use std::time::Duration;
 use criterion::{BatchSize, BenchmarkId, Criterion, SamplingMode, criterion_group, criterion_main};
 use pyta_common::{LARGE_INPUT_LEN, SINGLE_CALL_SIZES};
 use pyta_core::{Columns, IndicatorOutput, PytaResult, Series};
-use pyta_engine::{IndicatorKind, IndicatorRequest, execute_batch, execute_direct};
+use pyta_engine::{IndicatorRequest, Params, execute_batch, execute_direct};
 use pyta_momentum::{cci, rsi};
-use pyta_trend::sma;
+use pyta_trend::{ema, macd, sma};
 use tokio::runtime::Builder;
 
-/// A kernel called on its input columns, in slot order.
-type Kernel = fn(&[Series], usize) -> PytaResult<IndicatorOutput>;
+/// A kernel called on its input columns, in slot order, with the same
+/// parameters as the engine request beside it.
+type Kernel = fn(&[Series]) -> PytaResult<IndicatorOutput>;
 
-/// Every indicator measured here: its label, engine kind, kernel, period,
-/// and number of input columns. To benchmark a new indicator, add one line.
-const INDICATORS: [(&str, IndicatorKind, Kernel, usize, usize); 3] = [
-    ("sma", IndicatorKind::Sma, |c, p| sma(&c[0], p), 20, 1),
-    ("rsi", IndicatorKind::Rsi, |c, p| rsi(&c[0], p), 14, 1),
+/// Every indicator measured here: its label, engine parameters, kernel (with
+/// the same parameters), and number of input columns. To benchmark a new
+/// indicator, add one line.
+const INDICATORS: [(&str, Params, Kernel, usize); 5] = [
+    ("sma", Params::Sma { period: 20 }, |c| sma(&c[0], 20), 1),
+    ("rsi", Params::Rsi { period: 14 }, |c| rsi(&c[0], 14), 1),
     (
         "cci",
-        IndicatorKind::Cci,
-        |c, p| cci(&c[0], &c[1], &c[2], p),
-        14,
+        Params::Cci { period: 14 },
+        |c| cci(&c[0], &c[1], &c[2], 14),
         3,
+    ),
+    ("ema", Params::Ema { period: 20 }, |c| ema(&c[0], 20), 1),
+    (
+        "macd",
+        Params::Macd {
+            fast: 12,
+            slow: 26,
+            signal: 9,
+        },
+        |c| macd(&c[0], 12, 26, 9),
+        1,
     ),
 ];
 
@@ -39,11 +51,11 @@ fn columns(n: usize, width: usize) -> Vec<Series> {
         .collect()
 }
 
-/// A request for `kind` on `columns`.
-fn request(kind: IndicatorKind, columns: &[Series], period: usize) -> IndicatorRequest {
+/// A request with `params` on `columns`.
+fn request(params: Params, columns: &[Series]) -> IndicatorRequest {
     match columns {
-        [series] => IndicatorRequest::new(kind, series.clone(), period),
-        _ => IndicatorRequest::with_columns(kind, Columns::new(columns.to_vec()).unwrap(), period),
+        [series] => IndicatorRequest::new(series.clone(), params),
+        _ => IndicatorRequest::with_columns(Columns::new(columns.to_vec()).unwrap(), params),
     }
 }
 
@@ -55,8 +67,8 @@ fn single_call(c: &mut Criterion) {
     // Built once, like the OnceLock runtime in pyta-python.
     let runtime = Builder::new_multi_thread().enable_all().build().unwrap();
 
-    for (label, kind, kernel, period, width) in INDICATORS {
-        single_call_for(c, &runtime, label, kind, kernel, period, width);
+    for (label, params, kernel, width) in INDICATORS {
+        single_call_for(c, &runtime, label, params, kernel, width);
     }
 }
 
@@ -66,9 +78,8 @@ fn single_call_for(
     c: &mut Criterion,
     runtime: &tokio::runtime::Runtime,
     label: &str,
-    kind: IndicatorKind,
+    params: Params,
     kernel: Kernel,
-    period: usize,
     width: usize,
 ) {
     let mut group = c.benchmark_group(format!("{label}_single"));
@@ -107,19 +118,19 @@ fn single_call_for(
         });
 
         group.bench_with_input(BenchmarkId::new("kernel", n), &input, |b, s| {
-            b.iter(|| kernel(black_box(s), period).unwrap());
+            b.iter(|| kernel(black_box(s)).unwrap());
         });
 
         group.bench_with_input(BenchmarkId::new("engine", n), &input, |b, s| {
             b.iter_batched(
-                || request(kind, s, period),
+                || request(params, s),
                 |request| runtime.block_on(execute_batch(vec![request])),
                 BatchSize::LargeInput,
             );
         });
 
         group.bench_with_input(BenchmarkId::new("direct", n), &input, |b, s| {
-            let request = request(kind, s, period);
+            let request = request(params, s);
             b.iter(|| execute_direct(black_box(&request)).unwrap());
         });
     }

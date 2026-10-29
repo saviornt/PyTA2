@@ -37,6 +37,14 @@ fn messages_name_the_problem_and_the_values_involved() {
             "not enough data: at least 15 values are required, got 3",
         ),
         (
+            PytaError::InvalidParameter {
+                name: "fast",
+                minimum: 2,
+                value: 1,
+            },
+            "fast must be at least 2, got 1",
+        ),
+        (
             PytaError::ColumnCount {
                 expected: 3,
                 actual: 1,

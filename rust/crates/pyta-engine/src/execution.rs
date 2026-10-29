@@ -29,10 +29,9 @@ fn run_caught(
         // the GIL from a worker thread, which the bridge allows.
         log::error!(
             target: "pyta::engine",
-            "{:?} kernel panicked on {} values (period {}): {}",
-            request.kind,
+            "{:?} kernel panicked on {} values: {}",
+            request.params,
             request.input.len(),
-            request.period,
             panic_message(payload.as_ref()),
         );
         Err(PytaError::ExecutionFailed)
@@ -54,13 +53,15 @@ mod tests {
     use pyta_core::{PytaError, Series};
 
     use super::run_caught;
-    use crate::requests::{IndicatorKind, IndicatorRequest};
+    use crate::requests::{IndicatorRequest, Params};
     use crate::test_log::capture;
 
     #[test]
     fn a_panic_becomes_execution_failed_and_is_logged_at_error() {
-        let request =
-            IndicatorRequest::new(IndicatorKind::Sma, Series::new(vec![1.0; 3]).unwrap(), 2);
+        let request = IndicatorRequest::new(
+            Series::new(vec![1.0; 3]).unwrap(),
+            Params::Sma { period: 2 },
+        );
         let mut result = None;
 
         let records = capture(|| result = Some(run_caught(&request, || panic!("kernel bug"))));
@@ -71,15 +72,17 @@ mod tests {
             [(
                 Level::Error,
                 "pyta::engine".to_owned(),
-                "Sma kernel panicked on 3 values (period 2): kernel bug".to_owned()
+                "Sma { period: 2 } kernel panicked on 3 values: kernel bug".to_owned()
             )]
         );
     }
 
     #[test]
     fn a_successful_request_logs_nothing() {
-        let request =
-            IndicatorRequest::new(IndicatorKind::Sma, Series::new(vec![1.0; 3]).unwrap(), 2);
+        let request = IndicatorRequest::new(
+            Series::new(vec![1.0; 3]).unwrap(),
+            Params::Sma { period: 2 },
+        );
 
         let records = capture(|| {
             run_caught(&request, || crate::dispatch::dispatch(&request)).unwrap();

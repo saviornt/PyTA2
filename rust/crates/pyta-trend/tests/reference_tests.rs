@@ -1,17 +1,19 @@
-//! SMA against published worked examples (StockCharts ChartSchool).
+//! SMA against published worked examples (StockCharts ChartSchool), and EMA
+//! and MACD against TA-Lib's own output (generated fixtures, see their
+//! comments).
 
 #[path = "../../../test-support/reference.rs"]
 mod reference;
 
 use pyta_core::Series;
-use pyta_trend::sma;
-use reference::{assert_matches, load};
+use pyta_trend::{ema, macd, sma};
+use reference::{assert_matches, assert_output_matches, load};
 
 fn check(name: &str) {
     let reference = load(name);
     let input = Series::new(reference.input.clone()).unwrap();
 
-    let output = sma(&input, reference.period).unwrap();
+    let output = sma(&input, reference.period()).unwrap();
 
     assert_matches(output.values(), &reference);
 }
@@ -24,4 +26,46 @@ fn sma_5_matches_the_stockcharts_example() {
 #[test]
 fn sma_10_matches_the_stockcharts_intel_example() {
     check("sma_10_stockcharts.csv");
+}
+
+fn check_ema(name: &str) {
+    let reference = load(name);
+    let input = Series::new(reference.input.clone()).unwrap();
+
+    let output = ema(&input, reference.period()).unwrap();
+
+    assert_matches(output.values(), &reference);
+}
+
+#[test]
+fn ema_10_matches_talib() {
+    check_ema("ema_10_talib.csv");
+}
+
+#[test]
+fn ema_30_matches_talib() {
+    check_ema("ema_30_talib.csv");
+}
+
+fn check_macd(name: &str) {
+    let reference = load(name);
+    let input = Series::new(reference.input.clone()).unwrap();
+    let [fast, slow, signal] = ["fast", "slow", "signal"].map(|name| reference.parameter(name));
+
+    let output = macd(&input, fast, slow, signal).unwrap();
+
+    assert_eq!(output.output_count(), reference.outputs.len());
+    for (index, actual) in output.outputs().iter().enumerate() {
+        assert_output_matches(actual, &reference, index);
+    }
+}
+
+#[test]
+fn macd_12_26_9_matches_talib() {
+    check_macd("macd_12_26_9_talib.csv");
+}
+
+#[test]
+fn macd_5_35_5_matches_talib() {
+    check_macd("macd_5_35_5_talib.csv");
 }

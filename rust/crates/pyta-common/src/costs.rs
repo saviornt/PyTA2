@@ -26,3 +26,23 @@ pub const CCI_NS_PER_ELEMENT: f64 = 7.2;
 /// `period`: each row's mean deviation is a pass over its window, so the
 /// cost is O(rows * period). Measured as [`CCI_NS_PER_ELEMENT`].
 pub const CCI_NS_PER_WINDOW_VALUE: f64 = 0.24;
+
+/// Exponential Moving Average, in nanoseconds per input element; independent
+/// of `period` (one pass after the seed).
+///
+/// Provisional, from a quick run on 2026-10-28
+/// (`benches/results/benchmark_2026-10-28_21-51-12.txt`, `--single --rust
+/// --quick`): kernels at 1,000,000 rows took 2.888 ms for EMA-20 and
+/// 2.405 ms for RSI-14, scaled here by `RSI_NS_PER_ELEMENT` (3.0 * 1.20).
+/// Confirm with a full `--single --rust --indicator ema`.
+pub const EMA_NS_PER_ELEMENT: f64 = 3.6;
+
+/// Moving Average Convergence/Divergence, in nanoseconds per input row for
+/// all three outputs; independent of its periods (one pass per EMA plus the
+/// differences).
+///
+/// Provisional, from the same quick run as [`EMA_NS_PER_ELEMENT`]: the
+/// MACD(12, 26, 9) kernel at 1,000,000 rows took 12.007 ms against RSI's
+/// 2.405 ms (3.0 * 4.99). Confirm with a full
+/// `--single --rust --indicator macd`.
+pub const MACD_NS_PER_ELEMENT: f64 = 15.0;

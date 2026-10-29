@@ -19,7 +19,7 @@ use pyta_common::{
 };
 use pyta_core::{Columns, Series};
 use pyta_engine::{
-    IndicatorKind, IndicatorRequest, execute_batch, execute_parallel, execute_sequential,
+    IndicatorKind, IndicatorRequest, Params, execute_batch, execute_parallel, execute_sequential,
     should_parallelize,
 };
 use tokio::runtime::Builder;
@@ -79,10 +79,18 @@ const WORKLOADS: &[Workload] = &[
     },
 ];
 
-fn period(kind: IndicatorKind) -> usize {
+/// The parameters each indicator is benchmarked with.
+fn params(kind: IndicatorKind) -> Params {
     match kind {
-        IndicatorKind::Cci | IndicatorKind::Rsi => 14,
-        IndicatorKind::Sma => 20,
+        IndicatorKind::Cci => Params::Cci { period: 14 },
+        IndicatorKind::Ema => Params::Ema { period: 20 },
+        IndicatorKind::Macd => Params::Macd {
+            fast: 12,
+            slow: 26,
+            signal: 9,
+        },
+        IndicatorKind::Rsi => Params::Rsi { period: 14 },
+        IndicatorKind::Sma => Params::Sma { period: 20 },
     }
 }
 
@@ -98,9 +106,11 @@ fn request(kind: IndicatorKind, close: Series) -> IndicatorRequest {
         IndicatorKind::Cci => {
             let columns = Columns::new(vec![offset(0.5), offset(-0.5), close])
                 .expect("columns have equal lengths");
-            IndicatorRequest::with_columns(kind, columns, period(kind))
+            IndicatorRequest::with_columns(columns, params(kind))
         }
-        IndicatorKind::Rsi | IndicatorKind::Sma => IndicatorRequest::new(kind, close, period(kind)),
+        IndicatorKind::Ema | IndicatorKind::Macd | IndicatorKind::Rsi | IndicatorKind::Sma => {
+            IndicatorRequest::new(close, params(kind))
+        }
     }
 }
 
@@ -240,6 +250,8 @@ fn many_datasets(c: &mut Criterion) {
         (IndicatorKind::Sma, "sma"),
         (IndicatorKind::Rsi, "rsi"),
         (IndicatorKind::Cci, "cci"),
+        (IndicatorKind::Ema, "ema"),
+        (IndicatorKind::Macd, "macd"),
     ] {
         for count in MANY_DATASET_COUNTS {
             let mut group = c.benchmark_group(format!("many_{label}_x{count}"));

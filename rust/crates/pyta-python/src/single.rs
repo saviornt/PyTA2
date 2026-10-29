@@ -1,7 +1,8 @@
-use numpy::{IntoPyArray, PyArray1, PyReadonlyArray1};
+use numpy::{IntoPyArray, PyReadonlyArray1};
 use pyo3::prelude::*;
+use pyo3::types::PyList;
 use pyta_core::{Columns, IndicatorOutput, PytaResult, Series};
-use pyta_engine::{IndicatorInput, IndicatorKind, IndicatorRequest, execute_direct};
+use pyta_engine::{IndicatorInput, IndicatorRequest, Params, execute_direct};
 
 use crate::error::to_python_error;
 
@@ -21,35 +22,39 @@ pub(crate) fn columns_from(columns: &[PyReadonlyArray1<'_, f64>]) -> PytaResult<
     Columns::new(columns.iter().map(series_from).collect::<PytaResult<_>>()?)
 }
 
-/// Executes one indicator request through the Rust engine.
-fn calculate(
-    input: IndicatorInput,
-    period: usize,
-    kind: IndicatorKind,
-) -> PyResult<IndicatorOutput> {
-    let request = IndicatorRequest {
-        kind,
-        input,
-        period,
-    };
+/// Converts an indicator's output to Python without copying: a float64
+/// array for a single-output indicator, or a list of float64 arrays in the
+/// indicator's documented order for a multi-output one.
+///
+/// Every indicator has a fixed number of outputs, so each binding always
+/// returns the same shape.
+pub(crate) fn output_to_python(
+    py: Python<'_>,
+    output: IndicatorOutput,
+) -> PyResult<Bound<'_, PyAny>> {
+    if output.output_count() == 1 {
+        return Ok(output.into_values().into_pyarray(py).into_any());
+    }
 
-    execute_direct(&request).map_err(to_python_error)
+    let arrays = output
+        .into_outputs()
+        .into_iter()
+        .map(|values| values.into_pyarray(py));
+
+    Ok(PyList::new(py, arrays)?.into_any())
 }
 
-/// Releases the GIL, runs the engine, and returns a NumPy array.
-fn run<'py>(
-    py: Python<'py>,
-    input: IndicatorInput,
-    period: usize,
-    kind: IndicatorKind,
-) -> PyResult<Bound<'py, PyArray1<f64>>> {
-    let output = py.detach(move || calculate(input, period, kind))?;
+/// Releases the GIL, runs the engine, and converts the output to Python.
+fn run<'py>(py: Python<'py>, input: IndicatorInput, params: Params) -> PyResult<Bound<'py, PyAny>> {
+    let request = IndicatorRequest { input, params };
+    let output = py.detach(move || execute_direct(&request).map_err(to_python_error))?;
 
-    Ok(output.into_values().into_pyarray(py))
+    output_to_python(py, output)
 }
 
 /// Copies and validates the input, releases the GIL, runs the engine,
-/// and returns a NumPy array.
+/// and returns a NumPy array (or a list of them, for a multi-output
+/// indicator; see [`output_to_python`]).
 ///
 /// The input is copied once, with validation fused into the copy, so
 /// the GIL can be released safely while another Python thread might
@@ -57,13 +62,12 @@ fn run<'py>(
 pub(crate) fn compute<'py>(
     py: Python<'py>,
     values: PyReadonlyArray1<'py, f64>,
-    period: usize,
-    kind: IndicatorKind,
-) -> PyResult<Bound<'py, PyArray1<f64>>> {
+    params: Params,
+) -> PyResult<Bound<'py, PyAny>> {
     let input = series_from(&values).map_err(to_python_error)?;
     drop(values);
 
-    run(py, IndicatorInput::Series(input), period, kind)
+    run(py, IndicatorInput::Series(input), params)
 }
 
 /// Like [`compute`], for a multi-column indicator: `columns` are the
@@ -71,11 +75,10 @@ pub(crate) fn compute<'py>(
 pub(crate) fn compute_columns<'py>(
     py: Python<'py>,
     columns: Vec<PyReadonlyArray1<'py, f64>>,
-    period: usize,
-    kind: IndicatorKind,
-) -> PyResult<Bound<'py, PyArray1<f64>>> {
+    params: Params,
+) -> PyResult<Bound<'py, PyAny>> {
     let input = columns_from(&columns).map_err(to_python_error)?;
     drop(columns);
 
-    run(py, IndicatorInput::Columns(input), period, kind)
+    run(py, IndicatorInput::Columns(input), params)
 }

@@ -79,61 +79,51 @@ mod tests {
     use log::Level;
 
     use super::{parallel_is_faster, should_parallelize};
-    use crate::requests::{IndicatorKind, IndicatorRequest};
+    use crate::requests::{IndicatorRequest, Params};
     use crate::test_log::capture;
 
     const WORKERS: usize = PLANNER_TEST_WORKERS;
+    const SMA: Params = Params::Sma { period: 14 };
+    const RSI: Params = Params::Rsi { period: 14 };
 
-    fn request(kind: IndicatorKind, len: usize) -> IndicatorRequest {
-        IndicatorRequest::new(kind, Series::new(vec![1.0; len]).unwrap(), 14)
+    fn request(params: Params, len: usize) -> IndicatorRequest {
+        IndicatorRequest::new(Series::new(vec![1.0; len]).unwrap(), params)
     }
 
-    fn many(kind: IndicatorKind, len: usize, count: usize) -> Vec<IndicatorRequest> {
-        (0..count).map(|_| request(kind, len)).collect()
+    fn many(params: Params, len: usize, count: usize) -> Vec<IndicatorRequest> {
+        (0..count).map(|_| request(params, len)).collect()
     }
 
     #[test]
     fn empty_and_single_requests_stay_sequential() {
         assert!(!parallel_is_faster(&[], WORKERS));
-        assert!(!parallel_is_faster(
-            &[request(IndicatorKind::Rsi, 10_000_000)],
-            WORKERS
-        ));
+        assert!(!parallel_is_faster(&[request(RSI, 10_000_000)], WORKERS));
     }
 
     #[test]
     fn small_mixed_pair_stays_sequential() {
-        let requests = [
-            request(IndicatorKind::Sma, 1_000),
-            request(IndicatorKind::Rsi, 1_000),
-        ];
+        let requests = [request(SMA, 1_000), request(RSI, 1_000)];
 
         assert!(!parallel_is_faster(&requests, WORKERS));
     }
 
     #[test]
     fn two_small_sma_stay_sequential() {
-        assert!(!parallel_is_faster(
-            &many(IndicatorKind::Sma, 1_000, 2),
-            WORKERS
-        ));
+        assert!(!parallel_is_faster(&many(SMA, 1_000, 2), WORKERS));
     }
 
     #[test]
     fn two_rsi_at_ten_thousand_go_concurrent() {
-        assert!(parallel_is_faster(
-            &many(IndicatorKind::Rsi, 10_000, 2),
-            WORKERS
-        ));
+        assert!(parallel_is_faster(&many(RSI, 10_000, 2), WORKERS));
     }
 
     #[test]
     fn four_mixed_requests_at_ten_thousand_go_concurrent() {
         let requests = [
-            request(IndicatorKind::Sma, 10_000),
-            request(IndicatorKind::Rsi, 10_000),
-            request(IndicatorKind::Sma, 10_000),
-            request(IndicatorKind::Rsi, 10_000),
+            request(SMA, 10_000),
+            request(RSI, 10_000),
+            request(SMA, 10_000),
+            request(RSI, 10_000),
         ];
 
         assert!(parallel_is_faster(&requests, WORKERS));
@@ -141,38 +131,26 @@ mod tests {
 
     #[test]
     fn two_large_sma_go_concurrent() {
-        assert!(parallel_is_faster(
-            &many(IndicatorKind::Sma, 1_000_000, 2),
-            WORKERS
-        ));
+        assert!(parallel_is_faster(&many(SMA, 1_000_000, 2), WORKERS));
     }
 
     #[test]
     fn few_tiny_requests_stay_sequential() {
-        assert!(!parallel_is_faster(
-            &many(IndicatorKind::Sma, 100, 10),
-            WORKERS
-        ));
-        assert!(!parallel_is_faster(
-            &many(IndicatorKind::Sma, 100, 100),
-            WORKERS
-        ));
+        assert!(!parallel_is_faster(&many(SMA, 100, 10), WORKERS));
+        assert!(!parallel_is_faster(&many(SMA, 100, 100), WORKERS));
     }
 
     #[test]
     fn a_thousand_tiny_requests_go_parallel() {
         // Measured: 1,000 SMA of 100 points take 174 µs sequentially and
         // 88 µs on Rayon.
-        assert!(parallel_is_faster(
-            &many(IndicatorKind::Sma, 100, 1_000),
-            WORKERS
-        ));
+        assert!(parallel_is_faster(&many(SMA, 100, 1_000), WORKERS));
     }
 
     #[test]
     fn the_planner_logs_its_choice_at_debug() {
-        let small = many(IndicatorKind::Sma, 100, 2);
-        let large = many(IndicatorKind::Rsi, 1_000_000, 2);
+        let small = many(SMA, 100, 2);
+        let large = many(RSI, 1_000_000, 2);
 
         let records = capture(|| {
             assert!(!should_parallelize(&small, WORKERS));
@@ -195,9 +173,6 @@ mod tests {
 
     #[test]
     fn a_single_worker_never_goes_concurrent() {
-        assert!(!parallel_is_faster(
-            &many(IndicatorKind::Rsi, 1_000_000, 8),
-            1
-        ));
+        assert!(!parallel_is_faster(&many(RSI, 1_000_000, 8), 1));
     }
 }

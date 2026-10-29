@@ -7,8 +7,10 @@
 
 mod batch;
 mod cci;
+mod ema;
 mod error;
 mod log_bridge;
+mod macd;
 mod rsi;
 mod single;
 mod sma;
@@ -25,5 +27,9 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(sma::sma_batch, m)?)?;
     m.add_function(wrap_pyfunction!(rsi::rsi, m)?)?;
     m.add_function(wrap_pyfunction!(rsi::rsi_batch, m)?)?;
+    m.add_function(wrap_pyfunction!(ema::ema, m)?)?;
+    m.add_function(wrap_pyfunction!(ema::ema_batch, m)?)?;
+    m.add_function(wrap_pyfunction!(macd::macd, m)?)?;
+    m.add_function(wrap_pyfunction!(macd::macd_batch, m)?)?;
     Ok(())
 }

@@ -1,18 +1,18 @@
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 
-use numpy::{IntoPyArray, PyReadonlyArray1};
+use numpy::PyReadonlyArray1;
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 use pyo3::types::PyList;
 use pyta_core::{IndicatorOutput, PytaError, PytaResult};
 use pyta_engine::{
-    IndicatorInput, IndicatorKind, IndicatorRequest, IndicatorResult, IndicatorStatus,
-    execute_parallel, execute_sequential, should_parallelize,
+    IndicatorInput, IndicatorRequest, IndicatorResult, IndicatorStatus, Params, execute_parallel,
+    execute_sequential, should_parallelize,
 };
 use rayon::{ThreadPool, ThreadPoolBuilder};
 
 use crate::error::to_python_error;
-use crate::single::{columns_from, series_from};
+use crate::single::{columns_from, output_to_python, series_from};
 
 /// Number of workers available to this process, computed once.
 ///
@@ -80,15 +80,15 @@ fn run_batch(requests: &[IndicatorRequest]) -> Vec<IndicatorResult> {
 /// Validates every dataset, runs the valid ones as one batch with the GIL
 /// released, and returns a list in input order.
 ///
-/// Each entry is a float64 array, or the exception explaining why that
-/// dataset failed. A failed dataset never affects the others.
+/// Each entry is a float64 array (a list of them for a multi-output
+/// indicator), or the exception explaining why that dataset failed. A failed
+/// dataset never affects the others. `params` are shared by every dataset.
 pub(crate) fn compute_batch<'py>(
     py: Python<'py>,
     datasets: &Bound<'py, PyList>,
-    period: usize,
-    kind: IndicatorKind,
+    params: Params,
 ) -> PyResult<Bound<'py, PyList>> {
-    run_datasets(py, datasets, period, kind, |item| {
+    run_datasets(py, datasets, params, |item| {
         let values = item.extract::<PyReadonlyArray1<f64>>()?;
 
         Ok(series_from(&values).map(IndicatorInput::Series))
@@ -100,10 +100,9 @@ pub(crate) fn compute_batch<'py>(
 pub(crate) fn compute_columns_batch<'py>(
     py: Python<'py>,
     datasets: &Bound<'py, PyList>,
-    period: usize,
-    kind: IndicatorKind,
+    params: Params,
 ) -> PyResult<Bound<'py, PyList>> {
-    run_datasets(py, datasets, period, kind, |item| {
+    run_datasets(py, datasets, params, |item| {
         let columns = item.extract::<Vec<PyReadonlyArray1<f64>>>()?;
 
         Ok(columns_from(&columns).map(IndicatorInput::Columns))
@@ -115,8 +114,7 @@ pub(crate) fn compute_columns_batch<'py>(
 fn run_datasets<'py>(
     py: Python<'py>,
     datasets: &Bound<'py, PyList>,
-    period: usize,
-    kind: IndicatorKind,
+    params: Params,
     read: impl Fn(&Bound<'py, PyAny>) -> PyResult<PytaResult<IndicatorInput>>,
 ) -> PyResult<Bound<'py, PyList>> {
     // Picks up logging levels changed since the last call, so the planner and
@@ -134,11 +132,7 @@ fn run_datasets<'py>(
         match read(&item)? {
             Ok(input) => {
                 positions.push(position);
-                requests.push(IndicatorRequest {
-                    kind,
-                    input,
-                    period,
-                });
+                requests.push(IndicatorRequest { input, params });
             }
             Err(error) => failures[position] = Some(error),
         }
@@ -161,7 +155,7 @@ fn run_datasets<'py>(
         .into_iter()
         .zip(failures)
         .map(|(output, failure)| match (output, failure) {
-            (Some(output), _) => Ok(output.into_values().into_pyarray(py).into_any()),
+            (Some(output), _) => output_to_python(py, output),
             (None, Some(error)) => Ok(to_python_error(error)
                 .into_value(py)
                 .into_bound(py)

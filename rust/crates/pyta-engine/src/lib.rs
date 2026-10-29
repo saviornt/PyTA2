@@ -12,5 +12,5 @@ pub use batch::{execute_batch, execute_parallel, execute_sequential};
 pub use execution::execute_direct;
 pub use planner::should_parallelize;
 pub use requests::{
-    IndicatorInput, IndicatorKind, IndicatorRequest, IndicatorResult, IndicatorStatus,
+    IndicatorInput, IndicatorKind, IndicatorRequest, IndicatorResult, IndicatorStatus, Params,
 };

@@ -1,12 +1,25 @@
 //! Engine execution: ordering, error isolation and the async front door.
 
 use pyta_core::{Columns, PytaError, Series};
-use pyta_engine::{IndicatorKind, IndicatorRequest, IndicatorStatus, execute_batch};
+use pyta_engine::{
+    IndicatorKind, IndicatorRequest, IndicatorStatus, Params, execute_batch, execute_direct,
+};
 
 const NAN: f64 = f64::NAN;
 
+/// The parameters of a one-period indicator.
+fn params(kind: IndicatorKind, period: usize) -> Params {
+    match kind {
+        IndicatorKind::Cci => Params::Cci { period },
+        IndicatorKind::Ema => Params::Ema { period },
+        IndicatorKind::Rsi => Params::Rsi { period },
+        IndicatorKind::Sma => Params::Sma { period },
+        IndicatorKind::Macd => panic!("MACD takes three periods"),
+    }
+}
+
 fn request(kind: IndicatorKind, values: Vec<f64>, period: usize) -> IndicatorRequest {
-    IndicatorRequest::new(kind, Series::new(values).unwrap(), period)
+    IndicatorRequest::new(Series::new(values).unwrap(), params(kind, period))
 }
 
 fn assert_values(actual: &[f64], expected: &[f64]) {
@@ -173,7 +186,7 @@ fn columns_request(kind: IndicatorKind, columns: &[&[f64]], period: usize) -> In
         .map(|values| Series::new(values.to_vec()).unwrap())
         .collect();
 
-    IndicatorRequest::with_columns(kind, Columns::new(columns).unwrap(), period)
+    IndicatorRequest::with_columns(Columns::new(columns).unwrap(), params(kind, period))
 }
 
 fn error_of(result: &pyta_engine::IndicatorResult) -> &PytaError {
@@ -246,4 +259,127 @@ async fn input_with_the_wrong_number_of_columns_is_an_error() {
         );
     }
     assert!(results[3].is_success());
+}
+
+fn macd_request(values: Vec<f64>, fast: usize, slow: usize, signal: usize) -> IndicatorRequest {
+    IndicatorRequest::new(
+        Series::new(values).unwrap(),
+        Params::Macd { fast, slow, signal },
+    )
+}
+
+#[test]
+fn the_kind_comes_from_the_params() {
+    let series = Series::new(vec![1.0, 2.0]).unwrap();
+    let cases = [
+        (Params::Cci { period: 2 }, IndicatorKind::Cci),
+        (Params::Ema { period: 2 }, IndicatorKind::Ema),
+        (
+            Params::Macd {
+                fast: 2,
+                slow: 3,
+                signal: 1,
+            },
+            IndicatorKind::Macd,
+        ),
+        (Params::Rsi { period: 2 }, IndicatorKind::Rsi),
+        (Params::Sma { period: 2 }, IndicatorKind::Sma),
+    ];
+
+    for (params, kind) in cases {
+        assert_eq!(params.kind(), kind);
+        assert_eq!(IndicatorRequest::new(series.clone(), params).kind(), kind);
+    }
+}
+
+#[test]
+fn ema_runs_through_the_engine() {
+    let request = request(IndicatorKind::Ema, vec![1.0, 2.0, 3.0, 4.0, 5.0], 3);
+
+    let output = execute_direct(&request).unwrap();
+
+    assert_values(output.values(), &[NAN, NAN, 2.0, 3.0, 4.0]);
+}
+
+#[test]
+fn macd_runs_through_the_engine_with_three_outputs() {
+    // A ramp: the EMAs lag by (period - 1) / 2, so MACD(2, 4, 2) is 1.
+    let ramp = (1..=8).map(f64::from).collect();
+
+    let output = execute_direct(&macd_request(ramp, 2, 4, 2)).unwrap();
+
+    let [line, signal, hist] = output.outputs() else {
+        panic!("expected three outputs, got {}", output.output_count());
+    };
+    assert!(line[..3].iter().all(|value| value.is_nan()));
+    assert!(line[3..].iter().all(|value| (value - 1.0).abs() < 1e-12));
+    assert!(signal[..4].iter().all(|value| value.is_nan()));
+    assert!(signal[4..].iter().all(|value| (value - 1.0).abs() < 1e-12));
+    assert!(hist[..4].iter().all(|value| value.is_nan()));
+    assert!(hist[4..].iter().all(|value| value.abs() < 1e-12));
+}
+
+#[tokio::test]
+async fn ema_and_macd_errors_are_isolated_in_a_batch() {
+    let requests = vec![
+        request(IndicatorKind::Ema, vec![1.0, 2.0, 3.0], 0),
+        request(IndicatorKind::Ema, vec![1.0, 2.0, 3.0], 4),
+        macd_request(vec![1.0; 40], 1, 26, 9),
+        macd_request(vec![1.0; 40], 12, 26, 0),
+        macd_request(vec![1.0; 33], 12, 26, 9),
+        macd_request(vec![1.0; 34], 12, 26, 9),
+        request(IndicatorKind::Ema, vec![1.0, 2.0, 3.0], 3),
+        // Two columns are not a MACD input.
+        IndicatorRequest::with_columns(
+            Columns::new(vec![
+                Series::new(vec![1.0; 40]).unwrap(),
+                Series::new(vec![1.0; 40]).unwrap(),
+            ])
+            .unwrap(),
+            Params::Macd {
+                fast: 12,
+                slow: 26,
+                signal: 9,
+            },
+        ),
+    ];
+
+    let results = execute_batch(requests).await;
+
+    let expected = [
+        PytaError::InvalidPeriod,
+        PytaError::InsufficientData {
+            required: 4,
+            length: 3,
+        },
+        PytaError::InvalidParameter {
+            name: "fast",
+            minimum: 2,
+            value: 1,
+        },
+        PytaError::InvalidParameter {
+            name: "signal",
+            minimum: 1,
+            value: 0,
+        },
+        PytaError::InsufficientData {
+            required: 34,
+            length: 33,
+        },
+    ];
+    for (result, expected) in results.iter().zip(expected) {
+        assert_eq!(*error_of(result), expected);
+    }
+    match &results[5].status {
+        IndicatorStatus::Success(output) => assert_eq!(output.output_count(), 3),
+        IndicatorStatus::Error(error) => panic!("expected MACD success, got {error:?}"),
+    }
+    assert!(results[6].is_success());
+    assert_eq!(
+        *error_of(&results[7]),
+        PytaError::ColumnCount {
+            expected: 1,
+            actual: 2,
+        }
+    );
 }

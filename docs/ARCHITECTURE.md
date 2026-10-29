@@ -144,7 +144,7 @@ Owns the types and rules every indicator shares.
 | File | Responsibility |
 |---|---|
 | `input.rs` | `Series` (non-empty, all values finite) and `Columns` (one or more `Series` of equal length, in an indicator's slot order) |
-| `output.rs` | `IndicatorOutput`: values with `NaN` marking positions with no valid result |
+| `output.rs` | `IndicatorOutput`: one or more equal-length series (outputs) in the indicator's documented order, with `NaN` marking positions with no valid result |
 | `error.rs` | `PytaError` and `PytaResult` |
 
 Does not own formulas, scheduling, or Python concerns.
@@ -154,7 +154,8 @@ Does not own formulas, scheduling, or Python concerns.
 - Rust is strict: empty input, any non-finite value (`NaN` or infinity), and any value whose magnitude exceeds `MAX_ABS_INPUT` (`1e290`, in `pyta-common`) are rejected by `Series` validation.
 - Output length always equals input length. Warm-up positions are `NaN`, and only warm-up positions: for valid input every other output is finite.
 - `MAX_ABS_INPUT` is what makes that guarantee hold. Kernels may form sums of up to `period` values and differences of two values; with every input at most `1e290` in magnitude, those stay below `f64::MAX` (about `1.8e308`) for any series that fits in memory (at most 2^60 elements). Without it, `sma([f64::MAX, f64::MAX], 2)` returned `inf`. Checking against the limit costs the same as checking for finiteness: it is one compare per value, and it also rejects `NaN` and infinity. A future kernel that squares values (for example a standard deviation) must scale or centre them before squaring, or this limit must be revisited.
-- Rust errors are structured (for example `InvalidPeriod`, `PeriodExceedsLength`, `InsufficientData`, `NonFiniteValue { index }`, `ValueOutOfRange { index }`, `LengthMismatch`, `ColumnCount { expected, actual }`, `ExecutionFailed`).
+- Rust errors are structured (for example `InvalidPeriod`, `InvalidParameter { name, minimum, value }` for a parameter other than `period`, `PeriodExceedsLength`, `InsufficientData`, `NonFiniteValue { index }`, `ValueOutOfRange { index }`, `LengthMismatch`, `ColumnCount { expected, actual }`, `ExecutionFailed`).
+- **Outputs.** `IndicatorOutput::new(values)` wraps a single output; `IndicatorOutput::with_outputs(vec![...])` wraps several (MACD: line, signal, histogram), rejecting none or unequal lengths with `LengthMismatch`. `values()` / `into_values()` give the first (main) output, `outputs()` / `into_outputs()` all of them, `output_count()` how many. Outputs are positions only; their names live in Python, like slots. Each output has its own warm-up.
 - `Columns` knows nothing about roles: Python matches columns to slots and passes them in slot order, so a new role (such as a fundamental) needs no new Rust type. Rust does not check columns against each other (high below low); Python does, so the error can name the columns.
 
 ### Category crates: formulas
@@ -163,7 +164,7 @@ Each crate owns the formulas for one technical-analysis category. One indicator 
 
 | Crate | Indicators |
 |---|---|
-| `pyta-trend` | SMA |
+| `pyta-trend` | SMA; EMA (TA-Lib `TA_EMA`: seeded with the SMA of the first `period` values, `k = 2 / (period + 1)`); MACD (TA-Lib `TA_MACD`: three outputs, both EMAs start at `slow - 1`, `slow < fast` swapped; built on EMA's crate-level `ema_into` with a start offset) |
 | `pyta-momentum` | RSI (Wilder's smoothing), CCI (high, low, close; compensated running mean, O(rows × period) for the mean deviation) |
 
 New categories (volatility, volume, valuation) are added as new `pyta-<category>` crates when there is a concrete indicator to implement.
@@ -172,13 +173,15 @@ New categories (volatility, volume, valuation) are added as new `pyta-<category>
 
 | File | Responsibility |
 |---|---|
-| `requests.rs` | `IndicatorKind`, `IndicatorInput`, `IndicatorRequest`, `IndicatorResult`, `IndicatorStatus` |
+| `requests.rs` | `Params`, `IndicatorKind`, `IndicatorInput`, `IndicatorRequest`, `IndicatorResult`, `IndicatorStatus` |
 | `dispatch.rs` | Routes a request to its kernel; holds each indicator's estimated cost |
 | `execution.rs` | `execute_direct`: one request on the calling thread, panics caught |
 | `batch.rs` | `execute_sequential`, `execute_parallel` (Rayon), and `execute_batch` (async front door) |
 | `planner.rs` | `should_parallelize`: predicts whether parallel execution beats sequential execution |
 
-**Input.** `IndicatorRequest.input` is an `IndicatorInput`: `Series` for a single-column indicator (`IndicatorRequest::new`) or `Columns` for a multi-column one (`IndicatorRequest::with_columns`). Each `dispatch` arm takes what its kernel needs, `input.series()` or `input.columns::<N>()` (the slots in order), so a kernel receives only `&Series` values; input with the wrong number of columns is a `ColumnCount` error, never a panic. A cost is per row, not per row and column; a multi-column constant is measured per row.
+**Parameters.** `IndicatorRequest { input, params }`. `Params` has one variant per indicator, carrying that indicator's own parameters: `Cci { period }`, `Ema { period }`, `Macd { fast, slow, signal }`, `Rsi { period }`, `Sma { period }`. The indicator is the variant, so it cannot disagree with its parameters; `params.kind()` (or `request.kind()`) gives the fieldless `IndicatorKind`, used for logging and benchmark labels. Each `dispatch` arm destructures its own variant, and `estimated_cost_ns` reads the parameters it depends on (CCI's `period`; EMA's and MACD's cost per row does not depend on theirs).
+
+**Input.** `IndicatorRequest.input` is an `IndicatorInput`: `Series` for a single-column indicator (`IndicatorRequest::new(series, Params::Rsi { period: 14 })`) or `Columns` for a multi-column one (`IndicatorRequest::with_columns(columns, Params::Cci { period: 20 })`). Each `dispatch` arm takes what its kernel needs, `input.series()` or `input.columns::<N>()` (the slots in order), so a kernel receives only `&Series` values; input with the wrong number of columns is a `ColumnCount` error, never a panic. A cost is per row, not per row and column or per output; a multi-column or multi-output constant is measured per row.
 
 The engine has two execution paths. Both use the same `dispatch`, so results are identical.
 
@@ -192,13 +195,13 @@ The engine has two execution paths. Both use the same `dispatch`, so results are
 
 **Planner.** Parallel execution has a fixed cost, so it only helps when there is enough work. `should_parallelize(requests, workers)` estimates each request's cost (from `estimated_cost_ns`), adds the scheduling overhead, caps the expected speed-up (`MAX_PARALLEL_SPEEDUP`), and chooses parallel execution only when it predicts a win. Single requests and small batches run sequentially via `execute_sequential`. All constants live in `pyta-common`.
 
-Adding an `IndicatorKind` fails to compile until it has a dispatch arm and a cost estimate. When adding an indicator, benchmark it and include any dependence on `period` in its estimate.
+Adding a `Params` variant fails to compile until it has a kind, a dispatch arm and a cost estimate. When adding an indicator, benchmark it and include any dependence on its parameters in its estimate.
 
 ### `pyta-python`: native bridge
 
-- Registers `pyta._native` and its functions (`sma`, `rsi`, `cci`, and their `_batch` forms).
-- `lib.rs` only declares modules and registers functions. `error.rs` maps errors to exceptions, `single.rs` and `batch.rs` hold the shared conversion and execution plumbing, and each indicator's bindings live in a file named after it (`sma.rs`, `rsi.rs`, `cci.rs`).
-- A single-column function accepts a read-only 1-D `float64` NumPy array; a multi-column one (`compute_columns`, `compute_columns_batch`) accepts a list of them in slot order. Each array is copied once with validation fused into the copy (`series_from`, `columns_from`), then the GIL is released, the engine runs, and a NumPy array is returned. Single- and multi-column batches share one loop (`run_datasets`).
+- Registers `pyta._native` and its functions (`sma`, `rsi`, `cci`, `ema`, `macd`, and their `_batch` forms). Each takes its indicator's own parameters (`macd(values, fast, slow, signal)`) and builds the matching `Params` variant.
+- `lib.rs` only declares modules and registers functions. `error.rs` maps errors to exceptions, `single.rs` and `batch.rs` hold the shared conversion and execution plumbing, and each indicator's bindings live in a file named after it (`sma.rs`, `rsi.rs`, `cci.rs`, `ema.rs`, `macd.rs`).
+- A single-column function accepts a read-only 1-D `float64` NumPy array; a multi-column one (`compute_columns`, `compute_columns_batch`) accepts a list of them in slot order. Each array is copied once with validation fused into the copy (`series_from`, `columns_from`), then the GIL is released, the engine runs, and the output is returned without copying by `output_to_python`: a NumPy array for a single-output indicator, or a list of NumPy arrays in documented order for a multi-output one (`macd` returns `[macd, signal, hist]`). Single- and multi-column batches share one loop (`run_datasets`); each batch entry has the same shape as a single call's result, or is the dataset's exception.
 - Maps `PytaError::ExecutionFailed` to `RuntimeError` and every other error to `ValueError`.
 - Single calls use `execute_direct`; batch calls use the planner, then `execute_sequential` or `execute_parallel` (see §6).
 - Parallel batches run on PyTA's own Rayon pool (`batch.rs`), built on first use and rebuilt in a forked child, because a child process does not inherit its parent's worker threads and work sent to an inherited pool would wait forever. `tests/python/test_fork.py` covers this.
@@ -307,7 +310,7 @@ results = pyta.batch.sma(datasets, period=14)
 - The call is synchronous from the user's perspective; the planner decides internally whether to run sequentially or concurrently.
 - `period` and `column` (or `columns` for a multi-column indicator) are shared by the whole batch. One indicator per call; mixed-indicator batches are a later sprint.
 - **Error policy.** Nothing is raised for a bad dataset, so the others still complete. Python normalizes and validates each dataset first (`_api.run_batch`); a dataset that fails there becomes its exception. The rest go to Rust in a single call, and a per-request engine error becomes the matching exception (`ValueError`, or `RuntimeError` for internal failures). Invalid `period` or `column` raise, because they affect every dataset.
-- **Native side.** `pyta._native.sma_batch` / `rsi_batch` take a list of arrays (`cci_batch` a list of lists of arrays, one per slot), copy and validate each, release the GIL, and return a list of arrays or exceptions in input order. The bridge asks `should_parallelize` and then runs `execute_sequential` or `execute_parallel` on its own Rayon pool.
+- **Native side.** `pyta._native.sma_batch` / `rsi_batch` / `ema_batch` / `macd_batch` take a list of arrays (`cci_batch` a list of lists of arrays, one per slot), copy and validate each, release the GIL, and return a list in input order whose entries are each an array (a list of arrays for `macd_batch`) or an exception. The bridge asks `should_parallelize` and then runs `execute_sequential` or `execute_parallel` on its own Rayon pool.
 
 ---
 
@@ -326,9 +329,9 @@ results = pyta.batch.sma(datasets, period=14)
 | Location | Purpose |
 |---|---|
 | Rust `#[cfg(test)]` modules and crate `tests/` | Formulas, boundary cases, warm-up, validation, engine ordering and error isolation, sequential vs parallel equality, logging (a per-thread capturing logger in `pyta-engine`) |
-| Crate `tests/property_tests.rs` (`proptest`) | Kernel invariants for any input: output length, exact warm-up, SMA within its window's range, RSI in [0, 100], constant input, CCI within `period / 0.03` and unchanged by a shift and a positive scale |
-| Crate `tests/reference_tests.rs` | Published worked examples from `tests/fixtures/`, read by `rust/test-support/reference.rs` |
-| `tests/fixtures/` | Published reference examples as CSV (`label,input,expected`, or one column per role such as `label,high,low,close,expected` for a multi-column indicator), each citing its source, period and tolerance in `#` comments, shared by Rust and Python; and realistic input data (`ohlcv_daily.csv`: 300 sessions of real SPY OHLCV, source cited), which is input only, never a reference. Python tests get it from the `ohlcv` fixture (`tests/conftest.py`, loader and an independent `rolling_mean` in `tests/ohlcv_data.py`) |
+| Crate `tests/property_tests.rs` (`proptest`) | Kernel invariants for any input: output length, exact warm-up (per output for MACD), SMA and EMA within the input's range, MACD's histogram exactly line minus signal and zero for constant input, RSI in [0, 100], constant input, CCI within `period / 0.03` and unchanged by a shift and a positive scale |
+| Crate `tests/reference_tests.rs` | Reference examples from `tests/fixtures/` (published worked examples, and TA-Lib's own output for EMA and MACD at 1e-9), read by `rust/test-support/reference.rs` |
+| `tests/fixtures/` | Reference examples as CSV (`label,input,expected`, one column per role such as `label,high,low,close,expected` for a multi-column indicator, or one `expected_<output>` column per output such as `expected_macd,expected_macd_signal,expected_macd_hist`), each citing its source, parameters (`period:`, or `fast:`, `slow:`, `signal:`) and tolerance in `#` comments, shared by Rust and Python; and realistic input data (`ohlcv_daily.csv`: 300 sessions of real SPY OHLCV, source cited), which is input only, never a reference. Python tests get it from the `ohlcv` fixture (`tests/conftest.py`, loader and an independent `rolling_mean` in `tests/ohlcv_data.py`) |
 | `tests/python/` | Public API behavior: containers, NaN policy, parameters, errors, batch, logging, fork, import surface; per-indicator numerics (`test_sma.py`, `test_rsi.py`, `test_cci.py`); multi-column input for every container, `columns=`, the role registry and errors (`test_multi_column.py`); `hypothesis` properties (`test_properties.py`, and `columns=` permutations) |
 | `tests/reference/` | The same published examples through the public API |
 | `tests/smoke/` | Quick build-and-run check: the OHLCV fixture as a dict of columns through `pyta.sma`, `pyta.rsi`, `pyta.cci` and `pyta.batch` (stdlib only, so it also runs as a script) |

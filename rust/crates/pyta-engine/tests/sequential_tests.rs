@@ -2,14 +2,35 @@
 
 use pyta_core::{Columns, Series};
 use pyta_engine::{
-    IndicatorKind, IndicatorRequest, IndicatorResult, IndicatorStatus, execute_batch,
+    IndicatorKind, IndicatorRequest, IndicatorResult, IndicatorStatus, Params, execute_batch,
     execute_parallel, execute_sequential,
 };
 
 fn request(kind: IndicatorKind, len: usize, period: usize) -> IndicatorRequest {
     let values = (0..len).map(|i| (i as f64 * 0.7).sin() + 10.0).collect();
 
-    IndicatorRequest::new(kind, Series::new(values).unwrap(), period)
+    IndicatorRequest::new(Series::new(values).unwrap(), params(kind, period))
+}
+
+/// The parameters of a one-period indicator.
+fn params(kind: IndicatorKind, period: usize) -> Params {
+    match kind {
+        IndicatorKind::Cci => Params::Cci { period },
+        IndicatorKind::Ema => Params::Ema { period },
+        IndicatorKind::Rsi => Params::Rsi { period },
+        IndicatorKind::Sma => Params::Sma { period },
+        IndicatorKind::Macd => panic!("MACD takes three periods"),
+    }
+}
+
+/// A MACD request on the same wave as [`request`].
+fn macd_request(len: usize, fast: usize, slow: usize, signal: usize) -> IndicatorRequest {
+    let values = (0..len).map(|i| (i as f64 * 0.7).sin() + 10.0).collect();
+
+    IndicatorRequest::new(
+        Series::new(values).unwrap(),
+        Params::Macd { fast, slow, signal },
+    )
 }
 
 /// A CCI request on high, low and close made from one wave.
@@ -24,7 +45,7 @@ fn cci_request(len: usize, period: usize) -> IndicatorRequest {
     };
     let columns = Columns::new(vec![column(0.5), column(-0.5), column(0.0)]).unwrap();
 
-    IndicatorRequest::with_columns(IndicatorKind::Cci, columns, period)
+    IndicatorRequest::with_columns(columns, Params::Cci { period })
 }
 
 fn assert_same(left: &IndicatorResult, right: &IndicatorResult) {
@@ -33,9 +54,12 @@ fn assert_same(left: &IndicatorResult, right: &IndicatorResult) {
     match (&left.status, &right.status) {
         (IndicatorStatus::Success(a), IndicatorStatus::Success(b)) => {
             assert_eq!(a.len(), b.len());
+            assert_eq!(a.output_count(), b.output_count());
 
-            for (x, y) in a.values().iter().zip(b.values()) {
-                assert!((x.is_nan() && y.is_nan()) || x == y);
+            for (left, right) in a.outputs().iter().zip(b.outputs()) {
+                for (x, y) in left.iter().zip(right) {
+                    assert!((x.is_nan() && y.is_nan()) || x == y);
+                }
             }
         }
         (IndicatorStatus::Error(a), IndicatorStatus::Error(b)) => {
@@ -129,4 +153,37 @@ fn parallel_matches_sequential_on_multi_column_requests() {
     }
     assert!(sequential[0].is_error());
     assert!(sequential[3].is_success());
+}
+
+#[test]
+fn parallel_matches_sequential_on_multi_output_requests() {
+    // MACD (three outputs, fast and slow in either order) mixed with
+    // single-output requests, including failures (too short, bad signal).
+    let requests: Vec<_> = (0..48)
+        .map(|i| match i % 4 {
+            0 if i % 16 == 0 => macd_request(30, 12, 26, 9),
+            0 => macd_request(100 + 29 * i, 12, 26, 9),
+            1 => macd_request(100 + 29 * i, 3 + i % 20, 2 + i % 7, i % 5),
+            2 => request(IndicatorKind::Ema, 100 + 29 * i, 3 + i % 20),
+            _ => request(IndicatorKind::Sma, 100 + 29 * i, 3 + i % 20),
+        })
+        .collect();
+    let pool = rayon::ThreadPoolBuilder::new()
+        .num_threads(4)
+        .build()
+        .unwrap();
+
+    let sequential = execute_sequential(&requests);
+    let parallel = pool.install(|| execute_parallel(&requests));
+
+    assert_eq!(sequential.len(), parallel.len());
+    for (left, right) in sequential.iter().zip(&parallel) {
+        assert_same(left, right);
+    }
+    assert!(sequential[0].is_error());
+    match &sequential[4].status {
+        IndicatorStatus::Success(output) => assert_eq!(output.output_count(), 3),
+        IndicatorStatus::Error(error) => panic!("expected MACD success, got {error:?}"),
+    }
+    assert!(sequential.iter().any(IndicatorResult::is_error));
 }

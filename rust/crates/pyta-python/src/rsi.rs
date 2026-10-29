@@ -1,7 +1,7 @@
-use numpy::{PyArray1, PyReadonlyArray1};
+use numpy::PyReadonlyArray1;
 use pyo3::prelude::*;
 use pyo3::types::PyList;
-use pyta_engine::IndicatorKind;
+use pyta_engine::Params;
 
 use crate::batch::compute_batch;
 use crate::single::compute;
@@ -15,8 +15,8 @@ pub(crate) fn rsi<'py>(
     py: Python<'py>,
     values: PyReadonlyArray1<'py, f64>,
     period: usize,
-) -> PyResult<Bound<'py, PyArray1<f64>>> {
-    compute(py, values, period, IndicatorKind::Rsi)
+) -> PyResult<Bound<'py, PyAny>> {
+    compute(py, values, Params::Rsi { period })
 }
 
 /// Calculates the RSI of many datasets at once.
@@ -29,5 +29,5 @@ pub(crate) fn rsi_batch<'py>(
     datasets: &Bound<'py, PyList>,
     period: usize,
 ) -> PyResult<Bound<'py, PyList>> {
-    compute_batch(py, datasets, period, IndicatorKind::Rsi)
+    compute_batch(py, datasets, Params::Rsi { period })
 }

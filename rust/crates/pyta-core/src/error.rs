@@ -56,6 +56,17 @@ pub enum PytaError {
         length: usize,
     },
 
+    /// A parameter other than `period` is below its minimum.
+    #[error("{name} must be at least {minimum}, got {value}")]
+    InvalidParameter {
+        /// The parameter's name, as the caller knows it (`fast`, `signal`).
+        name: &'static str,
+        /// The smallest valid value.
+        minimum: usize,
+        /// The value given.
+        value: usize,
+    },
+
     /// A request has the wrong number of input columns for its indicator.
     #[error("expected {expected} input columns, got {actual}")]
     ColumnCount {

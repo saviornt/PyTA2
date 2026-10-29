@@ -1,14 +1,74 @@
 use pyta_core::{Columns, IndicatorOutput, PytaError, PytaResult, Series};
 
-/// Identifies an indicator supported by the engine.
+/// Identifies an indicator supported by the engine, without its parameters.
+///
+/// Derived from [`Params::kind`], so a request's kind and parameters cannot
+/// disagree. Used for logging and benchmark labels.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IndicatorKind {
     /// Commodity Channel Index (`pyta-momentum`; high, low, close).
     Cci,
+    /// Exponential Moving Average (`pyta-trend`).
+    Ema,
+    /// Moving Average Convergence/Divergence (`pyta-trend`; three outputs).
+    Macd,
     /// Relative Strength Index (`pyta-momentum`).
     Rsi,
     /// Simple Moving Average (`pyta-trend`).
     Sma,
+}
+
+/// Which indicator to calculate, with its own parameters: one variant per
+/// indicator.
+///
+/// Each dispatch arm destructures its own variant, so an indicator cannot
+/// receive another's parameters. Adding a variant fails to compile until it
+/// has a kind, a dispatch arm and a cost estimate. Python validates the
+/// ranges first; the kernels still reject impossible values.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Params {
+    /// Commodity Channel Index.
+    Cci {
+        /// Rows in each window.
+        period: usize,
+    },
+    /// Exponential Moving Average.
+    Ema {
+        /// Rows in the seed average; sets the weight `2 / (period + 1)`.
+        period: usize,
+    },
+    /// Moving Average Convergence/Divergence.
+    Macd {
+        /// Period of the fast EMA.
+        fast: usize,
+        /// Period of the slow EMA (swapped with `fast` when smaller).
+        slow: usize,
+        /// Period of the signal line's EMA.
+        signal: usize,
+    },
+    /// Relative Strength Index.
+    Rsi {
+        /// Price changes in the first average.
+        period: usize,
+    },
+    /// Simple Moving Average.
+    Sma {
+        /// Rows in each window.
+        period: usize,
+    },
+}
+
+impl Params {
+    /// The indicator these parameters belong to.
+    pub fn kind(&self) -> IndicatorKind {
+        match self {
+            Self::Cci { .. } => IndicatorKind::Cci,
+            Self::Ema { .. } => IndicatorKind::Ema,
+            Self::Macd { .. } => IndicatorKind::Macd,
+            Self::Rsi { .. } => IndicatorKind::Rsi,
+            Self::Sma { .. } => IndicatorKind::Sma,
+        }
+    }
 }
 
 /// The validated input of one request: one series, or several columns.
@@ -70,32 +130,34 @@ impl IndicatorInput {
 /// Describes one indicator calculation.
 #[derive(Debug, Clone)]
 pub struct IndicatorRequest {
-    /// Which indicator to calculate.
-    pub kind: IndicatorKind,
     /// The validated input.
     pub input: IndicatorInput,
-    /// The indicator's period.
-    pub period: usize,
+    /// Which indicator to calculate, with its parameters.
+    pub params: Params,
 }
 
 impl IndicatorRequest {
-    /// Creates a request for a single-column indicator.
-    pub fn new(kind: IndicatorKind, input: Series, period: usize) -> Self {
+    /// Creates a request for a single-column indicator, such as
+    /// `IndicatorRequest::new(series, Params::Rsi { period: 14 })`.
+    pub fn new(input: Series, params: Params) -> Self {
         Self {
-            kind,
             input: IndicatorInput::Series(input),
-            period,
+            params,
         }
     }
 
     /// Creates a request for a multi-column indicator; `input` is in the
     /// indicator's slot order.
-    pub fn with_columns(kind: IndicatorKind, input: Columns, period: usize) -> Self {
+    pub fn with_columns(input: Columns, params: Params) -> Self {
         Self {
-            kind,
             input: IndicatorInput::Columns(input),
-            period,
+            params,
         }
+    }
+
+    /// The indicator to calculate.
+    pub fn kind(&self) -> IndicatorKind {
+        self.params.kind()
     }
 }
 
