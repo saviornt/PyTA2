@@ -175,6 +175,17 @@ fn a_signal_period_of_one_equals_the_macd_line() {
     let output = macd(&wave(40), 12, 26, 1).unwrap();
     let [line, signal, hist] = outputs(&output);
 
-    assert_same(line, signal);
-    assert!(hist[25..].iter().all(|value| *value == 0.0));
+    // `k = 1` is TA-Lib's arithmetic, which rounds, so the signal equals the
+    // line only to within an ulp or so.
+    for (index, (macd, signal)) in line.iter().zip(signal).enumerate().skip(25) {
+        assert!(
+            (macd - signal).abs() <= 1e-12 * macd.abs().max(1.0),
+            "index {index}"
+        );
+        assert!(
+            hist[index].abs() <= 1e-12 * macd.abs().max(1.0),
+            "index {index}"
+        );
+    }
+    assert!(signal[..25].iter().all(|value| value.is_nan()));
 }

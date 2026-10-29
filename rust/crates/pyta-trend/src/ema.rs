@@ -6,7 +6,7 @@ use pyta_core::{IndicatorOutput, PytaError, PytaResult, Series};
 /// first `period` values (TA-Lib's default seed). Each later value is
 /// `previous + (value - previous) * k`, with `k = 2 / (period + 1)`. The
 /// first `period - 1` positions are `NaN` (warm-up). A period of 1 returns
-/// the input unchanged.
+/// an exact copy of the input (TA-Lib rejects it; `k = 1` would round).
 ///
 /// # Errors
 ///
@@ -25,6 +25,11 @@ pub fn ema(input: &Series, period: usize) -> PytaResult<IndicatorOutput> {
             required: period,
             length,
         });
+    }
+
+    // `(value - previous) * 1.0 + previous` is not always `value`.
+    if period == 1 {
+        return Ok(IndicatorOutput::new(values.to_vec()));
     }
 
     let mut output = vec![f64::NAN; length];

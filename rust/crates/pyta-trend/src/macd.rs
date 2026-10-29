@@ -51,7 +51,9 @@ pub fn macd(
 
     let values = input.values();
     let length = values.len();
-    let required = slow + signal - 1;
+    // Saturates so a huge period from a direct `_native` call is reported,
+    // not overflowed; the public API caps periods far below this.
+    let required = slow.saturating_add(signal - 1);
 
     if length < required {
         return Err(PytaError::InsufficientData { required, length });

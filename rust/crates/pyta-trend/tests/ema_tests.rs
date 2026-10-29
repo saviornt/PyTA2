@@ -48,6 +48,16 @@ fn ema_period_one_returns_original_values() {
 }
 
 #[test]
+fn ema_period_one_is_an_exact_copy() {
+    // `(1e-20 - 1.0) * 1.0 + 1.0` rounds to 0.0, so a k = 1 update would not be.
+    let input = Series::new(vec![1.0, 1e-20, -3.0e6, 0.1]).unwrap();
+
+    let result = ema(&input, 1).unwrap();
+
+    assert_eq!(result.values(), input.values());
+}
+
+#[test]
 fn ema_period_equal_to_length_returns_one_average() {
     let input = Series::new(vec![1.0, 2.0, 6.0]).unwrap();
 
