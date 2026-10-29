@@ -34,6 +34,11 @@ fn params(kind: IndicatorKind, period: usize) -> Params {
         IndicatorKind::Kama => Params::Kama { period },
         IndicatorKind::Bbands => Params::Bbands { period, k: 2.0 },
         IndicatorKind::Stddev => Params::Stddev { period, k: 1.0 },
+        IndicatorKind::Stoch => Params::Stoch {
+            k: period,
+            k_smooth: period,
+            d: period,
+        },
         IndicatorKind::Keltner => Params::Keltner {
             period,
             atr_period: period,
@@ -63,6 +68,19 @@ fn cci_request(len: usize, period: usize) -> IndicatorRequest {
 /// [`cci_request`].
 fn adx_request(len: usize, period: usize) -> IndicatorRequest {
     columns_request(len, Params::Adx { period })
+}
+
+/// A Stochastic request (three columns, two outputs) on the same columns
+/// as [`cci_request`].
+fn stoch_request(len: usize, k: usize) -> IndicatorRequest {
+    columns_request(
+        len,
+        Params::Stoch {
+            k,
+            k_smooth: 3,
+            d: 3,
+        },
+    )
 }
 
 /// High, low and close made from one wave, with `params`.
@@ -163,13 +181,17 @@ fn parallel_matches_sequential_on_a_multi_thread_pool() {
 
 #[test]
 fn parallel_matches_sequential_on_multi_column_requests() {
-    // CCI and ADX mixed with single-column requests, including failures.
+    // CCI, ADX and Stochastic mixed with single-column requests, including
+    // failures.
     let requests: Vec<_> = (0..48)
         .map(|i| match i % 3 {
             0 => cci_request(100 + 29 * i, if i % 9 == 0 { 5_000 } else { 2 + i % 20 }),
             1 => request(IndicatorKind::Sma, 100 + 29 * i, 3 + i % 20),
             _ if i % 4 == 2 => {
                 adx_request(100 + 29 * i, if i % 8 == 2 { 5_000 } else { 2 + i % 20 })
+            }
+            _ if i % 4 == 0 && i % 8 == 0 => {
+                stoch_request(100 + 29 * i, if i % 16 == 0 { 5_000 } else { 1 + i % 20 })
             }
             _ if i % 4 == 0 => request(IndicatorKind::Stddev, 100 + 29 * i, 2 + i % 20),
             _ if i % 4 == 1 => request(IndicatorKind::Bbands, 100 + 29 * i, 2 + i % 20),

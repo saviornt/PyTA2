@@ -2,5 +2,6 @@
 
 from pyta.indicators.momentum.cci import cci_batch as cci
 from pyta.indicators.momentum.rsi import rsi_batch as rsi
+from pyta.indicators.momentum.stoch import stoch_batch as stoch
 
-__all__ = ["cci", "rsi"]
+__all__ = ["cci", "rsi", "stoch"]

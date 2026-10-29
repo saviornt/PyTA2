@@ -2,8 +2,7 @@
 
 The matrix runs each input container through each target for SMA (one column,
 one output), MACD (one column, three outputs), CCI (three columns, one output)
-and the fake multi-column, multi-output function of `test_multi_output.py`
-(through `run_columns`). Each result is decoded back to names, values and index
+and Stochastic (three columns, two outputs). Each result is decoded back to names, values and index
 and compared with the default call on the same data, exactly.
 """
 
@@ -24,10 +23,6 @@ from hypothesis import given
 from hypothesis import strategies as st
 from numpy.typing import NDArray
 from ohlcv_data import Ohlcv
-from pyta._api import run_columns, run_columns_batch
-from test_multi_output import NAMES as FAKE_NAMES
-from test_multi_output import SLOTS as FAKE_SLOTS
-from test_multi_output import fake, fake_batch
 
 type Array = NDArray[np.float64]
 
@@ -72,17 +67,13 @@ SHAPES = {
         {"lower": ("cci",), "upper": ("CCI",), "title": ("CCI",)},
         3,
     ),
-    "fake": Shape(
-        lambda data, output: run_columns(
-            fake, FAKE_NAMES, data, (3, 2), None, FAKE_SLOTS, None, output
-        ),
-        lambda data, output: run_columns_batch(
-            fake_batch, FAKE_NAMES, data, (3, 2), None, FAKE_SLOTS, None, output
-        ),
+    "stoch": Shape(
+        lambda data, output: pyta.stoch(data, 3, 2, 2, output=output),
+        lambda data, output: pyta.batch.stoch(data, 3, 2, 2, output=output),
         {
             "lower": ("stoch_k", "stoch_d"),
             "upper": ("STOCH_K", "STOCH_D"),
-            "title": ("STOCH_K", "STOCH_D"),
+            "title": ("Stoch_K", "Stoch_D"),
         },
         3,
     ),
@@ -239,7 +230,7 @@ def _matrix() -> list[Any]:
         ("sma", SINGLE_KINDS),
         ("macd", SINGLE_KINDS),
         ("cci", MULTI_KINDS),
-        ("fake", MULTI_KINDS),
+        ("stoch", MULTI_KINDS),
     ):
         for kind in kinds:
             for target in TARGETS:

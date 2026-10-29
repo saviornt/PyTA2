@@ -3,11 +3,11 @@ use pyta_common::{
     BBANDS_NS_PER_WINDOW_VALUE, CCI_NS_PER_ELEMENT, CCI_NS_PER_WINDOW_VALUE, DEMA_NS_PER_ELEMENT,
     DONCHIAN_NS_PER_ELEMENT, EMA_NS_PER_ELEMENT, ICHIMOKU_NS_PER_ELEMENT, KAMA_NS_PER_ELEMENT,
     KELTNER_NS_PER_ELEMENT, MACD_NS_PER_ELEMENT, RSI_NS_PER_ELEMENT, SAR_NS_PER_ELEMENT,
-    SMA_NS_PER_ELEMENT, STDDEV_NS_PER_ELEMENT, STDDEV_NS_PER_WINDOW_VALUE, TEMA_NS_PER_ELEMENT,
-    WMA_NS_PER_ELEMENT,
+    SMA_NS_PER_ELEMENT, STDDEV_NS_PER_ELEMENT, STDDEV_NS_PER_WINDOW_VALUE, STOCH_NS_PER_ELEMENT,
+    TEMA_NS_PER_ELEMENT, WMA_NS_PER_ELEMENT,
 };
 use pyta_core::{IndicatorOutput, PytaResult};
-use pyta_momentum::{cci, rsi};
+use pyta_momentum::{cci, rsi, stoch};
 use pyta_trend::{adx, aroon, dema, ema, ichimoku, kama, macd, sar, sma, tema, wma};
 use pyta_volatility::{atr, bbands, donchian, keltner, stddev};
 
@@ -74,6 +74,10 @@ pub(crate) fn dispatch(request: &IndicatorRequest) -> PytaResult<IndicatorOutput
         }
         Params::Sma { period } => sma(input.series()?, period),
         Params::Stddev { period, k } => stddev(input.series()?, period, k),
+        Params::Stoch { k, k_smooth, d } => {
+            let [high, low, close] = input.columns()?;
+            stoch(high, low, close, k, k_smooth, d)
+        }
         Params::Tema { period } => tema(input.series()?, period),
         Params::Wma { period } => wma(input.series()?, period),
     }
@@ -114,6 +118,7 @@ pub(crate) fn estimated_cost_ns(request: &IndicatorRequest) -> f64 {
         Params::Stddev { period, .. } => {
             STDDEV_NS_PER_ELEMENT + STDDEV_NS_PER_WINDOW_VALUE * period as f64
         }
+        Params::Stoch { .. } => STOCH_NS_PER_ELEMENT,
         Params::Tema { .. } => TEMA_NS_PER_ELEMENT,
         Params::Wma { .. } => WMA_NS_PER_ELEMENT,
     };
@@ -240,6 +245,23 @@ mod tests {
                 tenkan: 9,
                 kijun: 26,
                 senkou: 52
+            })
+        );
+    }
+
+    #[test]
+    fn stoch_cost_does_not_depend_on_its_windows() {
+        // Rolling extremes and two running sums, each O(n) whatever the window.
+        assert_eq!(
+            cost(Params::Stoch {
+                k: 5,
+                k_smooth: 3,
+                d: 3
+            }),
+            cost(Params::Stoch {
+                k: 200,
+                k_smooth: 50,
+                d: 50
             })
         );
     }

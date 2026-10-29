@@ -98,6 +98,7 @@ PyTA logs through Python's standard `logging` (Rust messages included) under the
 | Trend | [Ichimoku Cloud](docs/indicators/trend/ichimoku.md) (`ichimoku`, high, low and close; Hosoda's five lines, unshifted; five outputs) |
 | Momentum | [Relative Strength Index](docs/indicators/momentum/rsi.md) (`rsi`, Wilder's smoothing) |
 | Momentum | [Commodity Channel Index](docs/indicators/momentum/cci.md) (`cci`, high, low and close) |
+| Momentum | [Stochastic Oscillator](docs/indicators/momentum/stoch.md) (`stoch`, high, low and close; Lane's full stochastic, %K and %D; two outputs) |
 | Volatility | [Average True Range](docs/indicators/volatility/atr.md) (`atr`, high, low and close; Wilder's smoothing) |
 | Volatility | [Standard Deviation](docs/indicators/volatility/stddev.md) (`stddev`, population, times `k`) |
 | Volatility | [Bollinger Bands](docs/indicators/volatility/bbands.md) (`bbands`, SMA ± `k` population standard deviations; three outputs) |
@@ -109,7 +110,7 @@ PyTA logs through Python's standard `logging` (Rust messages included) under the
 The catalog below is the planned scope and is subject to change.
 
 **Momentum Indicators**
-Stochastic Oscillator, Williams %R, ROC, MFI, TRIX, Ultimate Oscillator
+Williams %R, ROC, MFI, TRIX, Ultimate Oscillator
 
 **Volume Indicators**
 OBV, VWAP, Accumulation/Distribution, Chaikin Money Flow, Volume Rate of Change

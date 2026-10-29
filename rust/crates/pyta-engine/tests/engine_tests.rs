@@ -29,6 +29,11 @@ fn params(kind: IndicatorKind, period: usize) -> Params {
         IndicatorKind::Kama => Params::Kama { period },
         IndicatorKind::Bbands => Params::Bbands { period, k: 2.0 },
         IndicatorKind::Stddev => Params::Stddev { period, k: 1.0 },
+        IndicatorKind::Stoch => Params::Stoch {
+            k: period,
+            k_smooth: period,
+            d: period,
+        },
         IndicatorKind::Keltner => Params::Keltner {
             period,
             atr_period: period,
@@ -334,6 +339,14 @@ fn the_kind_comes_from_the_params() {
         ),
         (Params::Sma { period: 2 }, IndicatorKind::Sma),
         (Params::Stddev { period: 2, k: 1.0 }, IndicatorKind::Stddev),
+        (
+            Params::Stoch {
+                k: 2,
+                k_smooth: 1,
+                d: 1,
+            },
+            IndicatorKind::Stoch,
+        ),
         (Params::Wma { period: 2 }, IndicatorKind::Wma),
         (Params::Dema { period: 2 }, IndicatorKind::Dema),
         (Params::Tema { period: 2 }, IndicatorKind::Tema),
@@ -1153,4 +1166,65 @@ fn ichimoku_lines_are_donchian_middles_on_spy() {
     assert_bits(senkou_a, &expected_senkou_a, "senkou_a");
     assert_bits(senkou_b, &donchian_middle(52), "senkou_b");
     assert_bits(chikou, &close, "chikou");
+}
+
+#[tokio::test]
+async fn stoch_runs_through_the_engine_with_two_outputs_and_reports_its_errors() {
+    // k 3, k_smooth 1, d 2: raw %K 75, 50, 75, 80 from row 2; %D the mean
+    // of two.
+    let high: &[f64] = &[11.0, 12.0, 13.0, 12.0, 14.0, 15.0];
+    let low: &[f64] = &[9.0, 10.0, 11.0, 10.0, 11.0, 12.0];
+    let close: &[f64] = &[10.0, 11.0, 12.0, 11.5, 13.0, 14.0];
+    let stoch = |k, k_smooth, d| {
+        IndicatorRequest::with_columns(
+            columns_of(&[high, low, close]),
+            Params::Stoch { k, k_smooth, d },
+        )
+    };
+    let requests = vec![
+        stoch(3, 1, 2),
+        stoch(3, 0, 2),
+        stoch(3, 3, 3),
+        request(IndicatorKind::Stoch, close.to_vec(), 1),
+    ];
+
+    let direct = execute_direct(&requests[0]).unwrap();
+    let [stoch_k, stoch_d] = direct.outputs() else {
+        panic!("expected two outputs, got {}", direct.output_count());
+    };
+    assert_values(stoch_k, &[NAN, NAN, 75.0, 50.0, 75.0, 80.0]);
+    assert_values(stoch_d, &[NAN, NAN, NAN, 62.5, 62.5, 77.5]);
+
+    let results = execute_batch(requests).await;
+
+    match &results[0].status {
+        IndicatorStatus::Success(output) => {
+            for (got, want) in output.outputs().iter().zip(direct.outputs()) {
+                assert_values(got, want);
+            }
+        }
+        IndicatorStatus::Error(error) => panic!("expected Stochastic success, got {error:?}"),
+    }
+    assert_eq!(
+        *error_of(&results[1]),
+        PytaError::InvalidParameter {
+            name: "k_smooth",
+            minimum: 1,
+            value: 0,
+        }
+    );
+    assert_eq!(
+        *error_of(&results[2]),
+        PytaError::InsufficientData {
+            required: 7,
+            length: 6,
+        }
+    );
+    assert_eq!(
+        *error_of(&results[3]),
+        PytaError::ColumnCount {
+            expected: 3,
+            actual: 1,
+        }
+    );
 }

@@ -25,6 +25,7 @@ mod sar;
 mod single;
 mod sma;
 mod stddev;
+mod stoch;
 mod tema;
 mod wma;
 
@@ -38,6 +39,8 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(atr::atr_batch, m)?)?;
     m.add_function(wrap_pyfunction!(cci::cci, m)?)?;
     m.add_function(wrap_pyfunction!(cci::cci_batch, m)?)?;
+    m.add_function(wrap_pyfunction!(stoch::stoch, m)?)?;
+    m.add_function(wrap_pyfunction!(stoch::stoch_batch, m)?)?;
     m.add_function(wrap_pyfunction!(sma::sma, m)?)?;
     m.add_function(wrap_pyfunction!(sma::sma_batch, m)?)?;
     m.add_function(wrap_pyfunction!(rsi::rsi, m)?)?;

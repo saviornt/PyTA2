@@ -1,8 +1,10 @@
 """The shared runners handle any number of outputs and parameters.
 
-A fake native function stands in for a future multi-column, multi-output
-indicator (Stochastic: high, low, close in; %K and %D out) to show it needs no
-plumbing beyond declaring its slots, outputs and parameters.
+A fake native function (high, low, close in; two outputs out, with
+parameters) drives `run_columns` and `run_columns_batch` directly, so these
+tests pin the runners themselves, apart from any indicator's numbers. The
+container matrices in `test_output.py` and `test_roundtrip.py` use the real
+Stochastic (`pyta.stoch`) for the same shape.
 """
 
 import json

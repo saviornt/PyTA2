@@ -41,6 +41,9 @@ pub enum IndicatorKind {
     Sma,
     /// Standard Deviation (`pyta-volatility`).
     Stddev,
+    /// Stochastic Oscillator, %K and %D (`pyta-momentum`; high, low, close;
+    /// two outputs).
+    Stoch,
     /// Triple Exponential Moving Average (`pyta-trend`).
     Tema,
     /// Weighted Moving Average (`pyta-trend`).
@@ -168,6 +171,17 @@ pub enum Params {
         /// Multiplier, finite and above 0.
         k: f64,
     },
+    /// Stochastic Oscillator (full stochastic): raw %K over `k` rows,
+    /// smoothed by an SMA over `k_smooth` rows (%K), and an SMA of %K over
+    /// `d` rows (%D).
+    Stoch {
+        /// Rows in the highest-high and lowest-low window, at least 1.
+        k: usize,
+        /// Rows in the SMA that smooths raw %K, at least 1.
+        k_smooth: usize,
+        /// Rows in the SMA of %K that gives %D, at least 1.
+        d: usize,
+    },
     /// Triple Exponential Moving Average:
     /// `EMA3 + 3 * (EMA1 - EMA2)`, each EMA of the one before.
     Tema {
@@ -201,6 +215,7 @@ impl Params {
             Self::Sar { .. } => IndicatorKind::Sar,
             Self::Sma { .. } => IndicatorKind::Sma,
             Self::Stddev { .. } => IndicatorKind::Stddev,
+            Self::Stoch { .. } => IndicatorKind::Stoch,
             Self::Tema { .. } => IndicatorKind::Tema,
             Self::Wma { .. } => IndicatorKind::Wma,
         }

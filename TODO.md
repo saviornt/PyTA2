@@ -67,7 +67,8 @@ Where things stand:
 
 ### Part E: Momentum (about 7 h)
 
-- [ ] Stochastic (replaces the `fake` stand-in in `test_output.py`/`test_roundtrip.py`) · [ ] Williams %R · [ ] ROC · [ ] MFI · [ ] TRIX · [ ] Ultimate Oscillator
+- [ ] Williams %R · [ ] ROC · [ ] MFI · [ ] TRIX · [ ] Ultimate Oscillator
+- [x] Stochastic (replaces the `fake` stand-in in `test_output.py`/`test_roundtrip.py`) *(2026-10-29: `pyta-momentum` `stoch(high, low, close, k, k_smooth, d)`, TA-Lib `TA_STOCH` 0.8.3 with SMA (Lane): raw %K `(close - lowest) / (highest - lowest) * 100` over `k` rows from the shared `for_each_window_max`/`min` (current row included), 0 on a flat window by `is_zero_scaled(range, |highest| + |lowest|)` (A3); `stoch_k` = SMA of raw %K over `k_smooth`, `stoch_d` = SMA of `stoch_k` over `d`, both TA-Lib's plain running total (crate-private `talib_sma_into`; no `fma` in the source), raw %K parked in the `stoch_d` buffer (two allocations); slots high, low, close (or adj_close); outputs `stoch_k`, `stoch_d` (A12; `Stoch_K` in title case), each with its own warm-up (A4): rows `k + k_smooth - 2` and `k + k_smooth + d - 3`; defaults 14/3/3 (A2; wiki tells TA-Lib users to pass `k=5`), each ≥ 1 (`InvalidParameter { name, minimum: 1 }`), `InsufficientData { required: k + k_smooth + d - 2 }` saturating, no `ma=` (A5); all three TA-Lib fixtures (14/3/3, 5/3/3, edge 14/3/3 with %D's `4.5e-14` flat-stretch residue) match bit for bit (asserted in the Rust reference test; Python relative 1e-9); proptests for warm-ups, [0, 100] and bit-for-bit equality with a plain window rescan; the `fake` shape of `test_output.py` and `test_roundtrip.py` is now `pyta.stoch(data, 3, 2, 2)` (every case kept; title names `Stoch_K` instead of the stand-in's `STOCH_K`), `test_multi_output.py` keeps its runner tests, parking-lot item on the shared stand-in closed; provisional `STOCH_NS_PER_ELEMENT = 14.6` (no parameter term) from `benchmark_2026-10-29_12-24-15.txt` (`--single --rust --quick`: 12.951 ms against RSI's 2.653 ms at 1,000,000 rows; Donchian-20 9.684 ms), to confirm with a full `--single --rust --indicator stoch`; `tests/results/test-suite_2026-10-29_12-32-22.txt` PASSED (Rust 451 nextest, Python 2109, coverage 99.84%).)*
 
 ### Part F: Volume (about 5 h)
 
@@ -117,7 +118,6 @@ Out of scope: `ma=`/`matype` options, VWAP session anchoring, Ichimoku shifted o
 - CSV and JSON text cost 15-70x an array call at 100 rows (parsing dominates: SMA CSV 99 µs, JSON records 211 µs); a faster parser (or `np.loadtxt`-style bulk conversion) is a Sprint 17 candidate if text input matters.
 - CCI on a DataFrame costs ~150 µs per call against ~13 µs for a dict of arrays: pandas column access, not PyTA work (Sprint 17).
 - A nested multi-column dict column reads `column 0 expected a 1-D series ...` (the slot number as the name); reword if users meet it.
-- `test_output.py` imports the stand-in from `test_multi_output.py`; move it to a shared helper if more tests need it.
 - Delete the merged agent worktrees and branches (`.claude/worktrees/agent-*`, `worktree-agent-*`) once the sprint is merged.
 - `ma=` option (TA-Lib `matype`) for BBANDS and STOCH, reusing the Sprint 11.5 kernels (A5).
 - VWAP session or date anchoring; needs a datetime role (A9).

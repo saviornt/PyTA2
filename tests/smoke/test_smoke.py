@@ -141,6 +141,17 @@ def test_smoke() -> None:
     assert np.array_equal(lines[1], donchian_middle, equal_nan=True)
     assert np.array_equal(lines[4], close)
 
+    stoch_result = pyta.stoch(data, k=14, k_smooth=3, d=3)
+    assert list(stoch_result) == ["stoch_k", "stoch_d"]
+    stoch_k, stoch_d = (np.array(values) for values in stoch_result.values())
+    for line, first in ((stoch_k, 15), (stoch_d, 17)):
+        assert line.dtype == np.float64
+        assert line.shape == (length,), "Stochastic output length mismatch"
+        assert np.isnan(line[:first]).all(), "Stochastic warm-up alignment is incorrect"
+        assert np.isfinite(line[first:]).all()
+        assert ((line[first:] >= 0.0) & (line[first:] <= 100.0)).all()
+    assert np.allclose(stoch_d[17:], np.convolve(stoch_k[15:], np.ones(3) / 3, "valid"), rtol=1e-12)
+
     stddev_values = np.array(pyta.stddev(data, period=20, k=2.0)["stddev"])
     assert stddev_values.dtype == np.float64
     assert stddev_values.shape == (length,), "STDDEV output length mismatch"

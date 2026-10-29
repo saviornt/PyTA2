@@ -2,11 +2,10 @@
 
 One matrix runs every input form of `docs/API.md` §4 through each indicator
 shape: SMA (one column, one output), MACD (one column, three outputs), CCI
-(three columns, one output) and the fake multi-column, multi-output function of
-`test_multi_output.py` (through `run_columns`). Each result is read back and
-checked for its container type, length, output names and casing, pandas index
-(values, name and order) and values, which must equal the plain NumPy-array
-call exactly. A Hypothesis property repeats the value check on random data.
+(three columns, one output) and Stochastic (three columns, two outputs). Each
+result is read back and checked for its container type, length, output names
+and casing, pandas index (values, name and order) and values, which must equal
+the plain NumPy-array call exactly. A Hypothesis property repeats the value check on random data.
 
 The `output=` conversions have their own matrix in `test_output.py`.
 """
@@ -675,7 +674,7 @@ def _matrix() -> list[Any]:
         ("sma", PANDAS_SINGLE, PLAIN_SINGLE),
         ("macd", PANDAS_SINGLE, PLAIN_SINGLE),
         ("cci", PANDAS_MULTI, PLAIN_MULTI),
-        ("fake", PANDAS_MULTI, PLAIN_MULTI),
+        ("stoch", PANDAS_MULTI, PLAIN_MULTI),
     ):
         params.extend(pytest.param(shape, kind, id=f"{shape}-{kind}") for kind in plain_kinds)
         params.extend(
@@ -860,7 +859,7 @@ def _shape_and_kind(pandas: bool) -> st.SearchStrategy[tuple[str, str]]:
     multi = sorted(PANDAS_MULTI) if pandas else PLAIN_MULTI
     return st.one_of(
         st.tuples(st.sampled_from(["sma", "macd"]), st.sampled_from(single)),
-        st.tuples(st.sampled_from(["cci", "fake"]), st.sampled_from(multi)),
+        st.tuples(st.sampled_from(["cci", "stoch"]), st.sampled_from(multi)),
     )
 
 

@@ -34,6 +34,7 @@ INDICATORS = {
     "macd": "trend",
     "rsi": "momentum",
     "cci": "momentum",
+    "stoch": "momentum",
     "atr": "volatility",
     "stddev": "volatility",
     "bbands": "volatility",
@@ -45,7 +46,7 @@ INDICATORS = {
 CATEGORIES = {"momentum", "trend", "volatility", "volume"}
 
 # Multi-column indicators, which take full OHLCV data rather than one series.
-MULTI_COLUMN = {"adx", "aroon", "atr", "cci", "donchian", "ichimoku", "keltner", "sar"}
+MULTI_COLUMN = {"adx", "aroon", "atr", "cci", "donchian", "ichimoku", "keltner", "sar", "stoch"}
 
 # Positional arguments after the data for the calls below: a period of 10
 # (MACD's `fast`), except for indicators without a period.
@@ -162,6 +163,12 @@ DOCUMENTED_PATHS = [
     "pyta.indicators.trend.ichimoku",
     "pyta.batch.ichimoku",
     "pyta.batch.trend.ichimoku",
+    "pyta.stoch",
+    "pyta.momentum.stoch",
+    "pyta.indicators.stoch",
+    "pyta.indicators.momentum.stoch",
+    "pyta.batch.stoch",
+    "pyta.batch.momentum.stoch",
 ]
 
 

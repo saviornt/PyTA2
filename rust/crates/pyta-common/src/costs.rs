@@ -187,6 +187,20 @@ pub const AROON_NS_PER_ELEMENT: f64 = 13.3;
 /// same run. Confirm with a full `--single --rust --indicator ichimoku`.
 pub const ICHIMOKU_NS_PER_ELEMENT: f64 = 32.1;
 
+/// Stochastic Oscillator (%K and %D), in nanoseconds per input row;
+/// independent of `k`, `k_smooth` and `d` (two van Herk/Gil-Werman
+/// rolling-extreme walks and two running-sum SMAs, O(n) whatever the
+/// windows).
+///
+/// Provisional, from a quick run on 2026-10-29
+/// (`benches/results/benchmark_2026-10-29_12-24-15.txt`, `--single --rust
+/// --quick`, governor `performance`): kernels at 1,000,000 rows took
+/// 12.951 ms for Stochastic-14/3/3 and 2.653 ms for RSI-14, scaled here by
+/// `RSI_NS_PER_ELEMENT` (3.0 * 4.88). Donchian-20 (the same two walks) took
+/// 9.684 ms in the same run. Confirm with a full
+/// `--single --rust --indicator stoch`.
+pub const STOCH_NS_PER_ELEMENT: f64 = 14.6;
+
 /// Parabolic SAR, in nanoseconds per input row; independent of
 /// `acceleration` and `maximum` (one pass).
 ///

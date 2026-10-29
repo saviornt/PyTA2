@@ -1,4 +1,4 @@
-//! RSI invariants that must hold for any valid input.
+//! RSI, CCI and Stochastic invariants that must hold for any valid input.
 
 use proptest::prelude::*;
 use pyta_core::Series;
@@ -172,6 +172,125 @@ fn reference_rsi(prices: &[f64], period: usize) -> Vec<f64> {
         output[index] = index_of(average_gain, average_loss);
     }
     output
+}
+
+/// High, low and close columns of 1 to 300 rows (high at or above low,
+/// close between them, some rows flat) and Stochastic parameters that fit.
+fn columns_and_stoch_parameters() -> impl Strategy<Value = ([Vec<f64>; 3], [usize; 3])> {
+    let row = (
+        -1.0e6..1.0e6_f64,
+        prop_oneof![Just(0.0), 0.0..1.0e3_f64],
+        0.0..=1.0_f64,
+    );
+    prop::collection::vec(row, 1..300).prop_flat_map(|rows| {
+        let length = rows.len();
+        let low: Vec<f64> = rows.iter().map(|(low, _, _)| *low).collect();
+        let high: Vec<f64> = rows.iter().map(|(low, range, _)| low + range).collect();
+        let close: Vec<f64> = rows
+            .iter()
+            .map(|(low, range, at)| low + range * at)
+            .collect();
+        // k + k_smooth + d - 2 <= length.
+        (1..=length).prop_flat_map(move |k| {
+            let columns = [high.clone(), low.clone(), close.clone()];
+            (1..=length + 1 - k).prop_flat_map(move |k_smooth| {
+                let columns = columns.clone();
+                (1..=length + 2 - k - k_smooth)
+                    .prop_map(move |d| (columns.clone(), [k, k_smooth, d]))
+            })
+        })
+    })
+}
+
+fn stoch_of(columns: &[Vec<f64>; 3], [k, k_smooth, d]: [usize; 3]) -> [Vec<f64>; 2] {
+    let [high, low, close] = columns.clone().map(|values| Series::new(values).unwrap());
+    let outputs = pyta_momentum::stoch(&high, &low, &close, k, k_smooth, d)
+        .unwrap()
+        .into_outputs();
+    outputs.try_into().expect("two outputs")
+}
+
+/// Stochastic written out plainly: each window scanned for its extremes,
+/// TA-Lib's guard and ratio, and TA-Lib's running-sum SMA.
+fn reference_stoch(
+    [high, low, close]: &[Vec<f64>; 3],
+    [k, k_smooth, d]: [usize; 3],
+) -> [Vec<f64>; 2] {
+    let length = close.len();
+    let sma = |values: &[f64], period: usize, start: usize| {
+        let mut output = vec![f64::NAN; length];
+        let mut total = 0.0;
+        for value in &values[start..start + period - 1] {
+            total += value;
+        }
+        for row in start + period - 1..length {
+            total += values[row];
+            output[row] = total / period as f64;
+            total -= values[row + 1 - period];
+        }
+        output
+    };
+
+    let mut raw = vec![f64::NAN; length];
+    for row in k - 1..length {
+        let window = row + 1 - k..=row;
+        let highest = high[window.clone()]
+            .iter()
+            .copied()
+            .fold(f64::MIN, f64::max);
+        let lowest = low[window].iter().copied().fold(f64::MAX, f64::min);
+        let range = highest - lowest;
+        raw[row] = if range.abs() <= 1.0e-14 * (highest.abs() + lowest.abs()) {
+            0.0
+        } else {
+            (close[row] - lowest) / range * 100.0
+        };
+    }
+    let stoch_k = sma(&raw, k_smooth, k - 1);
+    let stoch_d = sma(&stoch_k, d, k + k_smooth - 2);
+    [stoch_k, stoch_d]
+}
+
+proptest! {
+    #[test]
+    fn stoch_outputs_and_warm_ups_are_exact((columns, parameters) in columns_and_stoch_parameters()) {
+        let [k, k_smooth, d] = parameters;
+        let starts = [k + k_smooth - 2, k + k_smooth + d - 3];
+
+        for (line, start) in stoch_of(&columns, parameters).iter().zip(starts) {
+            prop_assert_eq!(line.len(), columns[0].len());
+            prop_assert!(line[..start].iter().all(|value| value.is_nan()));
+            prop_assert!(line[start..].iter().all(|value| value.is_finite()));
+        }
+    }
+
+    #[test]
+    fn stoch_stays_between_0_and_100((columns, parameters) in columns_and_stoch_parameters()) {
+        // With the close inside each row's range, raw %K is in [0, 100]; the
+        // running sums may round a hair past either end.
+        let slack = 1.0e-9;
+
+        for line in stoch_of(&columns, parameters) {
+            for value in line.iter().filter(|value| !value.is_nan()) {
+                prop_assert!(*value >= -slack && *value <= 100.0 + slack, "{} outside [0, 100]", value);
+            }
+        }
+    }
+
+    #[test]
+    fn stoch_matches_its_plain_loop_bit_for_bit((columns, parameters) in columns_and_stoch_parameters()) {
+        let actual = stoch_of(&columns, parameters);
+        let expected = reference_stoch(&columns, parameters);
+
+        for (output, (line, want)) in actual.iter().zip(&expected).enumerate() {
+            for (index, (a, e)) in line.iter().zip(want).enumerate() {
+                prop_assert!(
+                    (a.is_nan() && e.is_nan()) || a.to_bits() == e.to_bits(),
+                    "output {}, index {}: {:e} != {:e}", output, index, a, e
+                );
+            }
+        }
+    }
 }
 
 proptest! {

@@ -37,6 +37,8 @@ __all__ = [
     "sma_batch",
     "stddev",
     "stddev_batch",
+    "stoch",
+    "stoch_batch",
     "tema",
     "tema_batch",
     "wma",
@@ -81,6 +83,12 @@ def cci(columns: list[NDArray[np.float64]], period: int) -> NDArray[np.float64]:
 def cci_batch(
     datasets: list[list[NDArray[np.float64]]], period: int
 ) -> list[NDArray[np.float64] | Exception]: ...
+def stoch(
+    columns: list[NDArray[np.float64]], k: int, k_smooth: int, d: int
+) -> list[NDArray[np.float64]]: ...
+def stoch_batch(
+    datasets: list[list[NDArray[np.float64]]], k: int, k_smooth: int, d: int
+) -> list[list[NDArray[np.float64]] | Exception]: ...
 def adx(columns: list[NDArray[np.float64]], period: int) -> list[NDArray[np.float64]]: ...
 def adx_batch(
     datasets: list[list[NDArray[np.float64]]], period: int

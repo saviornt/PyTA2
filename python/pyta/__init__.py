@@ -25,6 +25,7 @@ from .indicators import (
     sar,
     sma,
     stddev,
+    stoch,
     tema,
     wma,
 )
@@ -54,6 +55,7 @@ __all__ = [
     "sar",
     "sma",
     "stddev",
+    "stoch",
     "tema",
     "trend",
     "volatility",

@@ -87,6 +87,11 @@ fn params(kind: IndicatorKind) -> Params {
         IndicatorKind::Atr => Params::Atr { period: 14 },
         IndicatorKind::Bbands => Params::Bbands { period: 20, k: 2.0 },
         IndicatorKind::Cci => Params::Cci { period: 14 },
+        IndicatorKind::Stoch => Params::Stoch {
+            k: 14,
+            k_smooth: 3,
+            d: 3,
+        },
         IndicatorKind::Donchian => Params::Donchian { period: 20 },
         IndicatorKind::Ema => Params::Ema { period: 20 },
         IndicatorKind::Ichimoku => Params::Ichimoku {
@@ -131,7 +136,8 @@ fn request(kind: IndicatorKind, close: Series) -> IndicatorRequest {
         | IndicatorKind::Atr
         | IndicatorKind::Cci
         | IndicatorKind::Ichimoku
-        | IndicatorKind::Keltner => {
+        | IndicatorKind::Keltner
+        | IndicatorKind::Stoch => {
             let columns = Columns::new(vec![offset(0.5), offset(-0.5), close])
                 .expect("columns have equal lengths");
             IndicatorRequest::with_columns(columns, params(kind))
@@ -290,6 +296,7 @@ fn many_datasets(c: &mut Criterion) {
         (IndicatorKind::Sma, "sma"),
         (IndicatorKind::Rsi, "rsi"),
         (IndicatorKind::Cci, "cci"),
+        (IndicatorKind::Stoch, "stoch"),
         (IndicatorKind::Ema, "ema"),
         (IndicatorKind::Wma, "wma"),
         (IndicatorKind::Dema, "dema"),
