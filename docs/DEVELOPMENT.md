@@ -374,12 +374,14 @@ Scripts, CI and docs:
 
 ### Tasks
 
+- [ ] Add the MACD indicator.
 - [ ] Extend the output contract to carry several named series.
 - [ ] Return outputs in the input's container type: extra columns for DataFrames, extra keys for dicts and JSON objects.
 - [ ] Define output naming (for example `macd`, `macd_signal`, `macd_hist`) and match the casing of the input's columns.
 - [ ] Validate the design with MACD.
 - [ ] Add tests for naming, casing, container types, and warm-up per output.
-- [ ] Update `API.md`.
+- [ ] Benchmark multi-output indicators and optimize while ensuring calculation accuracy.
+- [ ] Update documentation (`API.md`, `README.md`, indicator's wiki-doc, `DEVELOPMENT.md`)
 
 ### Acceptance criteria
 
