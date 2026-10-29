@@ -398,22 +398,43 @@ Scripts, CI and docs:
 
 ---
 
-## Sprint 11 — CSV input
+## Sprint 11 — Data containers: CSV input and round-trip conformance
 
-**Goal:** Support the CSV data that AlphaVantage returns.
+**Goal:** Support the CSV data that AlphaVantage returns, and prove that every supported container (pandas, `dict`, `tuple`, JSON and CSV) imports correctly and exports back to the same container, for every indicator shape (one or several input columns, one or several outputs).
 
-### Tasks
+### Tasks: decide
+
+- [ ] **What "export" means.** *Recommended:* output keeps the input's container type, as today (guiding principle 3). The alternative is an `output=` option that converts, for example DataFrame in and JSON out; if wanted, it goes to the parking lot or a later sprint.
+- [ ] **Container matrix.** Write down which input forms each indicator shape accepts and what each returns, as one table in `API.md` §4, covering every form listed below. Mark each pairing as supported, raising (with which exception), or out of scope.
+
+### Tasks: CSV
 
 - [ ] Accept CSV (`str` and `bytes`) as input.
 - [ ] Return CSV in the same form as the input.
 - [ ] Apply the same column selection and NaN policy as other containers.
 - [ ] Add tests, including headers, missing values, and mixed-case column names.
-- [ ] Update `API.md`.
+
+### Tasks: import and export of every container
+
+- [ ] **pandas:** Series and DataFrame with a default, date, datetime or non-unique index; nullable dtypes (`Float64`, `Int64` with `pd.NA`); integer and float columns; extra non-numeric columns; title-case (yfinance) and upper-case column names. Output keeps the index, its name and its order, and the casing rule.
+- [ ] **dict:** values as list, tuple, NumPy array or pandas Series, including mixed types in one dict; keys that aren't strings; extra keys; each output value keeps its input column's type.
+- [ ] **tuple:** a tuple of numbers (one series) and a tuple of arrays or lists (unnamed multi-column input, documented order); multi-output results as a tuple of outputs.
+- [ ] **JSON (`str`, `bytes`, `bytearray`):** array of numbers, array of records and object of arrays; `null` gaps; numbers as strings (decide: accept or reject); output in the same shape and type, with `null` for `NaN`.
+- [ ] **Round-trip tests:** one parametrized matrix over container × indicator shape (SMA, CCI, MACD, and one multi-column multi-output indicator if one exists by then) checking the output type, length, names and casing, index, and that values equal the NumPy result exactly.
+- [ ] **Hypothesis:** for random valid data, every container gives the same values as the plain NumPy call.
+- [ ] Fix every gap the matrix finds, or record it as a documented limitation in `API.md`.
+
+### Tasks: close
+
+- [ ] Same-session A/B against `main`: single and batch calls within ~5% for the containers that existed before.
+- [ ] Update `API.md` (§4 container matrix, CSV in §12 Data sources) and `ARCHITECTURE.md` if the normalization code changes shape.
 
 ### Acceptance criteria
 
 - CSV in produces CSV out, with the same conventions as JSON.
-- No provider dependency is added.
+- Every container in the matrix imports and exports correctly for every indicator shape, proven by the round-trip and Hypothesis tests; every unsupported form raises a clear error.
+- `API.md` documents the full container matrix and its limitations.
+- No provider dependency is added, and existing containers are no slower than on `main`.
 
 **Retrospective:**  
 **Sprint completion:** ☐
