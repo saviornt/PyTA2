@@ -37,7 +37,7 @@ Use the targeted commands while iterating, then the full suite once at the end. 
 
 The report is `tests/results/test-suite_<date>_<time>.txt`: result, duration, commit, dirty-tree flag, tool versions, a step table with timings, Rust and Python test counts, and Python and Rust coverage, then each step's full output.
 
-- Read the step table first, then only the failing steps' output.
+- Read only the top of the report, up to the `FULL RESULTS` heading: `sed '/^FULL RESULTS/q' tests/results/test-suite_<date>_<time>.txt`. Open Full Results only for a failing or odd step, and grep for that step's section (`<n>. <step name>  [STATUS, Ns]`, for example `grep -n -A 60 '^7\. ' <report>`) instead of reading the whole log. Give spawned agents (tester, reviewer) the same rule in their brief.
 - **Compare the test counts with the previous report.** A count that drops without a deleted test means tests stopped being collected.
 - Step 1 changes files. If it reports fixes, mention them; the `format-on-edit` hook should normally have prevented them.
 - Quote the failing assertion or error in the report to the user. Never describe a failing run as passing.

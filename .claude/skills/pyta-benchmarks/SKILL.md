@@ -43,6 +43,14 @@ Older reports in `benches/results/` remain the history for "how fast is X" and l
 
 ## Reading the report
 
+Read only the top of a report: the header, Steps, and the Criterion / Python single / Python batch summaries. Stop at the `FULL RESULTS` heading, which is the long raw log:
+
+```bash
+sed '/^FULL RESULTS/q' benches/results/benchmark_<date>_<time>.txt
+```
+
+Open Full Results only to debug a step that failed or looks odd, and then grep for that step (sections are headed `<n>. <step name>  [STATUS, Ns]`) instead of reading the whole log, for example `grep -n -A 40 '^2\. Rust batch' <report>`. The Criterion summary step's output is printed only in the top section. Give spawned agents (tester, reviewer) the same rule in their brief.
+
 - **`auto/best`** (batch workloads): the planner against the best other strategy for that row. About 1.00x means it chose well.
 - **Single-dataset workloads:** `auto` and `sequential` run the same code, so `auto/sequential` should be about 1.00x. If it is not, suspect the benchmark harness before the planner.
 - **Python `speedup`** (`bench_batch.py`): loop time divided by batch time. Below 1.0 the batch is slower, which is expected for many tiny datasets.
