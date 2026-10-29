@@ -81,7 +81,7 @@ pyta.batch.trend.ema([df1, df2, df3])                  # same as pyta.batch.ema
 
 ## Implementation notes
 
-The Rust kernel (`pyta-trend`) makes one pass over the series, with constant work per bar; the same kernel serves MACD. Libraries seed the EMA differently: some start from the first price instead of the mean of the first `period` prices, so their early values differ from TA-Lib's and PyTA's, converging over time. PyTA matches TA-Lib's own output to `1e-9` on 300 real SPY closes, for periods 10 and 30 (`tests/fixtures/ema_10_talib.csv`, `ema_30_talib.csv`, generated with TA-Lib 0.8.3).
+The Rust kernel (`pyta-trend`) makes one pass over the series, with constant work per bar; MACD runs the same arithmetic fused into its own single pass. Libraries seed the EMA differently: some start from the first price instead of the mean of the first `period` prices, so their early values differ from TA-Lib's and PyTA's, converging over time. PyTA matches TA-Lib's own output to `1e-9` on 300 real SPY closes, for periods 10 and 30 (`tests/fixtures/ema_10_talib.csv`, `ema_30_talib.csv`, generated with TA-Lib 0.8.3).
 
 ## See also
 

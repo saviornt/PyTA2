@@ -153,3 +153,106 @@ proptest! {
         }
     }
 }
+
+/// TA-Lib's EMA of `values`, seeded at `start` with the simple average of the
+/// `period` values ending there, as one plain pass: the reference the fused
+/// MACD kernel must match bit for bit.
+fn ema_pass(values: &[f64], period: usize, start: usize) -> Vec<f64> {
+    let k = 2.0 / (period + 1) as f64;
+    let mut output = vec![f64::NAN; values.len()];
+    let mut previous = values[start + 1 - period..=start].iter().sum::<f64>() / period as f64;
+    output[start] = previous;
+    for index in start + 1..values.len() {
+        previous = (values[index] - previous) * k + previous;
+        output[index] = previous;
+    }
+    output
+}
+
+/// MACD one pass at a time: slow EMA, fast EMA, their difference, the signal
+/// EMA of that, then the histogram.
+fn macd_by_passes(values: &[f64], fast: usize, slow: usize, signal: usize) -> [Vec<f64>; 3] {
+    let (fast, slow) = (fast.min(slow), fast.max(slow));
+    let macd_start = slow - 1;
+    let signal_start = slow + signal - 2;
+
+    let slow_ema = ema_pass(values, slow, macd_start);
+    let fast_ema = ema_pass(values, fast, macd_start);
+    let line: Vec<f64> = fast_ema.iter().zip(&slow_ema).map(|(f, s)| f - s).collect();
+    let signal_line = ema_pass(&line, signal, signal_start);
+    let histogram = line
+        .iter()
+        .zip(&signal_line)
+        .enumerate()
+        .map(|(index, (m, s))| {
+            if index < signal_start {
+                f64::NAN
+            } else {
+                m - s
+            }
+        })
+        .collect();
+
+    [line, signal_line, histogram]
+}
+
+/// Bit-for-bit equality (`NaN` equal to `NaN`, `0.0` not equal to `-0.0`).
+fn assert_bits_equal(actual: &[f64], expected: &[f64], what: &str) {
+    assert_eq!(actual.len(), expected.len(), "{what}: length");
+    for (index, (a, e)) in actual.iter().zip(expected).enumerate() {
+        assert!(
+            (a.is_nan() && e.is_nan()) || a.to_bits() == e.to_bits(),
+            "{what}, index {index}: {a:e} != {e:e}"
+        );
+    }
+}
+
+fn assert_macd_matches_passes(values: &[f64], fast: usize, slow: usize, signal: usize) {
+    let output = macd(&Series::new(values.to_vec()).unwrap(), fast, slow, signal).unwrap();
+    let expected = macd_by_passes(values, fast, slow, signal);
+
+    for ((actual, expected), what) in
+        output
+            .outputs()
+            .iter()
+            .zip(&expected)
+            .zip(["macd", "signal", "histogram"])
+    {
+        assert_bits_equal(actual, expected, what);
+    }
+}
+
+proptest! {
+    #[test]
+    fn fused_macd_matches_one_pass_per_ema_bit_for_bit(
+        (values, fast, slow, signal) in series_and_macd_parameters()
+    ) {
+        assert_macd_matches_passes(&values, fast, slow, signal);
+        // The same parameters on the shortest input they accept.
+        let required = fast.max(slow) + signal - 1;
+        assert_macd_matches_passes(&values[..required], fast, slow, signal);
+    }
+}
+
+#[test]
+fn fused_macd_matches_one_pass_per_ema_on_edge_parameters() {
+    let values: Vec<f64> = (0..120)
+        .map(|i| (i as f64 * 0.37).sin() * 5.0 + 100.0 + i as f64 * 0.01)
+        .collect();
+    // Defaults, fast == slow, signal == 1, swapped, minimal periods.
+    let cases = [
+        (12, 26, 9),
+        (5, 5, 3),
+        (12, 26, 1),
+        (26, 12, 9),
+        (2, 2, 1),
+        (2, 3, 1),
+        (5, 35, 5),
+    ];
+
+    for (fast, slow, signal) in cases {
+        let required = fast.max(slow) + signal - 1;
+        assert_macd_matches_passes(&values, fast, slow, signal);
+        assert_macd_matches_passes(&values[..required], fast, slow, signal);
+    }
+}

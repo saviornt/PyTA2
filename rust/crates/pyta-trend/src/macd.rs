@@ -1,7 +1,5 @@
 use pyta_core::{IndicatorOutput, PytaError, PytaResult, Series};
 
-use crate::ema::ema_into;
-
 /// Calculates Moving Average Convergence/Divergence (MACD), as TA-Lib's
 /// `TA_MACD`.
 ///
@@ -62,28 +60,48 @@ pub fn macd(
     let macd_start = slow - 1;
     let signal_start = slow + signal - 2;
 
-    // The slow EMA goes to `line` and the fast one to `histogram`, so the
-    // three outputs are the only allocations.
-    let mut line = vec![f64::NAN; length];
-    let mut signal_line = vec![f64::NAN; length];
-    let mut histogram = vec![f64::NAN; length];
+    // One pass for all three EMAs. Every update is TA-Lib's
+    // `(value - previous) * k + previous` and every seed a left-to-right sum
+    // divided by the period, as in `ema_into`, so the results are bit for bit
+    // those of one EMA pass after another.
+    let fast_k = 2.0 / (fast + 1) as f64;
+    let slow_k = 2.0 / (slow + 1) as f64;
+    let signal_k = 2.0 / (signal + 1) as f64;
 
-    ema_into(values, slow, macd_start, &mut line);
-    ema_into(values, fast, macd_start, &mut histogram);
+    let mut slow_ema = values[..slow].iter().sum::<f64>() / slow as f64;
+    let mut fast_ema = values[slow - fast..slow].iter().sum::<f64>() / fast as f64;
 
-    for (slow_ema, fast_ema) in line[macd_start..].iter_mut().zip(&histogram[macd_start..]) {
-        *slow_ema = fast_ema - *slow_ema;
+    // Each output gets its warm-up `NaN`s, then is pushed to once per row.
+    let mut line = Vec::with_capacity(length);
+    line.resize(macd_start, f64::NAN);
+    line.push(fast_ema - slow_ema);
+
+    // Until the signal starts, only the `macd` line has values.
+    for value in &values[slow..=signal_start] {
+        slow_ema = (value - slow_ema) * slow_k + slow_ema;
+        fast_ema = (value - fast_ema) * fast_k + fast_ema;
+        line.push(fast_ema - slow_ema);
     }
 
-    ema_into(&line, signal, signal_start, &mut signal_line);
+    let mut signal_ema = line[macd_start..].iter().sum::<f64>() / signal as f64;
 
-    histogram[macd_start..signal_start].fill(f64::NAN);
-    for ((hist, macd), signal) in histogram[signal_start..]
-        .iter_mut()
-        .zip(&line[signal_start..])
-        .zip(&signal_line[signal_start..])
-    {
-        *hist = macd - signal;
+    let mut signal_line = Vec::with_capacity(length);
+    signal_line.resize(signal_start, f64::NAN);
+    signal_line.push(signal_ema);
+
+    let mut histogram = Vec::with_capacity(length);
+    histogram.resize(signal_start, f64::NAN);
+    histogram.push(line[signal_start] - signal_ema);
+
+    for value in &values[signal_start + 1..] {
+        slow_ema = (value - slow_ema) * slow_k + slow_ema;
+        fast_ema = (value - fast_ema) * fast_k + fast_ema;
+        let macd = fast_ema - slow_ema;
+        signal_ema = (macd - signal_ema) * signal_k + signal_ema;
+
+        line.push(macd);
+        signal_line.push(signal_ema);
+        histogram.push(macd - signal_ema);
     }
 
     IndicatorOutput::with_outputs(vec![line, signal_line, histogram])

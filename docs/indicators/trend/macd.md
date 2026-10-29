@@ -98,7 +98,7 @@ If `slow` is less than `fast`, the two are swapped, as TA-Lib does, so `macd(clo
 
 ## Implementation notes
 
-The Rust kernel (`pyta-trend`) makes one pass per EMA, reusing the EMA kernel, and allocates only the three outputs. PyTA matches TA-Lib's own output to `1e-9` on 300 real SPY closes for 12/26/9 and 5/35/5 (`tests/fixtures/macd_12_26_9_talib.csv`, `macd_5_35_5_talib.csv`, generated with TA-Lib 0.8.3; the `macd` column before the signal exists comes from TA-Lib with `signalperiod=1`).
+The Rust kernel (`pyta-trend`) computes all three EMAs in one pass, with the same arithmetic in the same order as three separate EMA passes (so the results are identical to the bit), and allocates only the three outputs. PyTA matches TA-Lib's own output to `1e-9` on 300 real SPY closes for 12/26/9 and 5/35/5 (`tests/fixtures/macd_12_26_9_talib.csv`, `macd_5_35_5_talib.csv`, generated with TA-Lib 0.8.3; the `macd` column before the signal exists comes from TA-Lib with `signalperiod=1`).
 
 ## See also
 

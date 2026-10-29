@@ -38,11 +38,13 @@ pub const CCI_NS_PER_WINDOW_VALUE: f64 = 0.24;
 pub const EMA_NS_PER_ELEMENT: f64 = 3.6;
 
 /// Moving Average Convergence/Divergence, in nanoseconds per input row for
-/// all three outputs; independent of its periods (one pass per EMA plus the
-/// differences).
+/// all three outputs; independent of its periods (one fused pass for the
+/// three EMAs after their seeds).
 ///
-/// Provisional, from the same quick run as [`EMA_NS_PER_ELEMENT`]: the
-/// MACD(12, 26, 9) kernel at 1,000,000 rows took 12.007 ms against RSI's
-/// 2.405 ms (3.0 * 4.99). Confirm with a full
+/// Provisional, from two quick runs on 2026-10-28 after fusing the kernel
+/// (`benches/results/benchmark_2026-10-28_22-18-11.txt` and `_22-19-05`,
+/// `--single --rust --quick`): the MACD(12, 26, 9) kernel at 1,000,000 rows
+/// took 5.649 ms on average against RSI-14's 2.517 ms in the same runs,
+/// scaled here by `RSI_NS_PER_ELEMENT` (3.0 * 2.24). Confirm with a full
 /// `--single --rust --indicator macd`.
-pub const MACD_NS_PER_ELEMENT: f64 = 15.0;
+pub const MACD_NS_PER_ELEMENT: f64 = 6.7;
