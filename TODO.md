@@ -86,10 +86,10 @@ Where things stand:
 - [x] `./scripts/benchmark.sh --single --python` and `--batch --python` against the latest baseline in `benches/results/`. *(See the SMA/RSI criterion above; no `--single --python` baseline existed in `benches/results/`, so `main` was benchmarked alongside, per memory "A/B beats old baselines".)*
 - [x] Manual: `uv run python -c "import pandas as pd, pyta; df = pd.read_csv('tests/fixtures/ohlcv_daily.csv', comment='#'); print(pyta.cci(df, period=20).tail())"`. *(2026-10-28: prints a `cci_20` DataFrame; last five 169.22, 164.87, 92.61, 77.92, −3.99.)*
 
-Out of scope: multi-output indicators (Sprint 10), CSV input (Sprint 11), parameters other than `period`, the fundamental roles themselves (only the room for them), and indicators beyond the one that validates the design.
-
 ## Parking lot
 
 - Multi-column Python layer costs ~12 µs per call on 100 rows (dict of three arrays) against ~3.8 µs for SMA; the rest is per-column conversion and leading-NaN checks.
 - RSI reference tolerance (0.1) comes from StockCharts' rounded image; the unrounded `cs-rsi.xls` would allow a tight check (needs a download).
 - `tests/fixtures/ohlcv_daily.csv` is Yahoo data (personal use); revisit before a public release.
+
+Out of scope: multi-output indicators (Sprint 10), CSV input (Sprint 11), parameters other than `period`, the fundamental roles themselves (only the room for them), and indicators beyond the one that validates the design.

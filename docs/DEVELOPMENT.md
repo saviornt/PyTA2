@@ -363,8 +363,8 @@ Scripts, CI and docs:
 - Users who don't know which columns an indicator needs get an error that tells them.
 - Single-column indicators are unaffected.
 
-**Retrospective:**  
-**Sprint completion:** ☐
+**Retrospective:** *Worked:* deciding the two open questions (CCI as the proving indicator, a generic `Columns` type instead of the fixed `Ohlcv`) before any code, so the contract has room for fundamentals and the old struct could go; one role registry and declared slots let every container, `columns=` in any order and the error messages share one path; measuring paid off twice, halving the multi-column Python overhead (36 → 15 µs) and making the CCI kernel 2.1-2.5x faster with compensated window sums, which also fixed a drift a plain running sum showed (a flat window after a large price read -66.7 instead of 0); SMA and RSI stayed within noise in a same-session A/B against `main`. *Didn't:* there was no `--single --python` baseline in `benches/results/`, so `main` had to be benchmarked alongside; CCI's cost constants were provisional until a second pass refitted them; the multi-column Python layer still costs about 12 µs per 100-row call against about 3.8 µs for SMA; CI had not run when the sprint closed. *Next:* Sprint 10 multi-output indicators, validated with MACD; keep a current `--single --python` baseline in `benches/results/`; the multi-column overhead is in the parking lot for Sprint 17.  
+**Sprint completion:** ✓
 
 ---
 
