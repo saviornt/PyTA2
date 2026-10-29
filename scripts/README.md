@@ -114,7 +114,11 @@ The Python benchmarks use a release build of the extension, which the script ins
 
 ### Reading the report
 
-`benches/results/benchmark_YYYY-MM-DD_HH-MM-SS.txt` has, in order: result and timing, the options used, the environment (commit, tool versions, CPU, CPU governor), a step table, the summary tables, and the full output of every step.
+`benches/results/benchmark_YYYY-MM-DD_HH-MM-SS.txt` has, in order: result and timing, the options used, the environment (commit, tool versions, CPU, CPU governor), a step table, the summary tables, and then, under `FULL RESULTS`, the full output of every step (the Criterion summary step's output appears only in the summary, with a pointer in Full Results). To read just the top part:
+
+```bash
+sed '/^FULL RESULTS/q' benches/results/benchmark_YYYY-MM-DD_HH-MM-SS.txt
+```
 
 - **`auto/best`** compares the planner with the best other strategy for that row. A value near 1.00x means the planner chose well. In the single-dataset workloads, `auto` and `sequential` run the same code, so the ratio should be about 1.00x; if it is not, suspect the benchmark harness before the planner.
 - **Python `speedup`** is the loop time divided by the batch time. Below 1.0, the batch call is slower. Expect that for many tiny datasets, where per-dataset Python work dominates.

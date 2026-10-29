@@ -2,7 +2,7 @@
 # Runs PyTA benchmarks and writes a timestamped report to benches/results/.
 #
 # The report has a summary at the top (options, environment, and result
-# tables) and the full output of every step below it. Run on a quiet machine:
+# tables) and the full output of every other step below it. Run on a quiet machine:
 # other load makes timings noisy. See scripts/README.md for details.
 set -uo pipefail
 
@@ -298,7 +298,13 @@ fi
         echo "----------------------------------------------------------------------"
         echo "$((i + 1)). ${NAMES[$i]}  [${STATUSES[$i]}, ${SECONDS_TAKEN[$i]}s]"
         echo "----------------------------------------------------------------------"
-        cat "$(log_of "$i")"
+        # The Criterion summary step's whole output (errors included) is
+        # already printed under "Summary: Criterion"; don't repeat it here.
+        if [[ $i -eq $SUMMARY_IDX ]]; then
+            echo "Output is under \"Summary: Criterion\" at the top of this report."
+        else
+            cat "$(log_of "$i")"
+        fi
     done
 } > "$REPORT"
 
