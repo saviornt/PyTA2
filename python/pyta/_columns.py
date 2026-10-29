@@ -2,8 +2,9 @@
 
 Every supported container is reduced to one 1-D, C-contiguous float64 array
 per slot of the indicator, in slot order, together with a function that
-rebuilds the caller's container from the result. Named containers are matched
-by role; unnamed ones (2-D arrays, tuples of arrays) use the slot order.
+rebuilds the caller's container from the indicator's named results. Named
+containers are matched by role; unnamed ones (2-D arrays, tuples of arrays) use
+the slot order, and give a tuple of outputs for a multi-output indicator.
 """
 
 import functools
@@ -18,10 +19,16 @@ from numpy.typing import NDArray
 
 from ._types import Float64Array, Prepared, PreparedColumns, Restore
 from ._validation import (
+    RESTORE_ARRAY,
+    RESTORE_TUPLE,
     Slot,
     from_column,
     from_pandas_series,
-    nulls,
+    json_dump,
+    restore_columns,
+    restore_frame,
+    restore_json_object,
+    restore_records,
     role_aliases,
     role_names,
     role_of,
@@ -106,13 +113,9 @@ def _column(value: object, key: object) -> Prepared:
         and value.ndim == 1
         and value.flags.c_contiguous
     ):
-        return Prepared(cast(Float64Array, value), _same)
+        return Prepared(cast(Float64Array, value), RESTORE_ARRAY)
 
     return from_column(value, key)
-
-
-def _same(out: Float64Array, _name: str) -> Float64Array:
-    return out
 
 
 def _one_column(label: str, slots: Sequence[Slot], kind: str) -> TypeError:
@@ -249,7 +252,9 @@ def _prepared(
     labels: Sequence[object],
     roles: Sequence[str],
     restore: Restore,
+    named: bool = True,
 ) -> PreparedColumns:
+    """Checks the columns' lengths; `named` is False when `labels` are positions."""
     lengths = {array.shape[0] for array in values}
 
     if len(lengths) > 1:
@@ -259,7 +264,11 @@ def _prepared(
         raise ValueError(f"columns have different lengths ({sizes})")
 
     return PreparedColumns(
-        tuple(values), tuple(str(label) for label in labels), tuple(roles), restore
+        tuple(values),
+        tuple(str(label) for label in labels),
+        tuple(roles),
+        restore,
+        tuple(labels) if named else (),
     )
 
 
@@ -306,7 +315,7 @@ def _from_array(
     arrays = [to_float64(data[:, i]) for i in range(data.shape[1])]
     labels, roles = _unnamed(arrays, label, slots, "the array")
 
-    return _prepared(arrays, labels, roles, lambda out, _name: out)
+    return _prepared(arrays, labels, roles, RESTORE_ARRAY, named=False)
 
 
 def _from_tuple(
@@ -320,7 +329,7 @@ def _from_tuple(
     arrays = [_column(item, i).values for i, item in enumerate(data)]
     labels, roles = _unnamed(arrays, label, slots, "the tuple")
 
-    return _prepared(arrays, labels, roles, lambda out, _name: tuple(out.tolist()))
+    return _prepared(arrays, labels, roles, RESTORE_TUPLE, named=False)
 
 
 def _from_pandas_frame(
@@ -336,7 +345,7 @@ def _from_pandas_frame(
         arrays,
         [key for key, _ in chosen],
         [role for _, role in chosen],
-        lambda out, name: pd.DataFrame({name: out}, index=data.index),
+        restore_frame(pd, data.index),
     )
 
 
@@ -345,14 +354,14 @@ def _from_mapping(
 ) -> PreparedColumns:
     chosen = _match(list(data), columns, label, slots)
     prepared = [_column(data[key], key) for key, _ in chosen]
-    # The result keeps the container type of the first input column.
+    # Each output keeps the container type of the first input column.
     inner = prepared[0].restore
 
     return _prepared(
         [column.values for column in prepared],
         [key for key, _ in chosen],
         [role for _, role in chosen],
-        lambda out, name: {name: inner(out, name)},
+        restore_columns(lambda out, name: inner(((name, out),))),
     )
 
 
@@ -369,11 +378,7 @@ def _from_json(
     except ValueError as error:  # JSONDecodeError and UnicodeDecodeError
         raise ValueError(f"invalid JSON input: {error}") from error
 
-    as_bytes = not isinstance(data, str)
-
-    def dump(obj: Any) -> str | bytes:
-        text = json.dumps(obj, allow_nan=False, separators=(",", ":"))
-        return text.encode() if as_bytes else text
+    dump = json_dump(not isinstance(data, str))
 
     if isinstance(parsed, list):
         rows = cast(list[Any], parsed)
@@ -394,7 +399,7 @@ def _from_json(
             arrays,
             [key for key, _ in chosen],
             [role for _, role in chosen],
-            lambda out, name: dump([{name: v} for v in nulls(out)]),
+            restore_records(dump),
         )
 
     if isinstance(parsed, dict):
@@ -411,7 +416,7 @@ def _from_json(
             arrays,
             [key for key, _ in chosen],
             [role for _, role in chosen],
-            lambda out, name: dump({name: nulls(out)}),
+            restore_json_object(dump),
         )
 
     raise TypeError("JSON input must be an array of records or an object of arrays")

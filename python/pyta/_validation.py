@@ -1,8 +1,8 @@
 """Input normalization and parameter validation.
 
 Every supported input container is reduced to one 1-D, C-contiguous float64
-array, together with a function that rebuilds the caller's container from a
-result. Element-level checks (finite, non-empty) stay in Rust.
+array, together with a function that rebuilds the caller's container from an
+indicator's named results. Element-level checks (finite, non-empty) stay in Rust.
 """
 
 import functools
@@ -11,7 +11,7 @@ import logging
 import operator
 import re
 import sys
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Annotated, Any, cast
 
@@ -19,12 +19,13 @@ import numpy as np
 from numpy.typing import NDArray
 from pydantic import Field, TypeAdapter, ValidationError
 
-from ._types import Float64Array, Prepared
+from ._types import Float64Array, Outputs, Prepared, Restore
 
 _log = logging.getLogger("pyta.validation")
 
 _MAX_PERIOD = 2**31 - 1
-_PERIOD = TypeAdapter(Annotated[int, Field(ge=1, le=_MAX_PERIOD)])
+_AT_LEAST_1 = TypeAdapter(Annotated[int, Field(ge=1, le=_MAX_PERIOD)])
+_AT_LEAST_2 = TypeAdapter(Annotated[int, Field(ge=2, le=_MAX_PERIOD)])
 
 _SEPARATORS = re.compile(r"[\s._-]+")
 
@@ -122,24 +123,49 @@ class Slot:
         return f"{self.name} ({' or '.join(self.roles)})"
 
 
+def _validate_int(name: str, value: object, minimum: int, adapter: TypeAdapter[int]) -> int:
+    """Returns `value` as an int in [minimum, 2**31 - 1], with errors naming `name`.
+
+    Wrong types raise `TypeError`; out-of-range values raise `ValueError`.
+    """
+    if isinstance(value, bool):
+        raise TypeError(f"{name} must be an integer, not bool")
+
+    try:
+        index = operator.index(value)  # type: ignore[arg-type]
+    except TypeError:
+        raise TypeError(f"{name} must be an integer, got {type(value).__name__}") from None
+
+    try:
+        return adapter.validate_python(index)
+    except ValidationError:
+        # Replace Pydantic's multi-line report with one actionable sentence.
+        raise ValueError(
+            f"{name} must be between {minimum} and {_MAX_PERIOD}, got {index}"
+        ) from None
+
+
 def validate_period(period: object) -> int:
     """Returns `period` as an int in [1, 2**31 - 1].
 
     Wrong types raise `TypeError`; out-of-range values raise `ValueError`.
     """
-    if isinstance(period, bool):
-        raise TypeError("period must be an integer, not bool")
+    return _validate_int("period", period, 1, _AT_LEAST_1)
 
-    try:
-        index = operator.index(period)  # type: ignore[arg-type]
-    except TypeError:
-        raise TypeError(f"period must be an integer, got {type(period).__name__}") from None
 
-    try:
-        return _PERIOD.validate_python(index)
-    except ValidationError:
-        # Replace Pydantic's multi-line report with one actionable sentence.
-        raise ValueError(f"period must be between 1 and {_MAX_PERIOD}, got {index}") from None
+def validate_fast(fast: object) -> int:
+    """Returns MACD's `fast` period as an int in [2, 2**31 - 1] (TA-Lib's lower bound)."""
+    return _validate_int("fast", fast, 2, _AT_LEAST_2)
+
+
+def validate_slow(slow: object) -> int:
+    """Returns MACD's `slow` period as an int in [2, 2**31 - 1] (TA-Lib's lower bound)."""
+    return _validate_int("slow", slow, 2, _AT_LEAST_2)
+
+
+def validate_signal(signal: object) -> int:
+    """Returns MACD's `signal` period as an int in [1, 2**31 - 1]."""
+    return _validate_int("signal", signal, 1, _AT_LEAST_1)
 
 
 def normalize(data: object, column: str | None, default_column: str) -> Prepared:
@@ -256,6 +282,79 @@ def to_float64(values: NDArray[Any]) -> Float64Array:
     return np.ascontiguousarray(converted, dtype=np.float64)
 
 
+# --- restoring results ----------------------------------------------------------------------
+
+
+def one_series(single: Callable[[Float64Array, str], Any]) -> Restore:
+    """A `Restore` for a one-series container, from its single-output form.
+
+    One output is returned in that form; several are a tuple of them, in the
+    indicator's documented order.
+    """
+
+    def restore(outputs: Outputs) -> Any:
+        if len(outputs) == 1:
+            name, values = outputs[0]
+            return single(values, name)
+        return tuple(single(values, name) for name, values in outputs)
+
+    return restore
+
+
+def _as_array(out: Float64Array, _name: str) -> Float64Array:
+    return out
+
+
+def _as_list(out: Float64Array, _name: str) -> list[float]:
+    return out.tolist()
+
+
+def _as_tuple(out: Float64Array, _name: str) -> tuple[float, ...]:
+    return tuple(out.tolist())
+
+
+#: Restores for unnamed one-series containers, shared by every call.
+RESTORE_ARRAY = one_series(_as_array)
+RESTORE_LIST = one_series(_as_list)
+RESTORE_TUPLE = one_series(_as_tuple)
+
+
+def restore_columns(single: Callable[[Float64Array, str], Any]) -> Restore:
+    """A `Restore` for a dict: one key per output, each value in `single`'s form."""
+    return lambda outputs: {name: single(values, name) for name, values in outputs}
+
+
+def restore_frame(pd: Any, index: Any) -> Restore:
+    """A `Restore` for a DataFrame: one column per output, keeping `index`."""
+    return lambda outputs: pd.DataFrame(dict(outputs), index=index)
+
+
+def json_dump(as_bytes: bool) -> Callable[[Any], str | bytes]:
+    """Serializes to compact JSON, as bytes when the input was bytes."""
+
+    def dump(obj: Any) -> str | bytes:
+        text = json.dumps(obj, allow_nan=False, separators=(",", ":"))
+        return text.encode() if as_bytes else text
+
+    return dump
+
+
+def restore_records(dump: Callable[[Any], str | bytes]) -> Restore:
+    """A `Restore` for a JSON array of records: each record keyed by every output name."""
+
+    def restore(outputs: Outputs) -> str | bytes:
+        names = [name for name, _ in outputs]
+        columns = [nulls(values) for _, values in outputs]
+        return dump([dict(zip(names, row, strict=True)) for row in zip(*columns, strict=True)])
+
+    return restore
+
+
+def restore_json_object(dump: Callable[[Any], str | bytes]) -> Restore:
+    """A `Restore` for a JSON object of arrays: one key per output."""
+    return lambda outputs: dump({name: nulls(values) for name, values in outputs})
+
+
 # --- containers -----------------------------------------------------------------------------
 
 
@@ -265,7 +364,7 @@ def _from_array(data: NDArray[Any], column: str | None) -> Prepared:
     if isinstance(data, np.ma.MaskedArray):
         data = np.ma.filled(data.astype(np.float64), np.nan)
 
-    return Prepared(to_float64(data), lambda out, _name: out)
+    return Prepared(to_float64(data), RESTORE_ARRAY)
 
 
 def _from_sequence(data: Sequence[object], column: str | None) -> Prepared:
@@ -278,10 +377,7 @@ def _from_sequence(data: Sequence[object], column: str | None) -> Prepared:
 
     values = to_float64(array)
 
-    if isinstance(data, tuple):
-        return Prepared(values, lambda out, _name: tuple(out.tolist()))
-
-    return Prepared(values, lambda out, _name: out.tolist())
+    return Prepared(values, RESTORE_TUPLE if isinstance(data, tuple) else RESTORE_LIST)
 
 
 def from_pandas_series(pd: Any, data: Any, column: str | None) -> Prepared:
@@ -304,7 +400,8 @@ def from_pandas_series(pd: Any, data: Any, column: str | None) -> Prepared:
 
     return Prepared(
         to_float64(values),
-        lambda out, name: pd.Series(out, index=data.index, name=name),
+        one_series(lambda out, name: pd.Series(out, index=data.index, name=name)),
+        () if data.name is None else (data.name,),
     )
 
 
@@ -315,10 +412,7 @@ def _from_pandas_frame(pd: Any, data: Any, column: str | None, default_column: s
     label = _pick(list(data.columns), column, default_column)
     series = from_pandas_series(pd, data[label], None)
 
-    return Prepared(
-        series.values,
-        lambda out, name: pd.DataFrame({name: out}, index=data.index),
-    )
+    return Prepared(series.values, restore_frame(pd, data.index), (label,))
 
 
 def from_column(value: object, key: object) -> Prepared:
@@ -344,7 +438,13 @@ def _from_mapping(
     key = _pick(list(data), column, default_column)
     inner = from_column(data[key], key)
 
-    return Prepared(inner.values, lambda out, name: {name: inner.restore(out, name)})
+    # Each output keeps the input column's container type.
+    single = inner.restore
+    return Prepared(
+        inner.values,
+        restore_columns(lambda out, name: single(((name, out),))),
+        (key,),
+    )
 
 
 def nulls(values: Float64Array) -> list[float | None]:
@@ -358,18 +458,15 @@ def _from_json(data: str | bytes | bytearray, column: str | None, default_column
     """Accepts a JSON array of numbers, array of records, or object of arrays.
 
     `null` is a gap (NaN). The result is returned as JSON of the same shape
-    and the same type (str or bytes), with NaN written as `null`.
+    and the same type (str or bytes), with NaN written as `null`; several
+    outputs from an array of numbers become an object keyed by output name.
     """
     try:
         parsed = json.loads(data)
     except ValueError as error:  # JSONDecodeError and UnicodeDecodeError
         raise ValueError(f"invalid JSON input: {error}") from error
 
-    as_bytes = not isinstance(data, str)
-
-    def dump(obj: Any) -> str | bytes:
-        text = json.dumps(obj, allow_nan=False, separators=(",", ":"))
-        return text.encode() if as_bytes else text
+    dump = json_dump(not isinstance(data, str))
 
     if isinstance(parsed, list):
         parsed = cast(list[Any], parsed)
@@ -382,12 +479,18 @@ def _from_json(data: str | bytes | bytearray, column: str | None, default_column
             key = _pick(list(parsed[0]), column, default_column)
             values = _from_sequence([row.get(key) for row in parsed], None).values
 
-            return Prepared(values, lambda out, name: dump([{name: v} for v in nulls(out)]))
+            return Prepared(values, restore_records(dump), (key,))
 
         _reject_column(column, "JSON array")
         values = _from_sequence(parsed, None).values
 
-        return Prepared(values, lambda out, _name: dump(nulls(out)))
+        # One output is an array like the input; several are an object keyed by name.
+        def restore(outputs: Outputs) -> str | bytes:
+            if len(outputs) == 1:
+                return dump(nulls(outputs[0][1]))
+            return dump({name: nulls(out) for name, out in outputs})
+
+        return Prepared(values, restore)
 
     if isinstance(parsed, dict):  # columns
         parsed = cast(dict[Any, Any], parsed)
@@ -398,7 +501,7 @@ def _from_json(data: str | bytes | bytearray, column: str | None, default_column
 
         values = _from_sequence(parsed[key], None).values
 
-        return Prepared(values, lambda out, name: dump({name: nulls(out)}))
+        return Prepared(values, restore_json_object(dump), (key,))
 
     raise TypeError(
         "JSON input must be an array of numbers, an array of records, or an object of arrays"

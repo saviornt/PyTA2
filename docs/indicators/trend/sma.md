@@ -40,9 +40,9 @@ from pyta.trend import sma
 It works on any supported container and returns the same kind:
 
 ```python
-pyta.sma(df, period=20)                          # DataFrame with an "sma_20" column
+pyta.sma(df, period=20)                          # DataFrame with an "sma" column
 pyta.sma(df, period=20, column="adj close")      # use the adjusted close instead
-pyta.sma(pd_series, period=50)                   # Series named "sma_50", same index
+pyta.sma(pd_series, period=50)                   # Series named "sma", same index
 pyta.sma(np_array, period=10)                    # NumPy array
 ```
 
@@ -67,7 +67,7 @@ pyta.batch.trend.sma([df1, df2], period=20)   # same as pyta.batch.sma
 - Same length as the input, `float64`.
 - The first `period - 1` values are `NaN` (warm-up), because a full window is not available yet.
 - A `period` of `1` returns the input unchanged.
-- Named `sma_<period>` (for example `sma_20`) in a Series, DataFrame, dict, or JSON object.
+- Named `sma` in a Series, DataFrame, dict, or JSON object (`SMA` when the input column is `CLOSE` or `Close`; see [names and casing](../../API.md#11-multi-output-indicators)).
 
 ## Missing and invalid data
 

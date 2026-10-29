@@ -27,7 +27,7 @@ import pandas as pd
 import pyta
 
 df = pd.read_csv("prices.csv")   # date, open, high, low, close, volume
-pyta.cci(df, period=20)          # a DataFrame with one column, "cci_20"
+pyta.cci(df, period=20)          # a DataFrame with one column, "cci"
 pyta.cci(df)                     # period defaults to 14
 ```
 
@@ -35,7 +35,7 @@ The same works for a dict of columns and JSON (an array of records or an object 
 
 ```python
 pyta.cci({"High": highs, "Low": lows, "Close": closes, "Volume": volumes})
-# {"cci_14": [...]}
+# {"cci": [...]}
 ```
 
 To choose the columns yourself, pass `columns=[...]` in any order; each name goes to the input for its role:
@@ -93,7 +93,7 @@ With no `columns=`, the close input takes the close column if there is one, and 
 - Same length as the input, `float64`. Unbounded, but most values lie between −100 and +100; it can never exceed `period / 0.03` in size.
 - The first `period − 1` values are `NaN` (warm-up).
 - At least `period` rows are required.
-- Named `cci_<period>` (for example `cci_20`) in a DataFrame, dict, or JSON object. A dict keeps the container type of its high column (list, array or Series); a 2-D array gives a 1-D array, and a tuple a tuple.
+- Named `cci` in a DataFrame, dict, or JSON object (`CCI` when the columns used are all upper case or all title case, as yfinance's `High`, `Low`, `Close`; see [names and casing](../../API.md#11-multi-output-indicators)). A dict keeps the container type of its high column (list, array or Series); a 2-D array gives a 1-D array, and a tuple a tuple.
 
 ## Edge cases
 

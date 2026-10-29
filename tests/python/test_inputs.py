@@ -71,7 +71,7 @@ def test_series_keeps_index_and_is_named_after_the_indicator(ohlcv: Ohlcv) -> No
 
     assert isinstance(result, pd.Series)
     assert result.index.equals(index)
-    assert result.name == f"sma_{PERIOD}"
+    assert result.name == "sma"
     assert_real_sma(result, ohlcv.close)
 
 
@@ -100,7 +100,7 @@ def test_dataframe_returns_a_dataframe_with_the_indicator_column(ohlcv: Ohlcv) -
         },
         index=index,
     )
-    name = f"sma_{PERIOD}"
+    name = "SMA"
 
     result = pyta.sma(frame, period=PERIOD)
 
@@ -117,7 +117,7 @@ def test_dataframe_returns_a_dataframe_with_the_indicator_column(ohlcv: Ohlcv) -
 def test_dataframe_column_selection_errors() -> None:
     pd = pytest.importorskip("pandas")
 
-    assert_series(pyta.sma(pd.DataFrame({"price": PRICES}), period=3)["sma_3"])
+    assert_series(pyta.sma(pd.DataFrame({"price": PRICES}), period=3)["sma"])
 
     with pytest.raises(ValueError, match="available"):
         pyta.sma(pd.DataFrame({"a": PRICES, "b": PRICES}), period=3)
@@ -132,7 +132,7 @@ def test_dataframe_column_selection_errors() -> None:
 def test_dict_returns_a_dict_with_the_indicator_key(ohlcv: Ohlcv) -> None:
     # A dict of lists with a non-numeric date column, as from a CSV reader.
     data = {"date": ohlcv.dates, **ohlcv.lists()}
-    name = f"sma_{PERIOD}"
+    name = "sma"
 
     result = pyta.sma(data, period=PERIOD)
 
@@ -164,7 +164,7 @@ def nulls_to_nan(values: list[float | None]) -> list[float]:
 
 
 def test_json_columns_and_records(ohlcv: Ohlcv) -> None:
-    name = f"sma_{PERIOD}"
+    name = "sma"
     columns = json.dumps({"date": ohlcv.dates, **ohlcv.lists()})
     assert_real_sma(nulls_to_nan(json.loads(pyta.sma(columns, period=PERIOD))[name]), ohlcv.close)
 

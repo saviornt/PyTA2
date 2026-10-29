@@ -16,7 +16,7 @@ def same(got, want):
     np.testing.assert_array_equal(got, want)
 
 
-@pytest.mark.parametrize("name", ["sma", "rsi"])
+@pytest.mark.parametrize("name", ["sma", "rsi", "ema"])
 def test_list_matches_single_calls_in_order(name, ohlcv: Ohlcv):
     # Each real column, at a different length, so positions cannot be swapped silently.
     datasets = [
@@ -72,11 +72,11 @@ def test_mixed_containers_each_return_their_own_type(ohlcv: Ohlcv):
     assert isinstance(results[0], list)
     assert isinstance(results[1], tuple)
     assert isinstance(results[2], np.ndarray)
-    assert list(results[3]) == ["sma_3"]
+    assert list(results[3]) == ["sma"]
     assert isinstance(results[4], str)
 
     expected = pyta.sma(np.array(values), period=3)
-    for got in (results[0], results[1], results[2], results[3]["sma_3"]):
+    for got in (results[0], results[1], results[2], results[3]["sma"]):
         same(np.asarray(got, dtype=np.float64), expected)
     from_json = [np.nan if v is None else v for v in json.loads(results[4])]
     same(np.array(from_json), expected)
@@ -90,9 +90,9 @@ def test_pandas_dataframe_and_series():
 
     results = pyta.batch.sma([frame, frame["Close"]], period=3)
 
-    assert list(results[0].columns) == ["sma_3"]
+    assert list(results[0].columns) == ["SMA"]
     assert results[0].index.equals(frame.index)
-    assert results[1].name == "sma_3"
+    assert results[1].name == "SMA"
 
 
 def test_column_applies_to_every_dataset():
@@ -101,7 +101,7 @@ def test_column_applies_to_every_dataset():
     results = pyta.batch.sma(frames, period=3, column="open")
 
     for result, frame in zip(results, frames, strict=True):
-        same(result["sma_3"], pyta.sma(frame["open"], period=3))
+        same(result["sma"], pyta.sma(frame["open"], period=3))
 
 
 def test_leading_nan_is_skipped_and_repadded():

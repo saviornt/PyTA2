@@ -4,7 +4,12 @@ from typing import Any
 
 from pyta import _native
 from pyta._api import run, run_batch
-from pyta._validation import CLOSE
+from pyta._outputs import OutputNames
+from pyta._validation import CLOSE, validate_period
+
+#: SMA's output name; title-case input gives "SMA".
+OUTPUTS = ("sma",)
+_NAMES = OutputNames("sma", OUTPUTS, abbreviations=("sma",))
 
 
 def sma[T](data: T, period: int, *, column: str | None = None, columns: None = None) -> T:
@@ -26,17 +31,18 @@ def sma[T](data: T, period: int, *, column: str | None = None, columns: None = N
 
     Returns:
         The same kind of container as `data`, holding float64 values and the
-        same length. A Series keeps its index and is named "sma_<period>"; a
-        DataFrame, dict, or JSON object holds one "sma_<period>" column; JSON
-        writes NaN as null. Leading NaN in the input is skipped and carried
-        over, so indicators can be chained.
+        same length. A Series keeps its index and is named "sma"; a
+        DataFrame, dict, or JSON object holds one "sma" column; JSON
+        writes NaN as null. The name follows the input column's casing
+        ("SMA" for "CLOSE" or "Close"; see docs/API.md). Leading NaN in the
+        input is skipped and carried over, so indicators can be chained.
 
     Raises:
         TypeError: Unsupported input type, dtype, or period type.
         ValueError: Invalid period, a `columns=`, empty, non-finite or out-of-range input, or a
             period larger than the series.
     """
-    return run(_native.sma, "sma", data, period, column, CLOSE, columns)
+    return run(_native.sma, _NAMES, data, (validate_period(period),), column, CLOSE, columns)
 
 
 def sma_batch[D: (list[Any], dict[Any, Any])](
@@ -61,4 +67,5 @@ def sma_batch[D: (list[Any], dict[Any, Any])](
             has the wrong type.
         ValueError: Invalid `period`, or a `columns=`.
     """
-    return run_batch(_native.sma_batch, "sma", datasets, period, column, CLOSE, columns)
+    params = (validate_period(period),)
+    return run_batch(_native.sma_batch, _NAMES, datasets, params, column, CLOSE, columns)

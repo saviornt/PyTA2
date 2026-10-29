@@ -49,10 +49,10 @@ Outputs have the same length as the input, with `NaN` for the warm-up period. In
 smoothed_rsi = pyta.sma(pyta.rsi(close, period=14), period=5)
 ```
 
-With a pandas DataFrame, an indicator uses its default column (`close` for SMA and RSI). Names ignore case, whitespace and `. _ -`, and common aliases match (`Adj Close`, `adjusted_close`, `Vol`, `o`/`h`/`l`/`c`). Use `column=` to pick another:
+With a pandas DataFrame, an indicator uses its default column (`close` for SMA, EMA, MACD and RSI). Names ignore case, whitespace and `. _ -`, and common aliases match (`Adj Close`, `adjusted_close`, `Vol`, `o`/`h`/`l`/`c`). Use `column=` to pick another. Output names are the indicator's name, cased like your columns (`sma` for `close`, `SMA` for yfinance's `Close`):
 
 ```python
-result = pyta.sma(df, period=20)                  # DataFrame with an "sma_20" column
+result = pyta.sma(df, period=20)                  # DataFrame with an "sma" column
 result = pyta.sma(df, period=20, column="open")
 result = pyta.sma(df, period=20, column="adj close")
 ```
@@ -64,6 +64,13 @@ result = pyta.cci(df, period=20)                                    # high, low 
 result = pyta.cci(df, period=20, columns=["adj close", "low", "high"])
 ```
 
+Indicators with several outputs return one column per output, or a tuple for a single series:
+
+```python
+result = pyta.macd(df)                         # columns macd, macd_signal, macd_hist
+macd, signal, hist = pyta.macd(close, fast=12, slow=26, signal=9)
+```
+
 PyTA logs through Python's standard `logging` (Rust messages included) under the `pyta` logger and is silent unless you configure logging. For example, `logging.getLogger("pyta").setLevel(logging.DEBUG)` shows how batches are scheduled; see [Logging](docs/API.md#14-logging).
 
 ## Indicators
@@ -73,6 +80,8 @@ PyTA logs through Python's standard `logging` (Rust messages included) under the
 | Category | Indicator |
 |---|---|
 | Trend | [Simple Moving Average](docs/indicators/trend/sma.md) (`sma`) |
+| Trend | [Exponential Moving Average](docs/indicators/trend/ema.md) (`ema`, TA-Lib seeding) |
+| Trend | [Moving Average Convergence/Divergence](docs/indicators/trend/macd.md) (`macd`, three outputs) |
 | Momentum | [Relative Strength Index](docs/indicators/momentum/rsi.md) (`rsi`, Wilder's smoothing) |
 | Momentum | [Commodity Channel Index](docs/indicators/momentum/cci.md) (`cci`, high, low and close) |
 
@@ -81,7 +90,7 @@ PyTA logs through Python's standard `logging` (Rust messages included) under the
 The catalog below is the planned scope and is subject to change.
 
 **Trend Indicators**
-EMA, WMA, DEMA, TEMA, KAMA, MACD, ADX, Parabolic SAR, Ichimoku Cloud, Aroon
+WMA, DEMA, TEMA, KAMA, ADX, Parabolic SAR, Ichimoku Cloud, Aroon
 
 **Momentum Indicators**
 Stochastic Oscillator, Williams %R, ROC, MFI, TRIX, Ultimate Oscillator

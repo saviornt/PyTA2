@@ -19,7 +19,7 @@ from pyta import _validation
 from pyta._validation import Slot, register_role, role_aliases, role_names, role_of
 
 PERIOD = 10
-NAME = f"cci_{PERIOD}"
+NAME = "cci"
 
 
 def expected(ohlcv: Ohlcv, close: NDArray[np.float64] | None = None) -> NDArray[np.float64]:
@@ -71,6 +71,7 @@ def scratch_role() -> Iterator[str]:
 def test_a_new_role_is_one_registration_and_is_found_by_name(scratch_role: str) -> None:
     from pyta._api import run_columns
     from pyta._native import cci
+    from pyta._outputs import OutputNames
 
     assert role_of("earnings-per-share") == scratch_role
     assert role_of("EPS") == scratch_role
@@ -80,9 +81,9 @@ def test_a_new_role_is_one_registration_and_is_found_by_name(scratch_role: str) 
     slots = (Slot("high", ("high",)), Slot("low", ("low",)), Slot("close", (scratch_role,)))
     data = {"High": [3.0, 6.0, 9.0], "Low": [0.0] * 3, "Earnings per share": [0.0] * 3}
 
-    result = run_columns(cci, "test", data, 3, None, slots)
+    result = run_columns(cci, OutputNames("test", ("test",), ()), data, (3,), None, slots)
 
-    assert result["test_3"][2] == pytest.approx(100.0)
+    assert result["test"][2] == pytest.approx(100.0)
 
 
 def test_a_role_or_alias_cannot_be_registered_twice(scratch_role: str) -> None:
@@ -141,7 +142,7 @@ def test_dataframe_with_exactly_the_needed_columns_keeps_its_index(ohlcv: Ohlcv)
     result = pyta.cci(frame, PERIOD)
 
     assert result.index.equals(index)
-    np.testing.assert_array_equal(result[NAME], expected(ohlcv))
+    np.testing.assert_array_equal(result["CCI"], expected(ohlcv))
 
 
 @pytest.mark.pandas
@@ -182,13 +183,13 @@ def test_provider_style_names_and_the_adjusted_close(ohlcv: Ohlcv) -> None:
     )
 
     # Without a close column, the close slot takes the adjusted close.
-    np.testing.assert_array_equal(pyta.cci(frame, PERIOD)[NAME], expected(ohlcv, adjusted))
+    np.testing.assert_array_equal(pyta.cci(frame, PERIOD)["CCI"], expected(ohlcv, adjusted))
 
     # With both, the close is preferred unless named.
     frame["Close"] = ohlcv.close
-    np.testing.assert_array_equal(pyta.cci(frame, PERIOD)[NAME], expected(ohlcv))
+    np.testing.assert_array_equal(pyta.cci(frame, PERIOD)["CCI"], expected(ohlcv))
     np.testing.assert_array_equal(
-        pyta.cci(frame, PERIOD, columns=["High", "Low", "adjusted close"])[NAME],
+        pyta.cci(frame, PERIOD, columns=["High", "Low", "adjusted close"])["CCI"],
         expected(ohlcv, adjusted),
     )
 
@@ -225,7 +226,7 @@ def test_any_permutation_of_columns_gives_the_same_result(order: list[str]) -> N
     close = low + (high - low) * rng.uniform(0.0, 1.0, 60)
     data = {"volume": np.ones(60), "close": close, "low": low, "high": high}
 
-    result = pyta.cci(data, 14, columns=order)["cci_14"]
+    result = pyta.cci(data, 14, columns=order)["cci"]
 
     np.testing.assert_array_equal(result, pyta.cci((high, low, close), 14))
 

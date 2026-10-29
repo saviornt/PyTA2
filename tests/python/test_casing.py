@@ -1,0 +1,203 @@
+"""Output names: bare indicator names whose casing follows the input's columns."""
+
+import json
+
+import numpy as np
+import pyta
+import pytest
+from ohlcv_data import Ohlcv
+from pyta._outputs import OutputNames, casing
+
+# Output names per indicator in lower, upper and title case.
+LOWER = {
+    "sma": ["sma"],
+    "ema": ["ema"],
+    "rsi": ["rsi"],
+    "cci": ["cci"],
+    "macd": ["macd", "macd_signal", "macd_hist"],
+}
+UPPER = {name: [n.upper() for n in names] for name, names in LOWER.items()}
+TITLE = {
+    "sma": ["SMA"],
+    "ema": ["EMA"],
+    "rsi": ["RSI"],
+    "cci": ["CCI"],
+    "macd": ["MACD", "MACD_Signal", "MACD_Hist"],
+}
+
+#: yfinance's column names.
+YFINANCE = ["Open", "High", "Low", "Close", "Adj Close", "Volume"]
+
+
+def call(name: str, data: object) -> object:
+    """Calls an indicator with a period that fits the 300-row fixture."""
+    return getattr(pyta, name)(data) if name == "macd" else getattr(pyta, name)(data, 10)
+
+
+def dict_with(ohlcv: Ohlcv, names: list[str]) -> dict[str, list[float]]:
+    """The fixture's open, high, low, close, (adj close,) volume under `names`."""
+    columns = ohlcv.lists()
+    values = [columns["open"], columns["high"], columns["low"], columns["close"]]
+    if len(names) == 6:
+        values.append([v * 0.98 for v in columns["close"]])
+    values.append(columns["volume"])
+    return dict(zip(names, values, strict=True))
+
+
+# --- the rule -------------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("names", "expected"),
+    [
+        (("close",), "lower"),
+        (("adj_close", "high"), "lower"),
+        (("0",), "lower"),
+        (("CLOSE",), "upper"),
+        (("C", "H"), "upper"),
+        (("Close",), "title"),
+        (("Adj Close",), "title"),
+        (("Adj_Close", "High"), "title"),
+        (("adj Close",), "lower"),  # mixed
+        (("ClosePrice",), "lower"),  # mixed
+        (("Close", "close"), "lower"),  # disagreement
+        (("CLOSE", "High"), "lower"),
+        ((), "lower"),
+    ],
+)
+def test_casing_of_column_names(names: tuple[object, ...], expected: str) -> None:
+    assert casing(names) == expected
+
+
+def test_title_case_writes_abbreviations_upper_and_words_title() -> None:
+    names = OutputNames("macd", ("macd", "macd_signal", "macd_hist"), ("macd",))
+
+    assert names.cased(("Close",)) == ("MACD", "MACD_Signal", "MACD_Hist")
+    assert names.cased(("CLOSE",)) == ("MACD", "MACD_SIGNAL", "MACD_HIST")
+    assert names.cased(("close",)) == ("macd", "macd_signal", "macd_hist")
+    assert names.cased(()) == ("macd", "macd_signal", "macd_hist")
+    assert len(names) == 3
+    assert repr(names) == "OutputNames('macd', ['macd', 'macd_signal', 'macd_hist'])"
+
+
+def test_an_unabbreviated_name_is_title_case_word_by_word() -> None:
+    names = OutputNames("mayer_multiple", ("mayer_multiple",), ())
+
+    assert names.cased(("Adj Close",)) == ("Mayer_Multiple",)
+
+
+def test_output_names_must_be_declared_lower_case() -> None:
+    with pytest.raises(ValueError, match="output names must be lower case"):
+        OutputNames("x", ("X",), ())
+    with pytest.raises(ValueError, match="output names must be lower case"):
+        OutputNames("x", (), ())
+
+
+# --- every indicator, every casing ----------------------------------------------------------
+
+
+@pytest.mark.parametrize("name", LOWER)
+@pytest.mark.parametrize(
+    ("columns", "single", "multi"),
+    [
+        (["open", "high", "low", "close", "volume"], LOWER, LOWER),
+        (["OPEN", "HIGH", "LOW", "CLOSE", "VOLUME"], UPPER, UPPER),
+        (YFINANCE, TITLE, TITLE),
+        # Single-column indicators use only the close; CCI's high, low and close disagree.
+        (["open", "HIGH", "low", "Close", "volume"], TITLE, LOWER),
+        (["OPEN", "High", "Low", "CLOSE", "Volume"], UPPER, LOWER),
+        # Mixed casing in the column used.
+        (["open", "high", "low", "cLOSE", "volume"], LOWER, LOWER),
+    ],
+)
+def test_dict_names_follow_the_columns_used(
+    ohlcv: Ohlcv,
+    name: str,
+    columns: list[str],
+    single: dict[str, list[str]],
+    multi: dict[str, list[str]],
+) -> None:
+    result = call(name, dict_with(ohlcv, columns))
+
+    assert list(result) == (multi if name == "cci" else single)[name]  # type: ignore[call-overload]
+
+
+@pytest.mark.pandas
+@pytest.mark.parametrize("name", LOWER)
+def test_yfinance_frame_gives_title_case(ohlcv: Ohlcv, name: str) -> None:
+    pd = pytest.importorskip("pandas")
+    frame = pd.DataFrame(dict_with(ohlcv, YFINANCE), index=pd.DatetimeIndex(ohlcv.dates))
+    frame.index.name = "Date"
+
+    result = call(name, frame)
+
+    assert list(result.columns) == TITLE[name]
+    assert result.index.equals(frame.index)
+
+
+@pytest.mark.parametrize("name", ["sma", "ema", "rsi", "macd"])
+def test_the_column_picked_sets_the_casing(ohlcv: Ohlcv, name: str) -> None:
+    data = dict_with(ohlcv, ["open", "high", "low", "close", "VOLUME"])
+
+    by_default = call(name, data)
+    on_volume = getattr(pyta, name)(data, *([] if name == "macd" else [10]), column="volume")
+
+    assert list(by_default) == LOWER[name]  # type: ignore[call-overload]
+    assert list(on_volume) == UPPER[name]
+
+
+@pytest.mark.parametrize("name", LOWER)
+@pytest.mark.parametrize(
+    ("columns", "expected"),
+    [(["open", "high", "low", "close", "volume"], LOWER), (YFINANCE, TITLE)],
+)
+def test_json_records_and_objects(
+    ohlcv: Ohlcv, name: str, columns: list[str], expected: dict[str, list[str]]
+) -> None:
+    table = dict_with(ohlcv, columns)
+    records = [dict(zip(table, row, strict=True)) for row in zip(*table.values(), strict=True)]
+
+    as_object = json.loads(call(name, json.dumps(table)))  # type: ignore[arg-type]
+    as_records = json.loads(call(name, json.dumps(records)))  # type: ignore[arg-type]
+
+    assert list(as_object) == expected[name]
+    assert all(list(row) == expected[name] for row in as_records)
+
+
+@pytest.mark.parametrize("name", ["sma", "ema", "rsi"])
+def test_unnamed_input_is_lower_case(ohlcv: Ohlcv, name: str) -> None:
+    as_json = json.loads(call(name, json.dumps(ohlcv.close.tolist())))  # type: ignore[arg-type]
+
+    assert isinstance(as_json, list)  # a single output keeps the array shape
+    assert list(json.loads(pyta.macd(json.dumps(ohlcv.close.tolist())))) == LOWER["macd"]
+
+
+def test_unnamed_multi_column_input_is_lower_case(ohlcv: Ohlcv) -> None:
+    array = np.column_stack([ohlcv.high, ohlcv.low, ohlcv.close])
+
+    assert isinstance(pyta.cci(array), np.ndarray)
+    assert list(pyta.cci({"High": ohlcv.high, "Low": ohlcv.low, "Close": ohlcv.close})) == ["CCI"]
+
+
+@pytest.mark.pandas
+@pytest.mark.parametrize(
+    ("series_name", "expected"),
+    [(None, "sma"), ("close", "sma"), ("CLOSE", "SMA"), ("Close", "SMA")],
+)
+def test_series_name_sets_the_casing(ohlcv: Ohlcv, series_name: str | None, expected: str) -> None:
+    pd = pytest.importorskip("pandas")
+
+    assert pyta.sma(pd.Series(ohlcv.close, name=series_name), 10).name == expected
+
+
+@pytest.mark.parametrize("name", LOWER)
+def test_batch_cases_each_dataset_on_its_own(ohlcv: Ohlcv, name: str) -> None:
+    datasets = [
+        dict_with(ohlcv, YFINANCE),
+        dict_with(ohlcv, ["open", "high", "low", "close", "volume"]),
+    ]
+
+    batch = getattr(pyta.batch, name)
+    results = batch(datasets) if name == "macd" else batch(datasets, 10)
+
+    assert [list(result) for result in results] == [TITLE[name], LOWER[name]]

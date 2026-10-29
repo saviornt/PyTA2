@@ -90,10 +90,10 @@ def test_explicit_column_must_be_a_known_role_even_if_the_input_has_it() -> None
 
 
 def test_unrecognized_names_still_work_when_the_input_has_one_column() -> None:
-    # Chaining: an indicator's own output column ("sma_3") feeds the next call.
+    # Chaining: an indicator's own output column ("sma") feeds the next call.
     chained = pyta.rsi(pyta.sma({"close": [float(i) for i in range(1, 12)]}, period=3), period=2)
 
-    assert list(chained) == ["rsi_2"]
+    assert list(chained) == ["rsi"]
 
 
 def test_names_that_differ_only_in_separators_are_ambiguous() -> None:
@@ -111,7 +111,7 @@ def test_indicators_use_the_adjusted_close_on_request() -> None:
 
     result = pyta.sma(frame, period=2, column="adj close")
 
-    np.testing.assert_array_equal(result["sma_2"], [np.nan, 1.5, 2.5, 3.5, 4.5, 5.5])
+    np.testing.assert_array_equal(result["SMA"], [np.nan, 1.5, 2.5, 3.5, 4.5, 5.5])
 
 
 def test_indicators_find_short_ohlcv_json_keys() -> None:
@@ -119,7 +119,7 @@ def test_indicators_find_short_ohlcv_json_keys() -> None:
 
     result = json.loads(pyta.sma(text, period=2))
 
-    assert result["sma_2"] == [None, 1.5, 2.5, 3.5, 4.5, 5.5]
+    assert result["sma"] == [None, 1.5, 2.5, 3.5, 4.5, 5.5]
 
 
 def test_batch_applies_aliases_to_every_dataset() -> None:
@@ -129,8 +129,8 @@ def test_batch_applies_aliases_to_every_dataset() -> None:
         column="adjclose",
     )
 
-    for result in results:
-        np.testing.assert_array_equal(result["sma_2"], [np.nan, 1.5, 2.5, 3.5, 4.5, 5.5])
+    for result, name in zip(results, ["SMA", "sma"], strict=True):
+        np.testing.assert_array_equal(result[name], [np.nan, 1.5, 2.5, 3.5, 4.5, 5.5])
 
 
 # --- a full real OHLCV input ----------------------------------------------------------------
@@ -140,7 +140,7 @@ def test_full_ohlcv_dict_uses_close_by_default(ohlcv: Ohlcv) -> None:
     result = pyta.sma({"date": ohlcv.dates, **ohlcv.lists()}, period=20)
 
     np.testing.assert_allclose(
-        result["sma_20"], rolling_mean(ohlcv.close, 20), rtol=1e-12, equal_nan=True
+        result["sma"], rolling_mean(ohlcv.close, 20), rtol=1e-12, equal_nan=True
     )
 
 
@@ -152,7 +152,7 @@ def test_full_ohlcv_dict_gives_each_role_on_request(ohlcv: Ohlcv, column: str, r
     result = pyta.sma(ohlcv.columns(), period=20, column=column)
 
     np.testing.assert_allclose(
-        result["sma_20"], rolling_mean(ohlcv.columns()[role], 20), rtol=1e-12, equal_nan=True
+        result["sma"], rolling_mean(ohlcv.columns()[role], 20), rtol=1e-12, equal_nan=True
     )
 
 
@@ -175,7 +175,7 @@ def test_provider_style_dataframe_finds_each_role(ohlcv: Ohlcv) -> None:
     by_default = pyta.rsi(frame)
     adjusted = pyta.sma(frame, period=20, column="adjusted close")
 
-    np.testing.assert_array_equal(by_default["rsi_14"], pyta.rsi(ohlcv.close))
+    np.testing.assert_array_equal(by_default["RSI"], pyta.rsi(ohlcv.close))
     np.testing.assert_allclose(
-        adjusted["sma_20"], rolling_mean(ohlcv.close * 0.98, 20), rtol=1e-12, equal_nan=True
+        adjusted["SMA"], rolling_mean(ohlcv.close * 0.98, 20), rtol=1e-12, equal_nan=True
     )
