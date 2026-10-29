@@ -76,6 +76,8 @@ Then measure: run `./scripts/benchmark.sh --single --rust --quick` (all indicato
 - `tests/python/test_batch.py`: add the name to every `@pytest.mark.parametrize("name", [...])` list (single-column, single-output indicators only; MACD and BBANDS keep theirs in `test_<name>.py`: those tests feed one series per dataset; a multi-column indicator's batch tests go in `test_<name>.py`).
 - `tests/python/test_namespaces.py`: add `"<name>": "<category>"` to `INDICATORS` (and the name to `MULTI_COLUMN` if it takes several columns) and its six paths (`pyta.<name>`, `pyta.<category>.<name>`, `pyta.indicators.<name>`, `pyta.indicators.<category>.<name>`, `pyta.batch.<name>`, `pyta.batch.<category>.<name>`) to `DOCUMENTED_PATHS`; the convention test then checks the exports and the wiki page.
 - `tests/python/test_output.py`: add the indicator's shape to `SHAPES` if it is a new one (Stochastic: several columns and several outputs replaces the `fake` stand-in); an indicator of an existing shape needs nothing there.
+- `tests/python/test_casing.py`: add a single-column, single-output indicator to its lower/title tables.
+- `rust/crates/pyta-engine/tests/sequential_tests.rs`: a `Params` arm for the new variant.
 - `tests/python/test_import.py`: the expected `__all__` lists gain the name (and the category, if new).
 - `tests/smoke/test_smoke.py`: one call checking dtype, length and warm-up.
 - `tests/reference/test_<name>_reference.py`: the published example from `tests/fixtures/`, the same fixture the Rust test reads.
