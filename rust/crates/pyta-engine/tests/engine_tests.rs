@@ -16,6 +16,11 @@ fn params(kind: IndicatorKind, period: usize) -> Params {
         IndicatorKind::Cci => Params::Cci { period },
         IndicatorKind::Donchian => Params::Donchian { period },
         IndicatorKind::Ema => Params::Ema { period },
+        IndicatorKind::Ichimoku => Params::Ichimoku {
+            tenkan: period,
+            kijun: period,
+            senkou: period,
+        },
         IndicatorKind::Rsi => Params::Rsi { period },
         IndicatorKind::Sma => Params::Sma { period },
         IndicatorKind::Wma => Params::Wma { period },
@@ -295,6 +300,14 @@ fn the_kind_comes_from_the_params() {
         (Params::Cci { period: 2 }, IndicatorKind::Cci),
         (Params::Donchian { period: 2 }, IndicatorKind::Donchian),
         (Params::Ema { period: 2 }, IndicatorKind::Ema),
+        (
+            Params::Ichimoku {
+                tenkan: 1,
+                kijun: 2,
+                senkou: 2,
+            },
+            IndicatorKind::Ichimoku,
+        ),
         (
             Params::Keltner {
                 period: 2,
@@ -992,4 +1005,152 @@ async fn keltner_runs_through_the_engine_with_three_outputs_and_reports_its_erro
             actual: 1,
         }
     );
+}
+#[tokio::test]
+async fn ichimoku_runs_through_the_engine_with_five_outputs_and_reports_its_errors() {
+    // tenkan 1, kijun 2, senkou 3: midpoints of 1-, 2- and 3-row windows.
+    let high: &[f64] = &[11.0, 12.0, 13.0, 12.0];
+    let low: &[f64] = &[9.0, 10.0, 11.0, 8.0];
+    let close: &[f64] = &[10.0, 11.0, 12.0, 9.0];
+    let ichimoku = |tenkan, kijun, senkou| {
+        IndicatorRequest::with_columns(
+            columns_of(&[high, low, close]),
+            Params::Ichimoku {
+                tenkan,
+                kijun,
+                senkou,
+            },
+        )
+    };
+    let requests = vec![
+        ichimoku(1, 2, 3),
+        ichimoku(1, 0, 3),
+        ichimoku(1, 2, 5),
+        request(IndicatorKind::Ichimoku, close.to_vec(), 1),
+    ];
+
+    let direct = execute_direct(&requests[0]).unwrap();
+    let [tenkan, kijun, senkou_a, senkou_b, chikou] = direct.outputs() else {
+        panic!("expected five outputs, got {}", direct.output_count());
+    };
+    assert_values(tenkan, &[10.0, 11.0, 12.0, 10.0]);
+    assert_values(kijun, &[NAN, 10.5, 11.5, 10.5]);
+    assert_values(senkou_a, &[NAN, 10.75, 11.75, 10.25]);
+    assert_values(senkou_b, &[NAN, NAN, 11.0, 10.5]);
+    assert_values(chikou, close);
+
+    let results = execute_batch(requests).await;
+
+    match &results[0].status {
+        IndicatorStatus::Success(output) => {
+            for (got, want) in output.outputs().iter().zip(direct.outputs()) {
+                assert_values(got, want);
+            }
+        }
+        IndicatorStatus::Error(error) => panic!("expected Ichimoku success, got {error:?}"),
+    }
+    assert_eq!(
+        *error_of(&results[1]),
+        PytaError::InvalidParameter {
+            name: "kijun",
+            minimum: 1,
+            value: 0,
+        }
+    );
+    assert_eq!(
+        *error_of(&results[2]),
+        PytaError::InsufficientData {
+            required: 5,
+            length: 4,
+        }
+    );
+    assert_eq!(
+        *error_of(&results[3]),
+        PytaError::ColumnCount {
+            expected: 3,
+            actual: 1,
+        }
+    );
+}
+
+/// Validated columns from slices, in the given order.
+fn columns_of(values: &[&[f64]]) -> Columns {
+    Columns::new(
+        values
+            .iter()
+            .map(|column| Series::new(column.to_vec()).unwrap())
+            .collect(),
+    )
+    .unwrap()
+}
+
+/// The high, low and close columns of `tests/fixtures/ohlcv_daily.csv`
+/// (300 real SPY sessions).
+fn spy() -> [Vec<f64>; 3] {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../tests/fixtures/ohlcv_daily.csv");
+    let text = std::fs::read_to_string(&path)
+        .unwrap_or_else(|error| panic!("cannot read {}: {error}", path.display()));
+    let mut columns = [Vec::new(), Vec::new(), Vec::new()];
+
+    // Rows are date,open,high,low,close,volume after the comments and header.
+    for line in text.lines().filter(|line| !line.starts_with('#')).skip(1) {
+        let fields: Vec<&str> = line.split(',').collect();
+        for (column, field) in columns.iter_mut().zip(&fields[2..5]) {
+            column.push(field.parse().unwrap());
+        }
+    }
+    columns
+}
+
+/// Asserts equality bit for bit, NaN matching NaN.
+fn assert_bits(actual: &[f64], expected: &[f64], what: &str) {
+    assert_eq!(actual.len(), expected.len(), "{what}: length");
+    for (row, (a, e)) in actual.iter().zip(expected).enumerate() {
+        assert!(
+            a.to_bits() == e.to_bits() || (a.is_nan() && e.is_nan()),
+            "{what}, row {row}: {a} vs {e}"
+        );
+    }
+}
+
+#[test]
+fn ichimoku_lines_are_donchian_middles_on_spy() {
+    // The approved reference: tenkan-sen, kijun-sen and senkou span B are
+    // Donchian's middle line over 9, 26 and 52 rows, bit for bit; senkou
+    // span A is their average and the chikou span is close.
+    let [high, low, close] = spy();
+    let ichimoku = execute_direct(&IndicatorRequest::with_columns(
+        columns_of(&[&high, &low, &close]),
+        Params::Ichimoku {
+            tenkan: 9,
+            kijun: 26,
+            senkou: 52,
+        },
+    ))
+    .unwrap();
+    let donchian_middle = |period| {
+        let output = execute_direct(&IndicatorRequest::with_columns(
+            columns_of(&[&high, &low]),
+            Params::Donchian { period },
+        ))
+        .unwrap();
+        output.outputs()[1].clone()
+    };
+    let [tenkan, kijun, senkou_a, senkou_b, chikou] = ichimoku.outputs() else {
+        panic!("expected five outputs, got {}", ichimoku.output_count());
+    };
+
+    let expected_tenkan = donchian_middle(9);
+    let expected_kijun = donchian_middle(26);
+    let mut expected_senkou_a = vec![NAN; close.len()];
+    for row in 25..close.len() {
+        expected_senkou_a[row] = (expected_tenkan[row] + expected_kijun[row]) / 2.0;
+    }
+
+    assert_bits(tenkan, &expected_tenkan, "tenkan");
+    assert_bits(kijun, &expected_kijun, "kijun");
+    assert_bits(senkou_a, &expected_senkou_a, "senkou_a");
+    assert_bits(senkou_b, &donchian_middle(52), "senkou_b");
+    assert_bits(chikou, &close, "chikou");
 }

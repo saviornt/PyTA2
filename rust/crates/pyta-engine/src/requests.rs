@@ -24,6 +24,9 @@ pub enum IndicatorKind {
     Donchian,
     /// Exponential Moving Average (`pyta-trend`).
     Ema,
+    /// Ichimoku Cloud, unshifted (`pyta-trend`; high, low, close; five
+    /// outputs).
+    Ichimoku,
     /// Kaufman Adaptive Moving Average (`pyta-trend`).
     Kama,
     /// Keltner Channels (`pyta-volatility`; high, low, close; three outputs).
@@ -103,6 +106,17 @@ pub enum Params {
         /// Rows in the seed average; sets the weight `2 / (period + 1)`.
         period: usize,
     },
+    /// Ichimoku Cloud (Ichimoku Kinko Hyo): three window midpoints, the
+    /// average of the first two, and close, each on the row it is
+    /// calculated from (unshifted).
+    Ichimoku {
+        /// Rows in the tenkan-sen's (conversion line's) window, at least 1.
+        tenkan: usize,
+        /// Rows in the kijun-sen's (base line's) window, at least 1.
+        kijun: usize,
+        /// Rows in senkou span B's window, at least 1.
+        senkou: usize,
+    },
     /// Kaufman Adaptive Moving Average: an EMA whose weight follows the
     /// efficiency ratio of the last `period` rows (smoothing constants 2 and
     /// 30, fixed as in TA-Lib).
@@ -179,6 +193,7 @@ impl Params {
             Self::Dema { .. } => IndicatorKind::Dema,
             Self::Donchian { .. } => IndicatorKind::Donchian,
             Self::Ema { .. } => IndicatorKind::Ema,
+            Self::Ichimoku { .. } => IndicatorKind::Ichimoku,
             Self::Kama { .. } => IndicatorKind::Kama,
             Self::Keltner { .. } => IndicatorKind::Keltner,
             Self::Macd { .. } => IndicatorKind::Macd,

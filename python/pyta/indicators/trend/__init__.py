@@ -1,13 +1,14 @@
 """Trend indicators, one module per indicator.
 
-Available: ADX, Aroon, DEMA, EMA, KAMA, MACD, Parabolic SAR, SMA, TEMA, WMA.
-Planned: Ichimoku Cloud (see the README catalog).
+Available: ADX, Aroon, DEMA, EMA, Ichimoku Cloud, KAMA, MACD, Parabolic SAR,
+SMA, TEMA, WMA (see the README catalog).
 """
 
 from pyta.indicators.trend.adx import adx
 from pyta.indicators.trend.aroon import aroon
 from pyta.indicators.trend.dema import dema
 from pyta.indicators.trend.ema import ema
+from pyta.indicators.trend.ichimoku import ichimoku
 from pyta.indicators.trend.kama import kama
 from pyta.indicators.trend.macd import macd
 from pyta.indicators.trend.sar import sar
@@ -15,4 +16,16 @@ from pyta.indicators.trend.sma import sma
 from pyta.indicators.trend.tema import tema
 from pyta.indicators.trend.wma import wma
 
-__all__ = ["adx", "aroon", "dema", "ema", "kama", "macd", "sar", "sma", "tema", "wma"]
+__all__ = [
+    "adx",
+    "aroon",
+    "dema",
+    "ema",
+    "ichimoku",
+    "kama",
+    "macd",
+    "sar",
+    "sma",
+    "tema",
+    "wma",
+]

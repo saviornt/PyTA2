@@ -15,6 +15,7 @@ mod dema;
 mod donchian;
 mod ema;
 mod error;
+mod ichimoku;
 mod kama;
 mod keltner;
 mod log_bridge;
@@ -55,6 +56,8 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(adx::adx_batch, m)?)?;
     m.add_function(wrap_pyfunction!(aroon::aroon, m)?)?;
     m.add_function(wrap_pyfunction!(aroon::aroon_batch, m)?)?;
+    m.add_function(wrap_pyfunction!(ichimoku::ichimoku, m)?)?;
+    m.add_function(wrap_pyfunction!(ichimoku::ichimoku_batch, m)?)?;
     m.add_function(wrap_pyfunction!(sar::sar, m)?)?;
     m.add_function(wrap_pyfunction!(sar::sar_batch, m)?)?;
     m.add_function(wrap_pyfunction!(macd::macd, m)?)?;

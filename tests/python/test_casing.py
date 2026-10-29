@@ -23,6 +23,13 @@ LOWER = {
     "adx": ["adx", "adx_plus_di", "adx_minus_di"],
     "sar": ["sar"],
     "aroon": ["aroon_up", "aroon_down", "aroon_osc"],
+    "ichimoku": [
+        "ichimoku_tenkan",
+        "ichimoku_kijun",
+        "ichimoku_senkou_a",
+        "ichimoku_senkou_b",
+        "ichimoku_chikou",
+    ],
 }
 UPPER = {name: [n.upper() for n in names] for name, names in LOWER.items()}
 TITLE = {
@@ -38,10 +45,17 @@ TITLE = {
     "adx": ["ADX", "ADX_Plus_DI", "ADX_Minus_DI"],
     "sar": ["SAR"],
     "aroon": ["Aroon_Up", "Aroon_Down", "Aroon_Osc"],
+    "ichimoku": [
+        "Ichimoku_Tenkan",
+        "Ichimoku_Kijun",
+        "Ichimoku_Senkou_A",
+        "Ichimoku_Senkou_B",
+        "Ichimoku_Chikou",
+    ],
 }
 
 #: Indicators on high, low and close, cased by all three columns.
-MULTI_COLUMN = {"cci", "adx"}
+MULTI_COLUMN = {"cci", "adx", "ichimoku"}
 
 #: Indicators on high and low only, cased by those two columns.
 HIGH_LOW = {"sar", "aroon"}

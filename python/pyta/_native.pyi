@@ -21,6 +21,8 @@ __all__ = [
     "donchian_batch",
     "ema",
     "ema_batch",
+    "ichimoku",
+    "ichimoku_batch",
     "kama",
     "kama_batch",
     "keltner",
@@ -86,6 +88,12 @@ def adx_batch(
 def aroon(columns: list[NDArray[np.float64]], period: int) -> list[NDArray[np.float64]]: ...
 def aroon_batch(
     datasets: list[list[NDArray[np.float64]]], period: int
+) -> list[list[NDArray[np.float64]] | Exception]: ...
+def ichimoku(
+    columns: list[NDArray[np.float64]], tenkan: int, kijun: int, senkou: int
+) -> list[NDArray[np.float64]]: ...
+def ichimoku_batch(
+    datasets: list[list[NDArray[np.float64]]], tenkan: int, kijun: int, senkou: int
 ) -> list[list[NDArray[np.float64]] | Exception]: ...
 def sar(
     columns: list[NDArray[np.float64]], acceleration: float, maximum: float

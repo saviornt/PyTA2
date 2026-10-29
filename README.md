@@ -95,6 +95,7 @@ PyTA logs through Python's standard `logging` (Rust messages included) under the
 | Trend | [Average Directional Index](docs/indicators/trend/adx.md) (`adx`, high, low and close; Wilder's ADX with +DI and -DI; three outputs) |
 | Trend | [Parabolic SAR](docs/indicators/trend/sar.md) (`sar`, high and low; Wilder's stop and reverse, TA-Lib's first direction) |
 | Trend | [Aroon](docs/indicators/trend/aroon.md) (`aroon`, high and low; Chande's Aroon Up, Aroon Down and Aroon Oscillator; three outputs) |
+| Trend | [Ichimoku Cloud](docs/indicators/trend/ichimoku.md) (`ichimoku`, high, low and close; Hosoda's five lines, unshifted; five outputs) |
 | Momentum | [Relative Strength Index](docs/indicators/momentum/rsi.md) (`rsi`, Wilder's smoothing) |
 | Momentum | [Commodity Channel Index](docs/indicators/momentum/cci.md) (`cci`, high, low and close) |
 | Volatility | [Average True Range](docs/indicators/volatility/atr.md) (`atr`, high, low and close; Wilder's smoothing) |
@@ -106,9 +107,6 @@ PyTA logs through Python's standard `logging` (Rust messages included) under the
 ### Planned
 
 The catalog below is the planned scope and is subject to change.
-
-**Trend Indicators**
-Ichimoku Cloud
 
 **Momentum Indicators**
 Stochastic Oscillator, Williams %R, ROC, MFI, TRIX, Ultimate Oscillator

@@ -1,12 +1,13 @@
 //! SMA against published worked examples (StockCharts ChartSchool), and EMA,
 //! WMA, DEMA, TEMA, KAMA, MACD, ADX, Parabolic SAR and Aroon against
-//! TA-Lib's own output (generated fixtures, see their comments).
+//! TA-Lib's own output (generated fixtures, see their comments), and
+//! Ichimoku Cloud against a hand calculation (TA-Lib has none).
 
 #[path = "../../../test-support/reference.rs"]
 mod reference;
 
 use pyta_core::Series;
-use pyta_trend::{adx, aroon, dema, ema, kama, macd, sar, sma, tema, wma};
+use pyta_trend::{adx, aroon, dema, ema, ichimoku, kama, macd, sar, sma, tema, wma};
 use reference::{assert_matches, assert_output_matches, load};
 
 fn check(name: &str) {
@@ -280,4 +281,28 @@ fn aroon_14_matches_talib() {
 #[test]
 fn aroon_14_matches_talib_on_the_edge_series() {
     check_aroon("aroon_14_edge_talib.csv");
+}
+
+#[test]
+fn ichimoku_matches_the_hand_calculation() {
+    // No reference library has Ichimoku with unshifted spans (TA-Lib has no
+    // Ichimoku); the fixture is derived by hand with exact fractions (see its
+    // comments), all exact doubles.
+    let reference = load("ichimoku_hand.csv");
+    let [high, low, close] = [0, 1, 2].map(|i| Series::new(reference.columns[i].clone()).unwrap());
+
+    let output = ichimoku(
+        &high,
+        &low,
+        &close,
+        reference.parameter("tenkan"),
+        reference.parameter("kijun"),
+        reference.parameter("senkou"),
+    )
+    .unwrap();
+
+    assert_eq!(output.output_count(), 5);
+    for (index, line) in output.outputs().iter().enumerate() {
+        assert_output_matches(line, &reference, index);
+    }
 }

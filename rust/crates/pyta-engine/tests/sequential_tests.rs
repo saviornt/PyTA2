@@ -21,6 +21,11 @@ fn params(kind: IndicatorKind, period: usize) -> Params {
         IndicatorKind::Cci => Params::Cci { period },
         IndicatorKind::Donchian => Params::Donchian { period },
         IndicatorKind::Ema => Params::Ema { period },
+        IndicatorKind::Ichimoku => Params::Ichimoku {
+            tenkan: period,
+            kijun: period,
+            senkou: period,
+        },
         IndicatorKind::Rsi => Params::Rsi { period },
         IndicatorKind::Sma => Params::Sma { period },
         IndicatorKind::Wma => Params::Wma { period },

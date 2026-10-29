@@ -1,9 +1,9 @@
-//! SMA, EMA, WMA, DEMA, TEMA, KAMA, MACD, ADX, Parabolic SAR and Aroon
-//! invariants that must hold for any valid input.
+//! SMA, EMA, WMA, DEMA, TEMA, KAMA, MACD, ADX, Parabolic SAR, Aroon and
+//! Ichimoku Cloud invariants that must hold for any valid input.
 
 use proptest::prelude::*;
 use pyta_core::{Series, kernels};
-use pyta_trend::{adx, aroon, dema, ema, kama, macd, sar, sma, tema, wma};
+use pyta_trend::{adx, aroon, dema, ema, ichimoku, kama, macd, sar, sma, tema, wma};
 
 /// A series of 1 to 300 prices and a period that fits it.
 fn series_and_period() -> impl Strategy<Value = (Vec<f64>, usize)> {
@@ -698,5 +698,87 @@ proptest! {
             }
             prop_assert!((osc[row] - (up[row] - down[row])).abs() <= 1e-9);
         }
+    }
+}
+
+/// High, low and close columns of 1 to 300 rows (high at or above low,
+/// close between them; some rows flat, some values repeated) and three
+/// windows that fit them, in any order.
+fn ohlc_and_ichimoku_windows() -> impl Strategy<Value = ([Vec<f64>; 3], [usize; 3])> {
+    let row = (
+        prop_oneof![Just(0.0), Just(1.0), -1.0e6..1.0e6_f64],
+        prop_oneof![Just(0.0), 0.0..1.0e3_f64],
+        0.0..=1.0_f64,
+    );
+    prop::collection::vec(row, 1..300).prop_flat_map(|rows| {
+        let length = rows.len();
+        let low: Vec<f64> = rows.iter().map(|(low, _, _)| *low).collect();
+        let high: Vec<f64> = rows.iter().map(|(low, range, _)| low + range).collect();
+        let close = rows
+            .iter()
+            .map(|(low, range, at)| low + range * at)
+            .collect();
+        (
+            Just([high, low, close]),
+            [1..=length, 1..=length, 1..=length],
+        )
+    })
+}
+
+proptest! {
+    #[test]
+    fn ichimoku_outputs_keep_their_own_warm_ups(
+        ([high, low, close], [tenkan, kijun, senkou]) in ohlc_and_ichimoku_windows()
+    ) {
+        let length = close.len();
+        let output = ichimoku(
+            &Series::new(high).unwrap(),
+            &Series::new(low).unwrap(),
+            &Series::new(close).unwrap(),
+            tenkan,
+            kijun,
+            senkou,
+        )
+        .unwrap();
+
+        prop_assert_eq!(output.output_count(), 5);
+        let firsts = [tenkan - 1, kijun - 1, tenkan.max(kijun) - 1, senkou - 1, 0];
+        for (values, first) in output.outputs().iter().zip(firsts) {
+            prop_assert_eq!(values.len(), length);
+            prop_assert!(values[..first].iter().all(|value| value.is_nan()));
+            prop_assert!(values[first..].iter().all(|value| value.is_finite()));
+        }
+    }
+
+    #[test]
+    fn ichimoku_lines_are_window_midpoints_within_the_range(
+        ([high, low, close], [tenkan, kijun, senkou]) in ohlc_and_ichimoku_windows()
+    ) {
+        // Each midpoint is Donchian's middle line bit for bit, so between the
+        // window's lowest low and highest high; senkou span A is the average
+        // of the first two; the chikou span is close.
+        let output = ichimoku(
+            &Series::new(high.clone()).unwrap(),
+            &Series::new(low.clone()).unwrap(),
+            &Series::new(close.clone()).unwrap(),
+            tenkan,
+            kijun,
+            senkou,
+        )
+        .unwrap();
+        let [conversion, base, span_a, span_b, chikou] = [0, 1, 2, 3, 4].map(|i| &output.outputs()[i]);
+
+        for (line, period) in [(conversion, tenkan), (base, kijun), (span_b, senkou)] {
+            let upper = kernels::rolling_max(&high, period);
+            let lower = kernels::rolling_min(&low, period);
+            for row in period - 1..close.len() {
+                prop_assert_eq!(line[row].to_bits(), ((upper[row] + lower[row]) / 2.0).to_bits());
+                prop_assert!(lower[row] <= line[row] && line[row] <= upper[row]);
+            }
+        }
+        for row in tenkan.max(kijun) - 1..close.len() {
+            prop_assert_eq!(span_a[row].to_bits(), ((conversion[row] + base[row]) / 2.0).to_bits());
+        }
+        prop_assert_eq!(chikou, &close);
     }
 }

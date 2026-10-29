@@ -89,6 +89,11 @@ fn params(kind: IndicatorKind) -> Params {
         IndicatorKind::Cci => Params::Cci { period: 14 },
         IndicatorKind::Donchian => Params::Donchian { period: 20 },
         IndicatorKind::Ema => Params::Ema { period: 20 },
+        IndicatorKind::Ichimoku => Params::Ichimoku {
+            tenkan: 9,
+            kijun: 26,
+            senkou: 52,
+        },
         IndicatorKind::Keltner => Params::Keltner {
             period: 20,
             atr_period: 10,
@@ -122,7 +127,11 @@ fn request(kind: IndicatorKind, close: Series) -> IndicatorRequest {
     };
 
     match kind {
-        IndicatorKind::Adx | IndicatorKind::Atr | IndicatorKind::Cci | IndicatorKind::Keltner => {
+        IndicatorKind::Adx
+        | IndicatorKind::Atr
+        | IndicatorKind::Cci
+        | IndicatorKind::Ichimoku
+        | IndicatorKind::Keltner => {
             let columns = Columns::new(vec![offset(0.5), offset(-0.5), close])
                 .expect("columns have equal lengths");
             IndicatorRequest::with_columns(columns, params(kind))
@@ -288,6 +297,7 @@ fn many_datasets(c: &mut Criterion) {
         (IndicatorKind::Kama, "kama"),
         (IndicatorKind::Adx, "adx"),
         (IndicatorKind::Aroon, "aroon"),
+        (IndicatorKind::Ichimoku, "ichimoku"),
         (IndicatorKind::Sar, "sar"),
         (IndicatorKind::Macd, "macd"),
         (IndicatorKind::Atr, "atr"),

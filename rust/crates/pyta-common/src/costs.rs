@@ -174,6 +174,19 @@ pub const ADX_NS_PER_ELEMENT: f64 = 10.6;
 /// same run. Confirm with a full `--single --rust --indicator aroon`.
 pub const AROON_NS_PER_ELEMENT: f64 = 13.3;
 
+/// Ichimoku Cloud (five lines), in nanoseconds per input row; independent
+/// of `tenkan`, `kijun` and `senkou` (three van Herk/Gil-Werman midpoints,
+/// O(n) whatever the windows).
+///
+/// Provisional, from a quick run on 2026-10-29
+/// (`benches/results/benchmark_2026-10-29_12-12-44.txt`, `--single --rust
+/// --quick`, governor `performance`): kernels at 1,000,000 rows took
+/// 27.132 ms for Ichimoku-9/26/52 and 2.533 ms for RSI-14, scaled here by
+/// `RSI_NS_PER_ELEMENT` (3.0 * 10.71). Six rolling-extreme walks (a max and
+/// a min per midpoint) and five outputs; Donchian-20 took 10.042 ms in the
+/// same run. Confirm with a full `--single --rust --indicator ichimoku`.
+pub const ICHIMOKU_NS_PER_ELEMENT: f64 = 32.1;
+
 /// Parabolic SAR, in nanoseconds per input row; independent of
 /// `acceleration` and `maximum` (one pass).
 ///

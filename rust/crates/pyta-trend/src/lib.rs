@@ -1,10 +1,11 @@
 //! Trend indicators (SMA, EMA, WMA, DEMA, TEMA, KAMA, MACD, ADX, Parabolic
-//! SAR, Aroon), one per file.
+//! SAR, Aroon, Ichimoku Cloud), one per file.
 
 mod adx;
 mod aroon;
 mod dema;
 mod ema;
+mod ichimoku;
 mod kama;
 mod macd;
 mod sar;
@@ -16,6 +17,7 @@ pub use adx::adx;
 pub use aroon::aroon;
 pub use dema::dema;
 pub use ema::ema;
+pub use ichimoku::ichimoku;
 pub use kama::kama;
 pub use macd::macd;
 pub use sar::sar;

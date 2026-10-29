@@ -123,6 +123,24 @@ def test_smoke() -> None:
         assert np.isfinite(line[14:]).all()
     assert ((up[14:] >= 0.0) & (up[14:] <= 100.0) & (down[14:] >= 0.0) & (down[14:] <= 100.0)).all()
 
+    ichimoku_result = pyta.ichimoku(data, tenkan=9, kijun=26, senkou=52)
+    assert list(ichimoku_result) == [
+        "ichimoku_tenkan",
+        "ichimoku_kijun",
+        "ichimoku_senkou_a",
+        "ichimoku_senkou_b",
+        "ichimoku_chikou",
+    ]
+    lines = [np.array(values) for values in ichimoku_result.values()]
+    for line, first in zip(lines, (8, 25, 25, 51, 0), strict=True):
+        assert line.dtype == np.float64
+        assert line.shape == (length,), "Ichimoku output length mismatch"
+        assert np.isnan(line[:first]).all(), "Ichimoku warm-up alignment is incorrect"
+        assert np.isfinite(line[first:]).all()
+    donchian_middle = np.array(pyta.donchian(data, period=26)["donchian_middle"])
+    assert np.array_equal(lines[1], donchian_middle, equal_nan=True)
+    assert np.array_equal(lines[4], close)
+
     stddev_values = np.array(pyta.stddev(data, period=20, k=2.0)["stddev"])
     assert stddev_values.dtype == np.float64
     assert stddev_values.shape == (length,), "STDDEV output length mismatch"

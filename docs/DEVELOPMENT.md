@@ -513,7 +513,7 @@ The shapes are a starting point; each indicator's spec (the `add-indicator` skil
 
 ### Tasks: indicators (one at a time, `add-indicator` skill, standard workflow below)
 
-- [ ] Trend: WMA, DEMA, TEMA, KAMA, ADX, Parabolic SAR, Aroon, Ichimoku Cloud.
+- [x] Trend: WMA, DEMA, TEMA, KAMA, ADX, Parabolic SAR, Aroon, Ichimoku Cloud. *(2026-10-29, `TODO.md` Part D: each through the `add-indicator` steps on its own branch; passing test-suite reports `test-suite_2026-10-29_07-27-23.txt` (WMA), `_07-38-54` (DEMA), `_07-44-46` (TEMA), `_08-01-22` (KAMA), `_11-26-56` (ADX), `_11-49-24` (Parabolic SAR), `_12-01-28` (Aroon), `_12-16-05` (Ichimoku Cloud). Cost constants provisional from quick runs, confirmed in Part G.)*
 - [ ] Momentum: Stochastic, Williams %R, ROC, MFI, TRIX, Ultimate Oscillator.
 - [x] Volatility: ATR, Bollinger Bands, Keltner Channels, Donchian Channels, Standard Deviation. *(2026-10-29, `TODO.md` Part C: each through the `add-indicator` steps on its own branch; passing test-suite reports `test-suite_2026-10-29_03-33-50.txt` (ATR), `_06-28-17` (STDDEV), `_06-43-11` (BBANDS), `_06-56-46` (Donchian), `_07-12-29` (Keltner). Cost constants provisional from quick runs, confirmed in Part G.)*
 - [ ] Volume: OBV, VWAP, Accumulation/Distribution, Chaikin Money Flow, Volume ROC.

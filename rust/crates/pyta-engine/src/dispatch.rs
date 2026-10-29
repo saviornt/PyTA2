@@ -1,13 +1,14 @@
 use pyta_common::{
     ADX_NS_PER_ELEMENT, AROON_NS_PER_ELEMENT, ATR_NS_PER_ELEMENT, BBANDS_NS_PER_ELEMENT,
     BBANDS_NS_PER_WINDOW_VALUE, CCI_NS_PER_ELEMENT, CCI_NS_PER_WINDOW_VALUE, DEMA_NS_PER_ELEMENT,
-    DONCHIAN_NS_PER_ELEMENT, EMA_NS_PER_ELEMENT, KAMA_NS_PER_ELEMENT, KELTNER_NS_PER_ELEMENT,
-    MACD_NS_PER_ELEMENT, RSI_NS_PER_ELEMENT, SAR_NS_PER_ELEMENT, SMA_NS_PER_ELEMENT,
-    STDDEV_NS_PER_ELEMENT, STDDEV_NS_PER_WINDOW_VALUE, TEMA_NS_PER_ELEMENT, WMA_NS_PER_ELEMENT,
+    DONCHIAN_NS_PER_ELEMENT, EMA_NS_PER_ELEMENT, ICHIMOKU_NS_PER_ELEMENT, KAMA_NS_PER_ELEMENT,
+    KELTNER_NS_PER_ELEMENT, MACD_NS_PER_ELEMENT, RSI_NS_PER_ELEMENT, SAR_NS_PER_ELEMENT,
+    SMA_NS_PER_ELEMENT, STDDEV_NS_PER_ELEMENT, STDDEV_NS_PER_WINDOW_VALUE, TEMA_NS_PER_ELEMENT,
+    WMA_NS_PER_ELEMENT,
 };
 use pyta_core::{IndicatorOutput, PytaResult};
 use pyta_momentum::{cci, rsi};
-use pyta_trend::{adx, aroon, dema, ema, kama, macd, sar, sma, tema, wma};
+use pyta_trend::{adx, aroon, dema, ema, ichimoku, kama, macd, sar, sma, tema, wma};
 use pyta_volatility::{atr, bbands, donchian, keltner, stddev};
 
 use crate::requests::{IndicatorRequest, Params};
@@ -45,6 +46,14 @@ pub(crate) fn dispatch(request: &IndicatorRequest) -> PytaResult<IndicatorOutput
             donchian(high, low, period)
         }
         Params::Ema { period } => ema(input.series()?, period),
+        Params::Ichimoku {
+            tenkan,
+            kijun,
+            senkou,
+        } => {
+            let [high, low, close] = input.columns()?;
+            ichimoku(high, low, close, tenkan, kijun, senkou)
+        }
         Params::Kama { period } => kama(input.series()?, period),
         Params::Keltner {
             period,
@@ -95,6 +104,7 @@ pub(crate) fn estimated_cost_ns(request: &IndicatorRequest) -> f64 {
         Params::Dema { .. } => DEMA_NS_PER_ELEMENT,
         Params::Donchian { .. } => DONCHIAN_NS_PER_ELEMENT,
         Params::Ema { .. } => EMA_NS_PER_ELEMENT,
+        Params::Ichimoku { .. } => ICHIMOKU_NS_PER_ELEMENT,
         Params::Kama { .. } => KAMA_NS_PER_ELEMENT,
         Params::Keltner { .. } => KELTNER_NS_PER_ELEMENT,
         Params::Macd { .. } => MACD_NS_PER_ELEMENT,
@@ -214,6 +224,23 @@ mod tests {
         assert_eq!(
             cost(Params::Aroon { period: 5 }),
             cost(Params::Aroon { period: 200 })
+        );
+    }
+
+    #[test]
+    fn ichimoku_cost_does_not_depend_on_its_windows() {
+        // Three rolling-extreme midpoints, each O(n) whatever the window.
+        assert_eq!(
+            cost(Params::Ichimoku {
+                tenkan: 2,
+                kijun: 3,
+                senkou: 5
+            }),
+            cost(Params::Ichimoku {
+                tenkan: 9,
+                kijun: 26,
+                senkou: 52
+            })
         );
     }
 
