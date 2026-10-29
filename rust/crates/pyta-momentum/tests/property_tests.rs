@@ -132,3 +132,59 @@ proptest! {
         }
     }
 }
+
+/// RSI's smoothing written out as a plain loop, the form it had before it
+/// moved onto `pyta_core::kernels::WilderAverage`: the indicator must match
+/// it bit for bit.
+fn reference_rsi(prices: &[f64], period: usize) -> Vec<f64> {
+    let index_of = |gain: f64, loss: f64| {
+        if gain == 0.0 {
+            0.0
+        } else if loss == 0.0 {
+            100.0
+        } else {
+            100.0 * (gain / (gain + loss))
+        }
+    };
+
+    let mut output = vec![f64::NAN; prices.len()];
+    let (mut gain_sum, mut loss_sum) = (0.0, 0.0);
+    for index in 1..=period {
+        let change = prices[index] - prices[index - 1];
+        if change > 0.0 {
+            gain_sum += change;
+        } else {
+            loss_sum -= change;
+        }
+    }
+
+    let period_f = period as f64;
+    let prior_weight = (period - 1) as f64 / period_f;
+    let current_weight = 1.0 / period_f;
+    let mut average_gain = gain_sum / period_f;
+    let mut average_loss = loss_sum / period_f;
+    output[period] = index_of(average_gain, average_loss);
+
+    for index in period + 1..prices.len() {
+        let change = prices[index] - prices[index - 1];
+        average_gain = average_gain * prior_weight + change.max(0.0) * current_weight;
+        average_loss = average_loss * prior_weight + (-change).max(0.0) * current_weight;
+        output[index] = index_of(average_gain, average_loss);
+    }
+    output
+}
+
+proptest! {
+    #[test]
+    fn rsi_matches_its_plain_loop_bit_for_bit((values, period) in series_and_period()) {
+        let output = rsi(&Series::new(values.clone()).unwrap(), period).unwrap();
+        let expected = reference_rsi(&values, period);
+
+        for (index, (a, e)) in output.values().iter().zip(&expected).enumerate() {
+            prop_assert!(
+                (a.is_nan() && e.is_nan()) || a.to_bits() == e.to_bits(),
+                "index {}: {:e} != {:e}", index, a, e
+            );
+        }
+    }
+}

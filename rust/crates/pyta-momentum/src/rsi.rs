@@ -1,6 +1,8 @@
+use pyta_core::kernels::WilderAverage;
 use pyta_core::{IndicatorOutput, PytaError, PytaResult, Series};
 
-/// Calculates the Relative Strength Index (RSI) using Wilder's smoothing.
+/// Calculates the Relative Strength Index (RSI) using Wilder's smoothing
+/// (`pyta_core::kernels::WilderAverage`).
 ///
 /// `period` is the number of price changes used to initialize the
 /// average gain and average loss, so at least `period + 1` values
@@ -50,13 +52,10 @@ pub fn rsi(close: &Series, period: usize) -> PytaResult<IndicatorOutput> {
     }
 
     let period_f = period as f64;
-    let prior_weight = (period - 1) as f64 / period_f; // weight of the previous average
-    let current_weight = 1.0 / period_f; // weight of the newest change
+    let mut average_gain = WilderAverage::new(period, gain_sum / period_f);
+    let mut average_loss = WilderAverage::new(period, loss_sum / period_f);
 
-    let mut average_gain = gain_sum / period_f;
-    let mut average_loss = loss_sum / period_f;
-
-    output[period] = relative_strength_index(average_gain, average_loss);
+    output[period] = relative_strength_index(average_gain.value(), average_loss.value());
 
     // Wilder's smoothing for the rest of the series.
     for index in (period + 1)..prices.len() {
@@ -65,10 +64,8 @@ pub fn rsi(close: &Series, period: usize) -> PytaResult<IndicatorOutput> {
         let gain = change.max(0.0);
         let loss = (-change).max(0.0);
 
-        average_gain = average_gain * prior_weight + gain * current_weight;
-        average_loss = average_loss * prior_weight + loss * current_weight;
-
-        output[index] = relative_strength_index(average_gain, average_loss);
+        output[index] =
+            relative_strength_index(average_gain.update(gain), average_loss.update(loss));
     }
 
     Ok(IndicatorOutput::new(output))

@@ -66,7 +66,7 @@ PyTA/
 │           └── volume/             # __init__.py only, until Sprint 11.5's first indicator
 ├── rust/crates/
 │   ├── pyta-common/                # Tunable constants (no logic, no dependencies)
-│   ├── pyta-core/                  # Shared types, validation, errors
+│   ├── pyta-core/                  # Shared types, validation, errors, shared kernels
 │   ├── pyta-engine/                # Requests, dispatch, planning, execution
 │   ├── pyta-trend/                 # Trend indicators
 │   ├── pyta-momentum/              # Momentum indicators
@@ -142,7 +142,9 @@ One place to adjust values while tuning, shared by the engine, benchmarks, and t
 |---|---|
 | `scheduling.rs` | Concurrent-engine overheads used by the planner |
 | `costs.rs` | Estimated ns per element for each indicator |
-| `limits.rs` | Batch concurrency cap and validation block length |
+| `limits.rs` | Batch concurrency cap, validation block length, `MAX_ABS_INPUT` |
+| `kernels.rs` | Summation lanes for window sums (`SHORT_WINDOW_SUM_LANES`, `LONG_WINDOW_SUM_LANES`, `LONG_WINDOW_LEN`) |
+| `tolerances.rs` | `ZERO_TOLERANCE` (`1e-14`, TA-Lib's `TA_EPSILON`) for the scaled zero test |
 | `benchmarks.rs` | Benchmark input sizes and sample counts, and the worker count assumed by planner tests |
 
 Values that define an algorithm (for example RSI's 0 to 100 scale) stay with their formula.
@@ -156,14 +158,30 @@ Owns the types and rules every indicator shares.
 | `input.rs` | `Series` (non-empty, all values finite) and `Columns` (one or more `Series` of equal length, in an indicator's slot order) |
 | `output.rs` | `IndicatorOutput`: one or more equal-length series (outputs) in the indicator's documented order, with `NaN` marking positions with no valid result |
 | `error.rs` | `PytaError` and `PytaResult` |
+| `kernels/` | Calculation building blocks shared across categories (below) |
 
-Does not own formulas, scheduling, or Python concerns.
+Does not own indicator formulas, scheduling, or Python concerns.
+
+**Shared kernels (`pyta_core::kernels`).** Category crates may not depend on each other, so a building block that indicators in more than one category need lives here, one file per block. Kernels take slices `Series` has already validated and return a `Vec<f64>` with `NaN` warm-up or fill a caller's buffer; argument checks (periods, lengths) stay with the indicator, which reports them as `PytaError`s. Each fixes its order of operations, so an indicator gets the same bits wherever the block is used.
+
+| File | Kernels | Used by (now / planned) |
+|---|---|---|
+| `ema.rs` | `ema`, `ema_into` (seed at any `start`, so cascades pass `&first[period - 1..]`), `ema_multiplier` (`2 / (period + 1)`), `ema_step` (`(value - previous) * k + previous`, TA-Lib's order) | EMA, MACD / DEMA, TEMA, TRIX, Keltner |
+| `wilder.rs` | `WilderAverage` (`average * (n - 1) / n + value / n`, RSI's form), `wilder_into` (seeded with the mean of the `period` values ending at `start`), `WilderSum` (`sum - sum / n + value`, TA-Lib's ADX form) | RSI / ATR, ADX, Keltner |
+| `true_range.rs` | `true_range` (index 0 `NaN`, TA-Lib's lookback 1), `true_range_at` | ATR, ADX, Keltner, ULTOSC |
+| `extremes.rs` | `for_each_window_max`/`_min` (row of the extreme, ties to the most recent row), `rolling_max`/`_min` (values) | Donchian, WILLR, STOCH, Aroon, Ichimoku |
+| `typical_price.rs` | `typical_price`, `typical_price_at` (`(high + low + close) / 3`) | CCI / MFI, VWAP |
+| `rolling.rs` | `rolling_mean_into`/`rolling_mean` (compensated running sum, no drift), `rolling_std`/`rolling_mean_std` (population, centred two-pass per window, scaled when squares would overflow or underflow) | CCI / STDDEV, Bollinger |
+| `sum.rs` | `CompensatedSum`, `two_sum`, `lane_sum` (several independent totals) | CCI, rolling statistics |
+| `zero.rs` | `is_zero_scaled(value, scale)`: `value.abs() <= ZERO_TOLERANCE * scale`, TA-Lib 0.8.3's `TA_IS_ZERO_SCALED` | CCI / STOCH, WILLR, MFI, ULTOSC |
+
+MACD keeps its own fused loop over the three EMAs (2.1-2.3x faster than separate passes) but builds it from `ema_multiplier` and `ema_step`, so it stays bit for bit equal to separate `ema_into` passes (a property test checks this). Rolling extremes use the van Herk/Gil-Werman block algorithm: O(n) with no slow input, about 4x faster than a monotonic deque on price-like data and 10-80x faster than rescanning every window at periods 14-200 (`extremes.rs` has the measurements).
 
 **Numerical conventions**
 
 - Rust is strict: empty input, any non-finite value (`NaN` or infinity), and any value whose magnitude exceeds `MAX_ABS_INPUT` (`1e290`, in `pyta-common`) are rejected by `Series` validation.
 - Output length always equals input length. Warm-up positions are `NaN`, and only warm-up positions: for valid input every other output is finite.
-- `MAX_ABS_INPUT` is what makes that guarantee hold. Kernels may form sums of up to `period` values and differences of two values; with every input at most `1e290` in magnitude, those stay below `f64::MAX` (about `1.8e308`) for any series that fits in memory (at most 2^60 elements). Without it, `sma([f64::MAX, f64::MAX], 2)` returned `inf`. Checking against the limit costs the same as checking for finiteness: it is one compare per value, and it also rejects `NaN` and infinity. A future kernel that squares values (for example a standard deviation) must scale or centre them before squaring, or this limit must be revisited.
+- `MAX_ABS_INPUT` is what makes that guarantee hold. Kernels may form sums of up to `period` values and differences of two values; with every input at most `1e290` in magnitude, those stay below `f64::MAX` (about `1.8e308`) for any series that fits in memory (at most 2^60 elements). Without it, `sma([f64::MAX, f64::MAX], 2)` returned `inf`. Checking against the limit costs the same as checking for finiteness: it is one compare per value, and it also rejects `NaN` and infinity. A kernel that squares values must scale or centre them first: `kernels::rolling_std` centres each window on its mean and falls back to dividing by the largest deviation when the squares would overflow or underflow.
 - Rust errors are structured (for example `InvalidPeriod`, `InvalidParameter { name, minimum, value }` for a parameter other than `period`, `PeriodExceedsLength`, `InsufficientData`, `NonFiniteValue { index }`, `ValueOutOfRange { index }`, `LengthMismatch`, `ColumnCount { expected, actual }`, `ExecutionFailed`).
 - **Outputs.** `IndicatorOutput::new(values)` wraps a single output; `IndicatorOutput::with_outputs(vec![...])` wraps several (MACD: line, signal, histogram), rejecting none or unequal lengths with `LengthMismatch`. `values()` / `into_values()` give the first (main) output, `outputs()` / `into_outputs()` all of them, `output_count()` how many. Outputs are positions only; their names live in Python, like slots. Each output has its own warm-up.
 - `Columns` knows nothing about roles: Python matches columns to slots and passes them in slot order, so a new role (such as a fundamental) needs no new Rust type. Rust does not check columns against each other (high below low); Python does, so the error can name the columns.

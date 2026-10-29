@@ -1,4 +1,4 @@
-use pyta_core::{IndicatorOutput, PytaError, PytaResult, Series};
+use pyta_core::{IndicatorOutput, PytaError, PytaResult, Series, kernels};
 
 /// Calculates the Exponential Moving Average (EMA), as TA-Lib's `TA_EMA`.
 ///
@@ -7,6 +7,9 @@ use pyta_core::{IndicatorOutput, PytaError, PytaResult, Series};
 /// `previous + (value - previous) * k`, with `k = 2 / (period + 1)`. The
 /// first `period - 1` positions are `NaN` (warm-up). A period of 1 returns
 /// an exact copy of the input (TA-Lib rejects it; `k = 1` would round).
+///
+/// The arithmetic is `pyta_core::kernels::ema`, shared with every indicator
+/// that smooths with an EMA.
 ///
 /// # Errors
 ///
@@ -27,37 +30,5 @@ pub fn ema(input: &Series, period: usize) -> PytaResult<IndicatorOutput> {
         });
     }
 
-    // `(value - previous) * 1.0 + previous` is not always `value`.
-    if period == 1 {
-        return Ok(IndicatorOutput::new(values.to_vec()));
-    }
-
-    let mut output = vec![f64::NAN; length];
-    ema_into(values, period, period - 1, &mut output);
-
-    Ok(IndicatorOutput::new(output))
-}
-
-/// Writes the EMA of `values` to `output[start..]`, leaving the positions
-/// before `start` as they are.
-///
-/// The seed, at `start`, is the simple average of the `period` values ending
-/// there, so `start` may be later than `period - 1` (MACD's fused kernel
-/// seeds its fast EMA that way, with the same arithmetic). The arithmetic follows TA-Lib's `INT_EMA`
-/// exactly, in the same order, so results match it bit for bit.
-///
-/// The caller guarantees `1 <= period <= start + 1 <= values.len()` and
-/// `output.len() == values.len()`.
-pub(crate) fn ema_into(values: &[f64], period: usize, start: usize, output: &mut [f64]) {
-    debug_assert!(period >= 1 && period <= start + 1 && start < values.len());
-    debug_assert_eq!(output.len(), values.len());
-
-    let k = 2.0 / (period + 1) as f64;
-    let mut previous = values[start + 1 - period..=start].iter().sum::<f64>() / period as f64;
-    output[start] = previous;
-
-    for (value, slot) in values[start + 1..].iter().zip(&mut output[start + 1..]) {
-        previous = (value - previous) * k + previous;
-        *slot = previous;
-    }
+    Ok(IndicatorOutput::new(kernels::ema(values, period)))
 }

@@ -1,12 +1,9 @@
-use pyta_common::{LONG_WINDOW_LEN, LONG_WINDOW_SUM_LANES, SHORT_WINDOW_SUM_LANES};
+use pyta_common::{LONG_WINDOW_LEN, LONG_WINDOW_SUM_LANES, SHORT_WINDOW_SUM_LANES, ZERO_TOLERANCE};
+use pyta_core::kernels::{is_zero_scaled, lane_sum, rolling_mean_into, typical_price};
 use pyta_core::{IndicatorOutput, PytaError, PytaResult, Series};
 
 /// Lambert's constant, chosen so that most values fall within ±100.
 const LAMBERT: f64 = 0.015;
-
-/// Relative tolerance below which a difference counts as zero, as in
-/// TA-Lib's `TA_IS_ZERO_SCALED` (scaled by the window's mean).
-const ZERO_TOLERANCE: f64 = 1e-14;
 
 /// Calculates the Commodity Channel Index (CCI).
 ///
@@ -54,41 +51,16 @@ pub fn cci(
         });
     }
 
-    let typical: Vec<f64> = high
-        .iter()
-        .zip(low)
-        .zip(close)
-        .map(|((high, low), close)| (high + low + close) / 3.0)
-        .collect();
-
+    let typical = typical_price(high, low, close);
     let mut output = vec![f64::NAN; typical.len()];
-    let period_f = period as f64;
 
-    // Pass 1: each window's mean, stored where its CCI will go. The window's
-    // sum is a running total, compensated so that it cannot drift: after a
-    // large price leaves the window, a plain running sum keeps its rounding
-    // error, and a flat window that follows would read that error as both
-    // its distance from the mean and its deviation (CCI about -66.7 instead
-    // of 0).
-    let mut sum = CompensatedSum::default();
-    for &price in &typical[..period] {
-        sum.add(price);
-    }
-
-    let inverse = 1.0 / period_f;
+    // Pass 1: each window's mean, stored where its CCI will go. The kernel's
+    // running sum is compensated so that it cannot drift: a plain one would
+    // keep the rounding error of a large price that has left the window, and
+    // a flat window that follows would read it as both its distance from the
+    // mean and its deviation (CCI about -66.7 instead of 0).
     let means = &mut output[period - 1..];
-    means[0] = sum.value() * inverse;
-
-    // Each later window gains its last price and loses the one before its first.
-    let entering = &typical[period..];
-    for ((mean, &price), &leaving) in means[1..].iter_mut().zip(entering).zip(&typical) {
-        // The change is formed exactly, so the total carries one dependent
-        // addition per row.
-        let (change, error) = two_sum(price, -leaving);
-        sum.add(change);
-        sum.compensation += error;
-        *mean = sum.value() * inverse;
-    }
+    rolling_mean_into(&typical, period, means);
 
     // Pass 2: each window's CCI from its mean. The rows are independent here,
     // so the CPU overlaps them; in one combined loop each row waited for the
@@ -118,63 +90,16 @@ fn window_cci<const LANES: usize>(window: &[f64], mean: f64) -> f64 {
     // final division, one fewer on the critical path.
     let deviation_sum = lane_sum::<LANES>(window, |price| (price - mean).abs());
     let distance = window[window.len() - 1] - mean;
-    let scale = ZERO_TOLERANCE * mean.abs();
 
-    if distance.abs() <= scale || deviation_sum <= scale * period || LAMBERT * deviation_sum == 0.0
+    // TA-Lib's scaled zero test, relative to the mean. For the deviation it
+    // is applied to the sum, so the bound is multiplied by `period` (in this
+    // order, which `is_zero_scaled` cannot express).
+    if is_zero_scaled(distance, mean.abs())
+        || deviation_sum <= ZERO_TOLERANCE * mean.abs() * period
+        || LAMBERT * deviation_sum == 0.0
     {
         0.0
     } else {
         distance * period / (LAMBERT * deviation_sum)
     }
-}
-
-/// A running sum with Neumaier-style compensation: each addition's rounding
-/// error is computed exactly (Knuth's two-sum) and kept apart, so the total
-/// stays as accurate as a fresh sum however many values pass through.
-#[derive(Default)]
-struct CompensatedSum {
-    sum: f64,
-    compensation: f64,
-}
-
-impl CompensatedSum {
-    #[inline]
-    fn add(&mut self, value: f64) {
-        let (total, error) = two_sum(self.sum, value);
-        self.compensation += error;
-        self.sum = total;
-    }
-
-    #[inline]
-    fn value(&self) -> f64 {
-        self.sum + self.compensation
-    }
-}
-
-/// `a + b` and its rounding error exactly (Knuth's two-sum): `a + b` equals
-/// the two results added in exact arithmetic. Exact whichever operand is
-/// larger, so no branch is needed.
-#[inline]
-fn two_sum(a: f64, b: f64) -> (f64, f64) {
-    let total = a + b;
-    let b_part = total - a;
-    let a_part = total - b_part;
-    (total, (a - a_part) + (b - b_part))
-}
-
-/// Sums `term(x)` over `values` with `LANES` independent totals, so the
-/// additions overlap instead of each waiting for the last (see
-/// `pyta_common::kernels`).
-#[inline]
-fn lane_sum<const LANES: usize>(values: &[f64], term: impl Fn(f64) -> f64) -> f64 {
-    let mut lanes = [0.0; LANES];
-    let (chunks, tail) = values.as_chunks::<LANES>();
-
-    for chunk in chunks {
-        for (lane, &value) in lanes.iter_mut().zip(chunk) {
-            *lane += term(value);
-        }
-    }
-
-    tail.iter().map(|&value| term(value)).sum::<f64>() + lanes.iter().sum::<f64>()
 }

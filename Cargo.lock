@@ -831,6 +831,7 @@ version = "0.2.0"
 name = "pyta-core"
 version = "0.2.0"
 dependencies = [
+ "proptest",
  "pyta-common",
  "thiserror",
 ]

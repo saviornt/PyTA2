@@ -4,6 +4,7 @@
 pub mod error;
 /// Validated input series.
 pub mod input;
+pub mod kernels;
 /// Indicator results.
 pub mod output;
 
