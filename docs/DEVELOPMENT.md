@@ -437,6 +437,7 @@ Scripts, CI and docs:
 - [ ] Add integration tests for expected values, invalid parameters, and error messages.
 - [ ] Verify that the project does not depend on PyTA's internal crate paths or `pyta._native`.
 - [ ] Document how a new developer installs and runs the examples.
+- [ ] Perform benchmark comparison of current indicators against TA-Lib (from PyPi) and create a comparison table within the repository's `README.md`.
 
 ### Acceptance criteria
 
