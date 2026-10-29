@@ -79,7 +79,7 @@ Every indicator box means the `add-indicator` skill's nine steps are done: spec 
 - [ ] `main` baselines in a scratch worktree before Part C (`--single --python`, `--batch --python`).
 - [ ] Cost constants for every new indicator confirmed by one full `--single --rust` and `--batch --rust` run.
 - [ ] Same-session A/B against `main`: existing indicators' single and batch calls within ~5%.
-- [ ] README catalog, `API.md` (catalog, parameters, float parameters, zero-denominator conventions), `ARCHITECTURE.md` (new crates, `pyta-core` kernels), memory.
+- [ ] README catalog, `API.md` (catalog, parameters, float parameters, zero-denominator conventions) (also §11's multi-output table, which lists MACD only: add BBANDS, Donchian, Keltner, ADX, Aroon and the rest), `ARCHITECTURE.md` (new crates, `pyta-core` kernels), memory.
 - [ ] `DEVELOPMENT.md`: tick tasks; retrospective and ✓ once the criteria pass.
 
 ### Acceptance criteria for Sprint 11.5
@@ -122,3 +122,4 @@ Out of scope: `ma=`/`matype` options, VWAP session anchoring, Ichimoku shifted o
 - VWAP session or date anchoring; needs a datetime role (A9).
 - Further indicators: Stochastic RSI, PPO, Momentum, CMO, Hull MA, Supertrend, Pivot Points, ROCP/ROCR/ROCR100, ADXR, PLUS_DI/MINUS_DI alone (A14).
 - TA-Lib 0.8.3 updates EMAs as `fma(beta, prev, k*x)`; `kernels::ema_step` uses `(x - prev)*k + prev`, so EMA/DEMA/TEMA differ from TA-Lib by ~1e-15 (inside 1e-9). Check whether the `kernels::ema` doc claim "bit for bit with INT_EMA" still holds for 0.8.3, and decide whether to switch to `mul_add` (would change EMA/MACD bits). *Evidence against switching (KAMA, 9d06811): KAMA written with plain multiply-adds matches the 0.8.3 wheel bit for bit although the source says `fma`, so the wheel likely does not fuse; and `f64::mul_add` without `target-feature=+fma` is a libm call (KAMA 7.39 vs 3.39 ms per 1e6 rows).* *But SAR (e33cbb8) is bit-exact only with `mul_add`: `ta_SAR.c` is built with `TA_FMA_MULTIVERSION`, so the wheel fuses per function. Plain SAR is within one ulp (2.1e-16) and 16% faster than fused; kept plain. Decide one policy at QA: within-1e-9 everywhere (current) or fused where TA-Lib multiversions.*
+- Aroon (22f0ab5) writes `(100/period)*period`, which is 100 + 1 ulp for some periods (11, 22, 39, ...), as TA-Lib does; kept for bit parity. Clamp to 100 like RSI if users notice.
