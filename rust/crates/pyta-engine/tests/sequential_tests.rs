@@ -16,6 +16,7 @@ fn request(kind: IndicatorKind, len: usize, period: usize) -> IndicatorRequest {
 fn params(kind: IndicatorKind, period: usize) -> Params {
     match kind {
         IndicatorKind::Adx => Params::Adx { period },
+        IndicatorKind::Aroon => Params::Aroon { period },
         IndicatorKind::Atr => Params::Atr { period },
         IndicatorKind::Cci => Params::Cci { period },
         IndicatorKind::Donchian => Params::Donchian { period },

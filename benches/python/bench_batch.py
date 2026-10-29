@@ -40,6 +40,7 @@ INDICATORS: dict[str, tuple[dict[str, int | float], int]] = {
     "kama": ({"period": 30}, 1),
     "adx": ({"period": 14}, 3),
     "sar": ({"acceleration": 0.02, "maximum": 0.2}, 2),
+    "aroon": ({"period": 14}, 2),
     "macd": ({"fast": 12, "slow": 26, "signal": 9}, 1),
     "atr": ({"period": 14}, 3),
     "stddev": ({"period": 5, "k": 1.0}, 1),

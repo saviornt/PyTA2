@@ -112,6 +112,17 @@ def test_smoke() -> None:
     high, low = np.array(data["high"]), np.array(data["low"])
     assert ((sar_values[1:] <= low[1:]) | (sar_values[1:] >= high[1:])).all()
 
+    aroon_result = pyta.aroon(data, period=14)
+    up, down, osc = (
+        np.array(aroon_result[name]) for name in ("aroon_up", "aroon_down", "aroon_osc")
+    )
+    for line in (up, down, osc):
+        assert line.dtype == np.float64
+        assert line.shape == (length,), "Aroon output length mismatch"
+        assert np.isnan(line[:14]).all(), "Aroon warm-up alignment is incorrect"
+        assert np.isfinite(line[14:]).all()
+    assert ((up[14:] >= 0.0) & (up[14:] <= 100.0) & (down[14:] >= 0.0) & (down[14:] <= 100.0)).all()
+
     stddev_values = np.array(pyta.stddev(data, period=20, k=2.0)["stddev"])
     assert stddev_values.dtype == np.float64
     assert stddev_values.shape == (length,), "STDDEV output length mismatch"

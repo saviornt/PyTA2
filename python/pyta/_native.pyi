@@ -7,6 +7,8 @@ __all__ = [
     "MAX_ABS_INPUT",
     "adx",
     "adx_batch",
+    "aroon",
+    "aroon_batch",
     "atr",
     "atr_batch",
     "bbands",
@@ -79,6 +81,10 @@ def cci_batch(
 ) -> list[NDArray[np.float64] | Exception]: ...
 def adx(columns: list[NDArray[np.float64]], period: int) -> list[NDArray[np.float64]]: ...
 def adx_batch(
+    datasets: list[list[NDArray[np.float64]]], period: int
+) -> list[list[NDArray[np.float64]] | Exception]: ...
+def aroon(columns: list[NDArray[np.float64]], period: int) -> list[NDArray[np.float64]]: ...
+def aroon_batch(
     datasets: list[list[NDArray[np.float64]]], period: int
 ) -> list[list[NDArray[np.float64]] | Exception]: ...
 def sar(

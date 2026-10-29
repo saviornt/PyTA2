@@ -22,6 +22,7 @@ LOWER = {
     "macd": ["macd", "macd_signal", "macd_hist"],
     "adx": ["adx", "adx_plus_di", "adx_minus_di"],
     "sar": ["sar"],
+    "aroon": ["aroon_up", "aroon_down", "aroon_osc"],
 }
 UPPER = {name: [n.upper() for n in names] for name, names in LOWER.items()}
 TITLE = {
@@ -36,13 +37,14 @@ TITLE = {
     "macd": ["MACD", "MACD_Signal", "MACD_Hist"],
     "adx": ["ADX", "ADX_Plus_DI", "ADX_Minus_DI"],
     "sar": ["SAR"],
+    "aroon": ["Aroon_Up", "Aroon_Down", "Aroon_Osc"],
 }
 
 #: Indicators on high, low and close, cased by all three columns.
 MULTI_COLUMN = {"cci", "adx"}
 
 #: Indicators on high and low only, cased by those two columns.
-HIGH_LOW = {"sar"}
+HIGH_LOW = {"sar", "aroon"}
 
 #: yfinance's column names.
 YFINANCE = ["Open", "High", "Low", "Close", "Adj Close", "Volume"]

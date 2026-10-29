@@ -1,9 +1,9 @@
-//! SMA, EMA, WMA, DEMA, TEMA, KAMA, MACD, ADX and Parabolic SAR invariants
-//! that must hold for any valid input.
+//! SMA, EMA, WMA, DEMA, TEMA, KAMA, MACD, ADX, Parabolic SAR and Aroon
+//! invariants that must hold for any valid input.
 
 use proptest::prelude::*;
 use pyta_core::{Series, kernels};
-use pyta_trend::{adx, dema, ema, kama, macd, sar, sma, tema, wma};
+use pyta_trend::{adx, aroon, dema, ema, kama, macd, sar, sma, tema, wma};
 
 /// A series of 1 to 300 prices and a period that fits it.
 fn series_and_period() -> impl Strategy<Value = (Vec<f64>, usize)> {
@@ -647,6 +647,56 @@ proptest! {
         for (index, value) in output.values().iter().enumerate().skip(1) {
             prop_assert!(*value <= low[index] || *value >= high[index], "row {}: {} inside [{}, {}]", index, value, low[index], high[index]);
             prop_assert!(*value >= floor && *value <= ceiling, "row {}: {} outside the series", index, value);
+        }
+    }
+}
+
+/// High and low columns of 3 to 300 rows (high at or above low; some rows
+/// flat, some values repeated so ties occur) and a period that fits them.
+fn high_low_and_aroon_period() -> impl Strategy<Value = (Vec<f64>, Vec<f64>, usize)> {
+    let row = (
+        prop_oneof![Just(0.0), Just(1.0), -1.0e6..1.0e6_f64],
+        prop_oneof![Just(0.0), 0.0..1.0e3_f64],
+    );
+    prop::collection::vec(row, 3..300).prop_flat_map(|rows| {
+        let low: Vec<f64> = rows.iter().map(|(low, _)| *low).collect();
+        let high: Vec<f64> = rows.iter().map(|(low, range)| low + range).collect();
+        let length = rows.len();
+        (Just(high), Just(low), 2..length)
+    })
+}
+
+proptest! {
+    #[test]
+    fn aroon_outputs_have_period_warm_up_rows((high, low, period) in high_low_and_aroon_period()) {
+        let length = high.len();
+        let output = aroon(&Series::new(high).unwrap(), &Series::new(low).unwrap(), period).unwrap();
+
+        prop_assert_eq!(output.output_count(), 3);
+        for values in output.outputs() {
+            prop_assert_eq!(values.len(), length);
+            prop_assert!(values[..period].iter().all(|value| value.is_nan()));
+            prop_assert!(values[period..].iter().all(|value| value.is_finite()));
+        }
+    }
+
+    #[test]
+    fn aroon_lies_on_its_grid_and_osc_is_up_minus_down((high, low, period) in high_low_and_aroon_period()) {
+        // Up and down are `100 / period` times a whole number of rows from
+        // 0 to `period`; the oscillator is their difference to rounding.
+        // `(100 / period) * period` is 100 give or take one ulp (period 11:
+        // 100.00000000000001, as TA-Lib), hence the bounds' tolerance.
+        let output = aroon(&Series::new(high).unwrap(), &Series::new(low).unwrap(), period).unwrap();
+        let [up, down, osc] = [0, 1, 2].map(|i| &output.outputs()[i]);
+        let factor = 100.0 / period as f64;
+
+        for row in period..up.len() {
+            for value in [up[row], down[row]] {
+                prop_assert!((0.0..=100.0 + 1e-12).contains(&value), "row {}: {}", row, value);
+                let steps = (value / factor).round();
+                prop_assert!((value - factor * steps).abs() <= 1e-9, "row {}: {}", row, value);
+            }
+            prop_assert!((osc[row] - (up[row] - down[row])).abs() <= 1e-9);
         }
     }
 }

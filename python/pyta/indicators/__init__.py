@@ -7,11 +7,12 @@ is also re-exported here and at the top level, so `pyta.indicators.sma`,
 
 from pyta.indicators import momentum, trend, volatility, volume
 from pyta.indicators.momentum import cci, rsi
-from pyta.indicators.trend import adx, dema, ema, kama, macd, sar, sma, tema, wma
+from pyta.indicators.trend import adx, aroon, dema, ema, kama, macd, sar, sma, tema, wma
 from pyta.indicators.volatility import atr, bbands, donchian, keltner, stddev
 
 __all__ = [
     "adx",
+    "aroon",
     "atr",
     "bbands",
     "cci",

@@ -1,12 +1,12 @@
 //! SMA against published worked examples (StockCharts ChartSchool), and EMA,
-//! WMA, DEMA, TEMA, KAMA, MACD, ADX and Parabolic SAR against TA-Lib's own
-//! output (generated fixtures, see their comments).
+//! WMA, DEMA, TEMA, KAMA, MACD, ADX, Parabolic SAR and Aroon against
+//! TA-Lib's own output (generated fixtures, see their comments).
 
 #[path = "../../../test-support/reference.rs"]
 mod reference;
 
 use pyta_core::Series;
-use pyta_trend::{adx, dema, ema, kama, macd, sar, sma, tema, wma};
+use pyta_trend::{adx, aroon, dema, ema, kama, macd, sar, sma, tema, wma};
 use reference::{assert_matches, assert_output_matches, load};
 
 fn check(name: &str) {
@@ -246,4 +246,38 @@ fn sar_0_01_0_1_matches_talib() {
 #[test]
 fn sar_0_02_0_2_matches_talib_on_the_edge_series() {
     check_sar("sar_0.02_0.2_edge_talib.csv");
+}
+
+fn check_aroon(name: &str) {
+    let reference = load(name);
+    let [high, low] = [0, 1].map(|i| Series::new(reference.columns[i].clone()).unwrap());
+
+    let output = aroon(&high, &low, reference.period()).unwrap();
+
+    assert_eq!(output.output_count(), reference.outputs.len());
+    for (index, actual) in output.outputs().iter().enumerate() {
+        assert_output_matches(actual, &reference, index);
+    }
+    // Every value is a multiple of `100 / period` written with TA-Lib's own
+    // expressions (the oscillator as `factor * (highest - lowest)`), so all
+    // three outputs match the wheel's doubles bit for bit.
+    for (output, (actual, expected)) in output.outputs().iter().zip(&reference.outputs).enumerate()
+    {
+        for (index, (a, e)) in actual.iter().zip(expected).enumerate() {
+            assert!(
+                (a.is_nan() && e.is_nan()) || a.to_bits() == e.to_bits(),
+                "{name}, output {output}, index {index}: {a:e} != {e:e}"
+            );
+        }
+    }
+}
+
+#[test]
+fn aroon_14_matches_talib() {
+    check_aroon("aroon_14_talib.csv");
+}
+
+#[test]
+fn aroon_14_matches_talib_on_the_edge_series() {
+    check_aroon("aroon_14_edge_talib.csv");
 }

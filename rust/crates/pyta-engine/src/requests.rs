@@ -9,6 +9,9 @@ pub enum IndicatorKind {
     /// Average Directional Index with +DI and -DI (`pyta-trend`; high, low,
     /// close; three outputs).
     Adx,
+    /// Aroon Up, Aroon Down and Aroon Oscillator (`pyta-trend`; high, low;
+    /// three outputs).
+    Aroon,
     /// Average True Range (`pyta-volatility`; high, low, close).
     Atr,
     /// Bollinger Bands (`pyta-volatility`; three outputs).
@@ -58,6 +61,12 @@ pub enum Params {
     Adx {
         /// Wilder's smoothing period of the directional movement, true range
         /// and ADX, at least 2.
+        period: usize,
+    },
+    /// Aroon Up, Aroon Down and the Aroon Oscillator.
+    Aroon {
+        /// Rows looked back from the current row (a window of `period + 1`
+        /// rows), at least 2.
         period: usize,
     },
     /// Average True Range.
@@ -163,6 +172,7 @@ impl Params {
     pub fn kind(&self) -> IndicatorKind {
         match self {
             Self::Adx { .. } => IndicatorKind::Adx,
+            Self::Aroon { .. } => IndicatorKind::Aroon,
             Self::Atr { .. } => IndicatorKind::Atr,
             Self::Bbands { .. } => IndicatorKind::Bbands,
             Self::Cci { .. } => IndicatorKind::Cci,

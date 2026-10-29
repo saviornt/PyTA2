@@ -11,6 +11,7 @@ const NAN: f64 = f64::NAN;
 fn params(kind: IndicatorKind, period: usize) -> Params {
     match kind {
         IndicatorKind::Adx => Params::Adx { period },
+        IndicatorKind::Aroon => Params::Aroon { period },
         IndicatorKind::Atr => Params::Atr { period },
         IndicatorKind::Cci => Params::Cci { period },
         IndicatorKind::Donchian => Params::Donchian { period },
@@ -288,6 +289,7 @@ fn the_kind_comes_from_the_params() {
     let series = Series::new(vec![1.0, 2.0]).unwrap();
     let cases = [
         (Params::Adx { period: 2 }, IndicatorKind::Adx),
+        (Params::Aroon { period: 2 }, IndicatorKind::Aroon),
         (Params::Atr { period: 2 }, IndicatorKind::Atr),
         (Params::Bbands { period: 2, k: 2.0 }, IndicatorKind::Bbands),
         (Params::Cci { period: 2 }, IndicatorKind::Cci),
@@ -737,6 +739,61 @@ async fn donchian_runs_through_the_engine_with_three_outputs_and_reports_its_err
         *error_of(&results[2]),
         PytaError::PeriodExceedsLength {
             period: 5,
+            length: 4,
+        }
+    );
+    assert_eq!(
+        *error_of(&results[3]),
+        PytaError::ColumnCount {
+            expected: 2,
+            actual: 1,
+        }
+    );
+}
+
+#[tokio::test]
+async fn aroon_runs_through_the_engine_with_three_outputs_and_reports_its_errors() {
+    // Period 2 (factor 50), windows of 3 rows. Row 2: highest high on row
+    // 1, lowest low on row 0; row 3: both on row 3.
+    let high: &[f64] = &[10.0, 12.0, 11.0, 13.0];
+    let low: &[f64] = &[7.0, 9.0, 9.5, 8.0];
+    let requests = vec![
+        columns_request(IndicatorKind::Aroon, &[high, low], 2),
+        columns_request(IndicatorKind::Aroon, &[high, low], 1),
+        columns_request(IndicatorKind::Aroon, &[high, low], 4),
+        request(IndicatorKind::Aroon, high.to_vec(), 2),
+    ];
+
+    let direct = execute_direct(&requests[0]).unwrap();
+    let [up, down, osc] = direct.outputs() else {
+        panic!("expected three outputs, got {}", direct.output_count());
+    };
+    assert_values(up, &[NAN, NAN, 50.0, 100.0]);
+    assert_values(down, &[NAN, NAN, 0.0, 100.0]);
+    assert_values(osc, &[NAN, NAN, 50.0, 0.0]);
+
+    let results = execute_batch(requests).await;
+
+    match &results[0].status {
+        IndicatorStatus::Success(output) => {
+            for (got, want) in output.outputs().iter().zip(direct.outputs()) {
+                assert_values(got, want);
+            }
+        }
+        IndicatorStatus::Error(error) => panic!("expected Aroon success, got {error:?}"),
+    }
+    assert_eq!(
+        *error_of(&results[1]),
+        PytaError::InvalidParameter {
+            name: "period",
+            minimum: 2,
+            value: 1,
+        }
+    );
+    assert_eq!(
+        *error_of(&results[2]),
+        PytaError::InsufficientData {
+            required: 5,
             length: 4,
         }
     );

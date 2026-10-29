@@ -33,6 +33,7 @@ def test_top_level_exports() -> None:
     assert sorted(pyta.__all__) == [
         "Output",
         "adx",
+        "aroon",
         "atr",
         "batch",
         "bbands",
@@ -81,6 +82,7 @@ def test_every_exported_name_exists(module: object) -> None:
 def test_indicator_and_batch_namespaces_list_the_same_indicators() -> None:
     expected = [
         "adx",
+        "aroon",
         "atr",
         "bbands",
         "cci",

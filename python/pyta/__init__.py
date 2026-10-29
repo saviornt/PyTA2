@@ -10,6 +10,7 @@ from . import batch, indicators, momentum, trend, volatility, volume
 from ._export import Output
 from .indicators import (
     adx,
+    aroon,
     atr,
     bbands,
     cci,
@@ -34,6 +35,7 @@ logging.getLogger(__name__).addHandler(logging.NullHandler())
 __all__ = [
     "Output",
     "adx",
+    "aroon",
     "atr",
     "batch",
     "bbands",

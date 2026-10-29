@@ -6,6 +6,7 @@
 //! indicator's bindings live in a file named after it.
 
 mod adx;
+mod aroon;
 mod atr;
 mod batch;
 mod bbands;
@@ -52,6 +53,8 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(kama::kama_batch, m)?)?;
     m.add_function(wrap_pyfunction!(adx::adx, m)?)?;
     m.add_function(wrap_pyfunction!(adx::adx_batch, m)?)?;
+    m.add_function(wrap_pyfunction!(aroon::aroon, m)?)?;
+    m.add_function(wrap_pyfunction!(aroon::aroon_batch, m)?)?;
     m.add_function(wrap_pyfunction!(sar::sar, m)?)?;
     m.add_function(wrap_pyfunction!(sar::sar_batch, m)?)?;
     m.add_function(wrap_pyfunction!(macd::macd, m)?)?;

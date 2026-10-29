@@ -1,7 +1,8 @@
 //! Trend indicators (SMA, EMA, WMA, DEMA, TEMA, KAMA, MACD, ADX, Parabolic
-//! SAR), one per file.
+//! SAR, Aroon), one per file.
 
 mod adx;
+mod aroon;
 mod dema;
 mod ema;
 mod kama;
@@ -12,6 +13,7 @@ mod tema;
 mod wma;
 
 pub use adx::adx;
+pub use aroon::aroon;
 pub use dema::dema;
 pub use ema::ema;
 pub use kama::kama;

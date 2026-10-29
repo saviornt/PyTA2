@@ -161,6 +161,19 @@ pub const KAMA_NS_PER_ELEMENT: f64 = 4.0;
 /// `--single --rust --indicator adx`.
 pub const ADX_NS_PER_ELEMENT: f64 = 10.6;
 
+/// Aroon (up, down and oscillator), in nanoseconds per input row;
+/// independent of `period` (the van Herk/Gil-Werman rolling extremes are
+/// O(n) whatever the window).
+///
+/// Provisional, from a quick run on 2026-10-29
+/// (`benches/results/benchmark_2026-10-29_11-58-28.txt`, `--single --rust
+/// --quick`, governor `performance`): kernels at 1,000,000 rows took
+/// 10.786 ms for Aroon-14 and 2.424 ms for RSI-14, scaled here by
+/// `RSI_NS_PER_ELEMENT` (3.0 * 4.45). Two rolling-extreme walks of
+/// `period + 1` rows and three outputs; Donchian-20 took 9.709 ms in the
+/// same run. Confirm with a full `--single --rust --indicator aroon`.
+pub const AROON_NS_PER_ELEMENT: f64 = 13.3;
+
 /// Parabolic SAR, in nanoseconds per input row; independent of
 /// `acceleration` and `maximum` (one pass).
 ///
