@@ -87,20 +87,38 @@ Follows TA-Lib. The typical price is `TP = (high + low + close) / 3`; over each 
 
 ## 4. Input containers
 
-Every supported container is converted to a one-dimensional `float64` series, and the result is returned in the same kind of container.
+Every supported container is converted to one-dimensional `float64` series (one per input column the indicator needs), and the result is returned in the same kind of container.
 
-| Input | Output |
-|---|---|
-| `list` | `list` |
-| `tuple` | `tuple` |
-| NumPy array (any real numeric dtype) | `float64` array |
-| pandas Series | Series with the same index, named after the indicator (`sma`) |
-| pandas DataFrame | DataFrame with the same index and one column named after the indicator |
-| `dict` of columns | `dict` with one key named after the indicator; the value keeps its container type |
-| JSON `str` | JSON `str`, same shape |
-| JSON `bytes` or `bytearray` | JSON `bytes`, same shape |
+### Container matrix
 
-This table is for a single-output indicator; a multi-output one such as MACD returns one column or key per output, and a tuple for one-series input (see [§11](#11-multi-output-indicators)).
+Columns are the indicator shapes: one input column and one output (SMA, EMA, RSI), one column and several outputs (MACD), several columns and one output (CCI), and several of both (none yet; Stochastic in Sprint 11.5, tested now with a stand-in). "Same" means the same container as the input; "tuple of outputs" means one item per output, in documented order, each in the single-output form. Values always equal the plain NumPy-array call exactly.
+
+| Input | One column, one output | One column, several outputs | Several columns, one output | Several columns, several outputs |
+|---|---|---|---|---|
+| `list` of numbers | `list` | tuple of lists | `TypeError` (one series) | `TypeError` (one series) |
+| `tuple` of numbers | `tuple` | tuple of tuples | `TypeError` (one series) | `TypeError` (one series) |
+| NumPy 1-D array (any real numeric dtype, masked) | `float64` array | tuple of arrays | `TypeError` (one series) | `TypeError` (one series) |
+| NumPy 2-D array `(rows, columns)` | `ValueError` (expects 1-D) | `ValueError` (expects 1-D) | 1-D array; columns in documented order, count must match | tuple of 1-D arrays |
+| `tuple` of arrays or lists (one per column) | `ValueError` (expects 1-D) | `ValueError` (expects 1-D) | `tuple` | tuple of tuples |
+| pandas Series | Series named by the output, same index | tuple of Series, same index | `TypeError` (one series) | `TypeError` (one series) |
+| pandas DataFrame | DataFrame, one column, same index | DataFrame, one column per output | DataFrame, one column | DataFrame, one column per output |
+| `dict` of columns (list, tuple, array or Series values) | `dict`, one key | `dict`, one key per output | `dict`, one key | `dict`, one key per output |
+| JSON array of numbers (`str`, `bytes`, `bytearray`) | JSON array | JSON object keyed by output | `TypeError` (one series) | `TypeError` (one series) |
+| JSON array of records | records, one key per output | records, one key per output | records | records |
+| JSON object of arrays | object, one key per output | object, one key per output | object | object |
+| CSV with a header row (`str`, `bytes`) *(Sprint 11, planned)* | CSV, one column | CSV, one column per output | CSV, one column | CSV, one column per output |
+| anything else (sets, scalars, generators, ...) | `TypeError` | `TypeError` | `TypeError` | `TypeError` |
+
+JSON and CSV results have the input's type: `str` stays `str`, and `bytes` or `bytearray` become `bytes`. A pandas index (default, date, datetime, time-zone aware, non-unique, MultiIndex rows) is kept with its name and order. A dict's values take the container type of the column used (for a multi-column indicator, its first input column), so a Series value keeps its index only when that column is a Series.
+
+**Limitations** (each raises, never guesses):
+
+- A 2-D array must be `(rows, columns)`; a `(columns, rows)` array is read as that many columns and fails the column count. A `(rows, 1)` array or a one-item tuple is not taken as one series; pass the column itself.
+- A list of rows, a list of column lists, or a list or tuple of pandas Series is not multi-column input; use a 2-D array, a tuple of arrays, a dict or a DataFrame.
+- DataFrames with MultiIndex columns are not supported; select a single column level first.
+- Only leading gaps are skipped: a gap (`None`, `null`, `NaN`, `pd.NA`) after the first value raises `ValueError` ([§6](#6-missing-and-non-finite-values)).
+- In a Python list or JSON array, `True` and `False` among numbers are read as 1 and 0 (NumPy's conversion); a list, array or Series of only booleans raises `TypeError`.
+- Provider-specific layouts are not unpacked: AlphaVantage's nested JSON time series must be flattened by the caller ([§12](#12-data-sources-planned)).
 
 Details:
 
