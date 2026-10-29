@@ -105,6 +105,17 @@ pub const DONCHIAN_NS_PER_ELEMENT: f64 = 10.6;
 /// Confirm with a full `--single --rust --indicator ema`.
 pub const EMA_NS_PER_ELEMENT: f64 = 3.6;
 
+/// Weighted Moving Average, in nanoseconds per input element; independent
+/// of `period` (running sums, rebuilt every `8 * period` rows).
+///
+/// Provisional, from a quick run on 2026-10-29
+/// (`benches/results/benchmark_2026-10-29_07-21-17.txt`, `--single --rust
+/// --quick`, governor `performance`): kernels at 1,000,000 rows took
+/// 2.353 ms for WMA-30 and 2.638 ms for RSI-14, scaled here by
+/// `RSI_NS_PER_ELEMENT` (3.0 * 0.89). Confirm with a full
+/// `--single --rust --indicator wma`.
+pub const WMA_NS_PER_ELEMENT: f64 = 2.7;
+
 /// Keltner Channels, in nanoseconds per input row; independent of `period`,
 /// `atr_period` and `k` (one EMA pass, one true-range and Wilder pass, one
 /// band pass).

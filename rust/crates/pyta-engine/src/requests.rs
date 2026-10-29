@@ -26,6 +26,8 @@ pub enum IndicatorKind {
     Sma,
     /// Standard Deviation (`pyta-volatility`).
     Stddev,
+    /// Weighted Moving Average (`pyta-trend`).
+    Wma,
 }
 
 /// Which indicator to calculate, with its own parameters: one variant per
@@ -106,6 +108,11 @@ pub enum Params {
         /// Multiplier, finite and above 0.
         k: f64,
     },
+    /// Weighted Moving Average: weights 1 (oldest) to `period` (newest).
+    Wma {
+        /// Rows in each window.
+        period: usize,
+    },
 }
 
 impl Params {
@@ -122,6 +129,7 @@ impl Params {
             Self::Rsi { .. } => IndicatorKind::Rsi,
             Self::Sma { .. } => IndicatorKind::Sma,
             Self::Stddev { .. } => IndicatorKind::Stddev,
+            Self::Wma { .. } => IndicatorKind::Wma,
         }
     }
 }

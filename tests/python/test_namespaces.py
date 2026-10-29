@@ -23,6 +23,7 @@ DOCS = Path(__file__).resolve().parents[2] / "docs" / "indicators"
 INDICATORS = {
     "sma": "trend",
     "ema": "trend",
+    "wma": "trend",
     "macd": "trend",
     "rsi": "momentum",
     "cci": "momentum",
@@ -102,6 +103,12 @@ DOCUMENTED_PATHS = [
     "pyta.indicators.volatility.keltner",
     "pyta.batch.keltner",
     "pyta.batch.volatility.keltner",
+    "pyta.wma",
+    "pyta.trend.wma",
+    "pyta.indicators.wma",
+    "pyta.indicators.trend.wma",
+    "pyta.batch.wma",
+    "pyta.batch.trend.wma",
 ]
 
 

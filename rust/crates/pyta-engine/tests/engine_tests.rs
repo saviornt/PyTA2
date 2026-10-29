@@ -16,6 +16,7 @@ fn params(kind: IndicatorKind, period: usize) -> Params {
         IndicatorKind::Ema => Params::Ema { period },
         IndicatorKind::Rsi => Params::Rsi { period },
         IndicatorKind::Sma => Params::Sma { period },
+        IndicatorKind::Wma => Params::Wma { period },
         IndicatorKind::Bbands => Params::Bbands { period, k: 2.0 },
         IndicatorKind::Stddev => Params::Stddev { period, k: 1.0 },
         IndicatorKind::Keltner => Params::Keltner {
@@ -305,6 +306,7 @@ fn the_kind_comes_from_the_params() {
         (Params::Rsi { period: 2 }, IndicatorKind::Rsi),
         (Params::Sma { period: 2 }, IndicatorKind::Sma),
         (Params::Stddev { period: 2, k: 1.0 }, IndicatorKind::Stddev),
+        (Params::Wma { period: 2 }, IndicatorKind::Wma),
     ];
 
     for (params, kind) in cases {
@@ -320,6 +322,38 @@ fn ema_runs_through_the_engine() {
     let output = execute_direct(&request).unwrap();
 
     assert_values(output.values(), &[NAN, NAN, 2.0, 3.0, 4.0]);
+}
+
+#[tokio::test]
+async fn wma_runs_through_the_engine_and_reports_its_errors() {
+    // Period 3, weights 1, 2, 3 over 6: (1 + 4 + 9) / 6, then (2 + 6 + 12) / 6
+    // and (3 + 8 + 15) / 6.
+    let values = vec![1.0, 2.0, 3.0, 4.0, 5.0];
+    let requests = vec![
+        request(IndicatorKind::Wma, values.clone(), 3),
+        request(IndicatorKind::Wma, values.clone(), 0),
+        request(IndicatorKind::Wma, values, 6),
+    ];
+
+    let results = execute_batch(requests).await;
+
+    match &results[0].status {
+        IndicatorStatus::Success(output) => {
+            assert_values(
+                output.values(),
+                &[NAN, NAN, 14.0 / 6.0, 20.0 / 6.0, 26.0 / 6.0],
+            );
+        }
+        IndicatorStatus::Error(error) => panic!("expected WMA success, got {error:?}"),
+    }
+    assert_eq!(*error_of(&results[1]), PytaError::InvalidPeriod);
+    assert_eq!(
+        *error_of(&results[2]),
+        PytaError::PeriodExceedsLength {
+            period: 6,
+            length: 5,
+        }
+    );
 }
 
 #[test]

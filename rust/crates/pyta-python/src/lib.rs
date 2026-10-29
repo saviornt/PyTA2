@@ -19,6 +19,7 @@ mod rsi;
 mod single;
 mod sma;
 mod stddev;
+mod wma;
 
 use pyo3::prelude::*;
 
@@ -36,6 +37,8 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(rsi::rsi_batch, m)?)?;
     m.add_function(wrap_pyfunction!(ema::ema, m)?)?;
     m.add_function(wrap_pyfunction!(ema::ema_batch, m)?)?;
+    m.add_function(wrap_pyfunction!(wma::wma, m)?)?;
+    m.add_function(wrap_pyfunction!(wma::wma_batch, m)?)?;
     m.add_function(wrap_pyfunction!(macd::macd, m)?)?;
     m.add_function(wrap_pyfunction!(macd::macd_batch, m)?)?;
     m.add_function(wrap_pyfunction!(stddev::stddev, m)?)?;

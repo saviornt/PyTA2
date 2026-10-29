@@ -13,6 +13,7 @@ from pyta._outputs import OutputNames, casing
 LOWER = {
     "sma": ["sma"],
     "ema": ["ema"],
+    "wma": ["wma"],
     "rsi": ["rsi"],
     "cci": ["cci"],
     "macd": ["macd", "macd_signal", "macd_hist"],
@@ -21,6 +22,7 @@ UPPER = {name: [n.upper() for n in names] for name, names in LOWER.items()}
 TITLE = {
     "sma": ["SMA"],
     "ema": ["EMA"],
+    "wma": ["WMA"],
     "rsi": ["RSI"],
     "cci": ["CCI"],
     "macd": ["MACD", "MACD_Signal", "MACD_Hist"],

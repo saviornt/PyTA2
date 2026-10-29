@@ -1,12 +1,12 @@
-//! SMA against published worked examples (StockCharts ChartSchool), and EMA
-//! and MACD against TA-Lib's own output (generated fixtures, see their
+//! SMA against published worked examples (StockCharts ChartSchool), and EMA,
+//! WMA and MACD against TA-Lib's own output (generated fixtures, see their
 //! comments).
 
 #[path = "../../../test-support/reference.rs"]
 mod reference;
 
 use pyta_core::Series;
-use pyta_trend::{ema, macd, sma};
+use pyta_trend::{ema, macd, sma, wma};
 use reference::{assert_matches, assert_output_matches, load};
 
 fn check(name: &str) {
@@ -45,6 +45,30 @@ fn ema_10_matches_talib() {
 #[test]
 fn ema_30_matches_talib() {
     check_ema("ema_30_talib.csv");
+}
+
+fn check_wma(name: &str) {
+    let reference = load(name);
+    let input = Series::new(reference.input.clone()).unwrap();
+
+    let output = wma(&input, reference.period()).unwrap();
+
+    assert_matches(output.values(), &reference);
+}
+
+#[test]
+fn wma_10_matches_talib() {
+    check_wma("wma_10_talib.csv");
+}
+
+#[test]
+fn wma_30_matches_talib() {
+    check_wma("wma_30_talib.csv");
+}
+
+#[test]
+fn wma_30_matches_talib_on_the_edge_series() {
+    check_wma("wma_30_edge_talib.csv");
 }
 
 fn check_macd(name: &str) {

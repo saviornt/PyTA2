@@ -8,7 +8,7 @@ use pyta_common::{LARGE_INPUT_LEN, SINGLE_CALL_SIZES};
 use pyta_core::{Columns, IndicatorOutput, PytaResult, Series};
 use pyta_engine::{IndicatorRequest, Params, execute_batch, execute_direct};
 use pyta_momentum::{cci, rsi};
-use pyta_trend::{ema, macd, sma};
+use pyta_trend::{ema, macd, sma, wma};
 use pyta_volatility::{atr, bbands, donchian, keltner, stddev};
 use tokio::runtime::Builder;
 
@@ -19,7 +19,7 @@ type Kernel = fn(&[Series]) -> PytaResult<IndicatorOutput>;
 /// Every indicator measured here: its label, engine parameters, kernel (with
 /// the same parameters), and number of input columns. To benchmark a new
 /// indicator, add one line.
-const INDICATORS: [(&str, Params, Kernel, usize); 10] = [
+const INDICATORS: [(&str, Params, Kernel, usize); 11] = [
     ("sma", Params::Sma { period: 20 }, |c| sma(&c[0], 20), 1),
     ("rsi", Params::Rsi { period: 14 }, |c| rsi(&c[0], 14), 1),
     (
@@ -29,6 +29,7 @@ const INDICATORS: [(&str, Params, Kernel, usize); 10] = [
         3,
     ),
     ("ema", Params::Ema { period: 20 }, |c| ema(&c[0], 20), 1),
+    ("wma", Params::Wma { period: 30 }, |c| wma(&c[0], 30), 1),
     (
         "macd",
         Params::Macd {

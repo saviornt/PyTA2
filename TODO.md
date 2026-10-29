@@ -55,7 +55,8 @@ Where things stand:
 
 ### Part D: Trend (about 10 h)
 
-- [ ] WMA · [ ] DEMA · [ ] TEMA · [ ] KAMA · [ ] ADX · [ ] Parabolic SAR · [ ] Aroon · [ ] Ichimoku Cloud
+- [x] WMA · [ ] DEMA · [ ] TEMA · [ ] KAMA · [ ] ADX · [ ] Parabolic SAR · [ ] Aroon · [ ] Ichimoku Cloud
+  - WMA *(2026-10-29: `pyta-trend` `wma(input, period)`, TA-Lib `TA_WMA` 0.8.3: weights 1 (oldest) to `period` over `period * (period + 1) / 2`; running plain and weighted sums rebuilt every `8 * period` rows as TA-Lib does (drift control; kernel kept in `pyta-trend`, no other sprint indicator needs it); `period` ≥ 1 (default 30, `InvalidPeriod`), `PeriodExceedsLength` like SMA, `period=1` an exact copy as EMA; all three TA-Lib fixtures match (Rust absolute 1e-9, Python relative 1e-9; measured max relative error 1.4e-14), and a proptest on 100,000-row random walks matches a direct per-window weighted sum to 1e-9 of the window's magnitude; provisional `WMA_NS_PER_ELEMENT = 2.7` (no period term) from `benchmark_2026-10-29_07-21-17.txt` (`--single --rust --quick`: 2.353 ms against RSI's 2.638 ms at 1,000,000 rows), to confirm with a full `--single --rust --indicator wma`; `tests/results/test-suite_2026-10-29_07-27-23.txt` PASSED (Rust 302, Python 1655, coverage 99%).)*
 
 ### Part E: Momentum (about 7 h)
 

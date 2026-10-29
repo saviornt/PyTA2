@@ -2,11 +2,11 @@ use pyta_common::{
     ATR_NS_PER_ELEMENT, BBANDS_NS_PER_ELEMENT, BBANDS_NS_PER_WINDOW_VALUE, CCI_NS_PER_ELEMENT,
     CCI_NS_PER_WINDOW_VALUE, DONCHIAN_NS_PER_ELEMENT, EMA_NS_PER_ELEMENT, KELTNER_NS_PER_ELEMENT,
     MACD_NS_PER_ELEMENT, RSI_NS_PER_ELEMENT, SMA_NS_PER_ELEMENT, STDDEV_NS_PER_ELEMENT,
-    STDDEV_NS_PER_WINDOW_VALUE,
+    STDDEV_NS_PER_WINDOW_VALUE, WMA_NS_PER_ELEMENT,
 };
 use pyta_core::{IndicatorOutput, PytaResult};
 use pyta_momentum::{cci, rsi};
-use pyta_trend::{ema, macd, sma};
+use pyta_trend::{ema, macd, sma, wma};
 use pyta_volatility::{atr, bbands, donchian, keltner, stddev};
 
 use crate::requests::{IndicatorRequest, Params};
@@ -47,6 +47,7 @@ pub(crate) fn dispatch(request: &IndicatorRequest) -> PytaResult<IndicatorOutput
         Params::Rsi { period } => rsi(input.series()?, period),
         Params::Sma { period } => sma(input.series()?, period),
         Params::Stddev { period, k } => stddev(input.series()?, period, k),
+        Params::Wma { period } => wma(input.series()?, period),
     }
 }
 
@@ -79,6 +80,7 @@ pub(crate) fn estimated_cost_ns(request: &IndicatorRequest) -> f64 {
         Params::Stddev { period, .. } => {
             STDDEV_NS_PER_ELEMENT + STDDEV_NS_PER_WINDOW_VALUE * period as f64
         }
+        Params::Wma { .. } => WMA_NS_PER_ELEMENT,
     };
 
     request.input.len() as f64 * ns_per_element
@@ -99,10 +101,14 @@ mod tests {
     }
 
     #[test]
-    fn ema_and_macd_costs_do_not_depend_on_their_periods() {
+    fn ema_wma_and_macd_costs_do_not_depend_on_their_periods() {
         assert_eq!(
             cost(Params::Ema { period: 5 }),
             cost(Params::Ema { period: 200 })
+        );
+        assert_eq!(
+            cost(Params::Wma { period: 5 }),
+            cost(Params::Wma { period: 200 })
         );
         assert_eq!(
             cost(Params::Macd {

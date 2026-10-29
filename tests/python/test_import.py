@@ -48,6 +48,7 @@ def test_top_level_exports() -> None:
         "trend",
         "volatility",
         "volume",
+        "wma",
     ]
 
 
@@ -88,6 +89,7 @@ def test_indicator_and_batch_namespaces_list_the_same_indicators() -> None:
         "trend",
         "volatility",
         "volume",
+        "wma",
     ]
 
     assert sorted(pyta.indicators.__all__) == sorted(pyta.batch.__all__) == expected

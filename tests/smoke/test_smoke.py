@@ -104,6 +104,13 @@ def test_smoke() -> None:
     assert np.isnan(ema_values[:29]).all(), "EMA warm-up alignment is incorrect"
     assert np.isfinite(ema_values[29:]).all()
 
+    wma_values = np.array(pyta.wma(data, period=30)["wma"])
+    assert wma_values.dtype == np.float64
+    assert wma_values.shape == (length,), "WMA output length mismatch"
+    assert np.isnan(wma_values[:29]).all(), "WMA warm-up alignment is incorrect"
+    weights = np.arange(1.0, 31.0)
+    assert np.isclose(wma_values[-1], close[-30:] @ weights / weights.sum(), rtol=1e-12)
+
     # Multi-output: one key per output, in documented order, each with its own warm-up.
     macd = pyta.macd(data)
     assert list(macd) == ["macd", "macd_signal", "macd_hist"]

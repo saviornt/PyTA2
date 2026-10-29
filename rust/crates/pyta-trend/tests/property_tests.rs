@@ -1,8 +1,8 @@
-//! SMA, EMA and MACD invariants that must hold for any valid input.
+//! SMA, EMA, WMA and MACD invariants that must hold for any valid input.
 
 use proptest::prelude::*;
 use pyta_core::Series;
-use pyta_trend::{ema, macd, sma};
+use pyta_trend::{ema, macd, sma, wma};
 
 /// A series of 1 to 300 prices and a period that fits it.
 fn series_and_period() -> impl Strategy<Value = (Vec<f64>, usize)> {
@@ -254,5 +254,102 @@ fn fused_macd_matches_one_pass_per_ema_on_edge_parameters() {
         let required = fast.max(slow) + signal - 1;
         assert_macd_matches_passes(&values, fast, slow, signal);
         assert_macd_matches_passes(&values[..required], fast, slow, signal);
+    }
+}
+
+/// A deterministic random walk of `len` rows from `seed` (xorshift64 steps
+/// of up to ±1 from a start of 100, so it may cross zero).
+fn random_walk(seed: u64, len: usize) -> Vec<f64> {
+    let mut state = seed | 1;
+    let mut price = 100.0_f64;
+
+    (0..len)
+        .map(|_| {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            price += (state >> 11) as f64 / (1_u64 << 53) as f64 * 2.0 - 1.0;
+            price
+        })
+        .collect()
+}
+
+/// The WMA of the window ending at `index`, summed directly.
+fn direct_wma(values: &[f64], index: usize, period: usize) -> f64 {
+    let window = &values[index + 1 - period..=index];
+    let weighted: f64 = window
+        .iter()
+        .enumerate()
+        .map(|(position, value)| value * (position + 1) as f64)
+        .sum();
+
+    weighted / (period * (period + 1) / 2) as f64
+}
+
+proptest! {
+    #[test]
+    fn wma_output_length_and_warm_up_are_exact((values, period) in series_and_period()) {
+        let output = wma(&Series::new(values.clone()).unwrap(), period).unwrap();
+        let output = output.values();
+
+        prop_assert_eq!(output.len(), values.len());
+        prop_assert!(output[..period - 1].iter().all(|value| value.is_nan()));
+        prop_assert!(output[period - 1..].iter().all(|value| value.is_finite()));
+    }
+
+    #[test]
+    fn wma_lies_within_its_window((values, period) in series_and_period()) {
+        let output = wma(&Series::new(values.clone()).unwrap(), period).unwrap();
+
+        for (index, average) in output.values().iter().enumerate().skip(period - 1) {
+            let window = &values[index + 1 - period..=index];
+            let low = window.iter().copied().fold(f64::INFINITY, f64::min);
+            let high = window.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+            let slack = 1.0e-9 * high.abs().max(low.abs()).max(1.0);
+
+            prop_assert!(
+                *average >= low - slack && *average <= high + slack,
+                "index {}: {} outside [{}, {}]", index, average, low, high
+            );
+        }
+    }
+
+    #[test]
+    fn wma_of_constant_input_is_that_constant(
+        value in -1.0e6..1.0e6_f64,
+        length in 1_usize..300,
+        period_seed in 0_usize..300,
+    ) {
+        let period = period_seed % length + 1;
+        let output = wma(&Series::new(vec![value; length]).unwrap(), period).unwrap();
+
+        for average in &output.values()[period - 1..] {
+            prop_assert!((average - value).abs() <= 1.0e-12 * value.abs().max(1.0));
+        }
+    }
+}
+
+proptest! {
+    // 100,000 rows checked window by window: a few cases are enough.
+    #![proptest_config(ProptestConfig::with_cases(6))]
+
+    #[test]
+    fn wma_matches_a_direct_weighted_sum_on_long_random_walks(
+        seed in any::<u64>(),
+        period in 2_usize..200,
+    ) {
+        let values = random_walk(seed, 100_000);
+        let output = wma(&Series::new(values.clone()).unwrap(), period).unwrap();
+
+        for (index, average) in output.values().iter().enumerate().skip(period - 1) {
+            let expected = direct_wma(&values, index, period);
+            let window = &values[index + 1 - period..=index];
+            let scale = window.iter().fold(0.0_f64, |most, value| most.max(value.abs()));
+
+            prop_assert!(
+                (average - expected).abs() <= 1.0e-9 * scale.max(1.0),
+                "index {}: {} vs direct {}", index, average, expected
+            );
+        }
     }
 }
