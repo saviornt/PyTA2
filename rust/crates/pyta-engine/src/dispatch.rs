@@ -1,12 +1,13 @@
 use pyta_common::{
     ATR_NS_PER_ELEMENT, BBANDS_NS_PER_ELEMENT, BBANDS_NS_PER_WINDOW_VALUE, CCI_NS_PER_ELEMENT,
     CCI_NS_PER_WINDOW_VALUE, DEMA_NS_PER_ELEMENT, DONCHIAN_NS_PER_ELEMENT, EMA_NS_PER_ELEMENT,
-    KELTNER_NS_PER_ELEMENT, MACD_NS_PER_ELEMENT, RSI_NS_PER_ELEMENT, SMA_NS_PER_ELEMENT,
-    STDDEV_NS_PER_ELEMENT, STDDEV_NS_PER_WINDOW_VALUE, TEMA_NS_PER_ELEMENT, WMA_NS_PER_ELEMENT,
+    KAMA_NS_PER_ELEMENT, KELTNER_NS_PER_ELEMENT, MACD_NS_PER_ELEMENT, RSI_NS_PER_ELEMENT,
+    SMA_NS_PER_ELEMENT, STDDEV_NS_PER_ELEMENT, STDDEV_NS_PER_WINDOW_VALUE, TEMA_NS_PER_ELEMENT,
+    WMA_NS_PER_ELEMENT,
 };
 use pyta_core::{IndicatorOutput, PytaResult};
 use pyta_momentum::{cci, rsi};
-use pyta_trend::{dema, ema, macd, sma, tema, wma};
+use pyta_trend::{dema, ema, kama, macd, sma, tema, wma};
 use pyta_volatility::{atr, bbands, donchian, keltner, stddev};
 
 use crate::requests::{IndicatorRequest, Params};
@@ -36,6 +37,7 @@ pub(crate) fn dispatch(request: &IndicatorRequest) -> PytaResult<IndicatorOutput
             donchian(high, low, period)
         }
         Params::Ema { period } => ema(input.series()?, period),
+        Params::Kama { period } => kama(input.series()?, period),
         Params::Keltner {
             period,
             atr_period,
@@ -76,6 +78,7 @@ pub(crate) fn estimated_cost_ns(request: &IndicatorRequest) -> f64 {
         Params::Dema { .. } => DEMA_NS_PER_ELEMENT,
         Params::Donchian { .. } => DONCHIAN_NS_PER_ELEMENT,
         Params::Ema { .. } => EMA_NS_PER_ELEMENT,
+        Params::Kama { .. } => KAMA_NS_PER_ELEMENT,
         Params::Keltner { .. } => KELTNER_NS_PER_ELEMENT,
         Params::Macd { .. } => MACD_NS_PER_ELEMENT,
         Params::Rsi { .. } => RSI_NS_PER_ELEMENT,
@@ -113,6 +116,10 @@ mod tests {
         assert_eq!(
             cost(Params::Dema { period: 5 }),
             cost(Params::Dema { period: 200 })
+        );
+        assert_eq!(
+            cost(Params::Kama { period: 5 }),
+            cost(Params::Kama { period: 200 })
         );
         assert_eq!(
             cost(Params::Tema { period: 5 }),

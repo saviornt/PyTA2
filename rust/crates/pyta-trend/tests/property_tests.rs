@@ -1,9 +1,9 @@
-//! SMA, EMA, WMA, DEMA, TEMA and MACD invariants that must hold for any
+//! SMA, EMA, WMA, DEMA, TEMA, KAMA and MACD invariants that must hold for any
 //! valid input.
 
 use proptest::prelude::*;
 use pyta_core::{Series, kernels};
-use pyta_trend::{dema, ema, macd, sma, tema, wma};
+use pyta_trend::{dema, ema, kama, macd, sma, tema, wma};
 
 /// A series of 1 to 300 prices and a period that fits it.
 fn series_and_period() -> impl Strategy<Value = (Vec<f64>, usize)> {
@@ -493,6 +493,61 @@ proptest! {
 
         for average in &output.values()[3 * (period - 1)..] {
             prop_assert!((average - value).abs() <= 1.0e-9 * value.abs().max(1.0));
+        }
+    }
+}
+
+/// A series of 2 to 300 prices in runs of repeated values (so flat windows
+/// occur), and a period below its length.
+fn series_with_flats_and_kama_period() -> impl Strategy<Value = (Vec<f64>, usize)> {
+    prop::collection::vec((-1.0e6..1.0e6_f64, 1_usize..40), 2..40).prop_flat_map(|runs| {
+        let mut values: Vec<f64> = runs
+            .iter()
+            .flat_map(|&(value, count)| std::iter::repeat_n(value, count))
+            .take(300)
+            .collect();
+        if values.len() < 2 {
+            values.push(values[0] + 1.0);
+        }
+        let longest = values.len() - 1;
+        (Just(values), 1..=longest)
+    })
+}
+
+proptest! {
+    #[test]
+    fn kama_output_length_and_warm_up_are_exact(
+        (values, period) in series_with_flats_and_kama_period()
+    ) {
+        let output = kama(&Series::new(values.clone()).unwrap(), period).unwrap();
+        let output = output.values();
+        let start = if period == 1 { 0 } else { period };
+
+        prop_assert_eq!(output.len(), values.len());
+        prop_assert!(output[..start].iter().all(|value| value.is_nan()));
+        prop_assert!(output[start..].iter().all(|value| value.is_finite()));
+    }
+
+    #[test]
+    fn kama_stays_within_the_prices_since_its_seed(
+        (values, period) in series_with_flats_and_kama_period()
+    ) {
+        // Each step moves part of the way to the price (SC is in (0, 1)), so
+        // KAMA never leaves the range of the prices from its seed on.
+        let output = kama(&Series::new(values.clone()).unwrap(), period).unwrap();
+        let seed = period - 1;
+        let mut low = values[seed];
+        let mut high = values[seed];
+
+        for (index, average) in output.values().iter().enumerate().skip(seed + 1) {
+            low = low.min(values[index]);
+            high = high.max(values[index]);
+            let slack = 1.0e-9 * high.abs().max(low.abs()).max(1.0);
+
+            prop_assert!(
+                *average >= low - slack && *average <= high + slack,
+                "index {}: {} outside [{}, {}]", index, average, low, high
+            );
         }
     }
 }

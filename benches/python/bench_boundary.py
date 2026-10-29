@@ -43,6 +43,7 @@ INDICATORS: dict[str, tuple[dict[str, int | float], int]] = {
     "wma": ({"period": 30}, 1),
     "dema": ({"period": 30}, 1),
     "tema": ({"period": 30}, 1),
+    "kama": ({"period": 30}, 1),
     "macd": ({"fast": 12, "slow": 26, "signal": 9}, 1),
     "atr": ({"period": 14}, 3),
     "stddev": ({"period": 5, "k": 1.0}, 1),

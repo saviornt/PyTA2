@@ -103,6 +103,7 @@ fn params(kind: IndicatorKind) -> Params {
         IndicatorKind::Wma => Params::Wma { period: 30 },
         IndicatorKind::Dema => Params::Dema { period: 30 },
         IndicatorKind::Tema => Params::Tema { period: 30 },
+        IndicatorKind::Kama => Params::Kama { period: 30 },
     }
 }
 
@@ -133,7 +134,8 @@ fn request(kind: IndicatorKind, close: Series) -> IndicatorRequest {
         | IndicatorKind::Stddev
         | IndicatorKind::Wma
         | IndicatorKind::Dema
-        | IndicatorKind::Tema => IndicatorRequest::new(close, params(kind)),
+        | IndicatorKind::Tema
+        | IndicatorKind::Kama => IndicatorRequest::new(close, params(kind)),
     }
 }
 
@@ -277,6 +279,7 @@ fn many_datasets(c: &mut Criterion) {
         (IndicatorKind::Wma, "wma"),
         (IndicatorKind::Dema, "dema"),
         (IndicatorKind::Tema, "tema"),
+        (IndicatorKind::Kama, "kama"),
         (IndicatorKind::Macd, "macd"),
         (IndicatorKind::Atr, "atr"),
         (IndicatorKind::Stddev, "stddev"),

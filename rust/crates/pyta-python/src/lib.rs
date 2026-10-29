@@ -13,6 +13,7 @@ mod dema;
 mod donchian;
 mod ema;
 mod error;
+mod kama;
 mod keltner;
 mod log_bridge;
 mod macd;
@@ -45,6 +46,8 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(dema::dema_batch, m)?)?;
     m.add_function(wrap_pyfunction!(tema::tema, m)?)?;
     m.add_function(wrap_pyfunction!(tema::tema_batch, m)?)?;
+    m.add_function(wrap_pyfunction!(kama::kama, m)?)?;
+    m.add_function(wrap_pyfunction!(kama::kama_batch, m)?)?;
     m.add_function(wrap_pyfunction!(macd::macd, m)?)?;
     m.add_function(wrap_pyfunction!(macd::macd_batch, m)?)?;
     m.add_function(wrap_pyfunction!(stddev::stddev, m)?)?;

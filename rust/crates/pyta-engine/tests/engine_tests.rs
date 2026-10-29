@@ -19,6 +19,7 @@ fn params(kind: IndicatorKind, period: usize) -> Params {
         IndicatorKind::Wma => Params::Wma { period },
         IndicatorKind::Dema => Params::Dema { period },
         IndicatorKind::Tema => Params::Tema { period },
+        IndicatorKind::Kama => Params::Kama { period },
         IndicatorKind::Bbands => Params::Bbands { period, k: 2.0 },
         IndicatorKind::Stddev => Params::Stddev { period, k: 1.0 },
         IndicatorKind::Keltner => Params::Keltner {
@@ -311,6 +312,7 @@ fn the_kind_comes_from_the_params() {
         (Params::Wma { period: 2 }, IndicatorKind::Wma),
         (Params::Dema { period: 2 }, IndicatorKind::Dema),
         (Params::Tema { period: 2 }, IndicatorKind::Tema),
+        (Params::Kama { period: 2 }, IndicatorKind::Kama),
     ];
 
     for (params, kind) in cases {
@@ -412,6 +414,34 @@ async fn tema_runs_through_the_engine_and_reports_its_errors() {
         PytaError::InsufficientData {
             required: 10,
             length: 8,
+        }
+    );
+}
+
+#[tokio::test]
+async fn kama_runs_through_the_engine_and_reports_its_errors() {
+    // Period 2 on a flat series: seeded with the price, KAMA stays on it.
+    let values = vec![5.0; 4];
+    let requests = vec![
+        request(IndicatorKind::Kama, values.clone(), 2),
+        request(IndicatorKind::Kama, values.clone(), 0),
+        request(IndicatorKind::Kama, values, 4),
+    ];
+
+    let results = execute_batch(requests).await;
+
+    match &results[0].status {
+        IndicatorStatus::Success(output) => {
+            assert_values(output.values(), &[NAN, NAN, 5.0, 5.0]);
+        }
+        IndicatorStatus::Error(error) => panic!("expected KAMA success, got {error:?}"),
+    }
+    assert_eq!(*error_of(&results[1]), PytaError::InvalidPeriod);
+    assert_eq!(
+        *error_of(&results[2]),
+        PytaError::InsufficientData {
+            required: 5,
+            length: 4,
         }
     );
 }

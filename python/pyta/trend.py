@@ -1,5 +1,5 @@
 """Trend namespace: `pyta.trend.<indicator>` (see `pyta.indicators.trend`)."""
 
-from pyta.indicators.trend import dema, ema, macd, sma, tema, wma
+from pyta.indicators.trend import dema, ema, kama, macd, sma, tema, wma
 
-__all__ = ["dema", "ema", "macd", "sma", "tema", "wma"]
+__all__ = ["dema", "ema", "kama", "macd", "sma", "tema", "wma"]

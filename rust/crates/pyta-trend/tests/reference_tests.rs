@@ -1,12 +1,12 @@
 //! SMA against published worked examples (StockCharts ChartSchool), and EMA,
-//! WMA, DEMA, TEMA and MACD against TA-Lib's own output (generated fixtures,
-//! see their comments).
+//! WMA, DEMA, TEMA, KAMA and MACD against TA-Lib's own output (generated
+//! fixtures, see their comments).
 
 #[path = "../../../test-support/reference.rs"]
 mod reference;
 
 use pyta_core::Series;
-use pyta_trend::{dema, ema, macd, sma, tema, wma};
+use pyta_trend::{dema, ema, kama, macd, sma, tema, wma};
 use reference::{assert_matches, assert_output_matches, load};
 
 fn check(name: &str) {
@@ -107,6 +107,39 @@ fn tema_30_matches_talib() {
 #[test]
 fn tema_30_matches_talib_on_the_edge_series() {
     check_tema("tema_30_edge_talib.csv");
+}
+
+fn check_kama(name: &str) {
+    let reference = load(name);
+    let input = Series::new(reference.input.clone()).unwrap();
+
+    let output = kama(&input, reference.period()).unwrap();
+
+    assert_matches(output.values(), &reference);
+    // Measured on 2026-10-29: every value is the wheel's own, bit for bit
+    // (the fixture prints them with `repr`, which round-trips). Kept as a
+    // regression check on the flat-window reset and the order of operations.
+    for (index, (actual, expected)) in output
+        .values()
+        .iter()
+        .zip(&reference.outputs[0])
+        .enumerate()
+    {
+        assert!(
+            (actual.is_nan() && expected.is_nan()) || actual.to_bits() == expected.to_bits(),
+            "{name}, index {index}: {actual:e} != {expected:e}"
+        );
+    }
+}
+
+#[test]
+fn kama_30_matches_talib() {
+    check_kama("kama_30_talib.csv");
+}
+
+#[test]
+fn kama_30_matches_talib_on_the_edge_series() {
+    check_kama("kama_30_edge_talib.csv");
 }
 
 fn check_macd(name: &str) {

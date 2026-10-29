@@ -139,6 +139,17 @@ pub const DEMA_NS_PER_ELEMENT: f64 = 3.8;
 /// `--single --rust --indicator tema`.
 pub const TEMA_NS_PER_ELEMENT: f64 = 4.3;
 
+/// Kaufman Adaptive Moving Average, in nanoseconds per input element;
+/// independent of `period` (a rolling sum of one-row changes).
+///
+/// Provisional, from a quick run on 2026-10-29
+/// (`benches/results/benchmark_2026-10-29_07-56-32.txt`, `--single --rust
+/// --quick`, governor `performance`): kernels at 1,000,000 rows took
+/// 3.627 ms for KAMA-30 and 2.699 ms for RSI-14, scaled here by
+/// `RSI_NS_PER_ELEMENT` (3.0 * 1.34). Confirm with a full
+/// `--single --rust --indicator kama`.
+pub const KAMA_NS_PER_ELEMENT: f64 = 4.0;
+
 /// Keltner Channels, in nanoseconds per input row; independent of `period`,
 /// `atr_period` and `k` (one EMA pass, one true-range and Wilder pass, one
 /// band pass).

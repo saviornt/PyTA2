@@ -18,6 +18,8 @@ pub enum IndicatorKind {
     Donchian,
     /// Exponential Moving Average (`pyta-trend`).
     Ema,
+    /// Kaufman Adaptive Moving Average (`pyta-trend`).
+    Kama,
     /// Keltner Channels (`pyta-volatility`; high, low, close; three outputs).
     Keltner,
     /// Moving Average Convergence/Divergence (`pyta-trend`; three outputs).
@@ -81,6 +83,13 @@ pub enum Params {
         /// Rows in the seed average; sets the weight `2 / (period + 1)`.
         period: usize,
     },
+    /// Kaufman Adaptive Moving Average: an EMA whose weight follows the
+    /// efficiency ratio of the last `period` rows (smoothing constants 2 and
+    /// 30, fixed as in TA-Lib).
+    Kama {
+        /// Rows in the efficiency ratio's window.
+        period: usize,
+    },
     /// Keltner Channels: an EMA of close with bands `k` ATRs above and below
     /// it.
     Keltner {
@@ -140,6 +149,7 @@ impl Params {
             Self::Dema { .. } => IndicatorKind::Dema,
             Self::Donchian { .. } => IndicatorKind::Donchian,
             Self::Ema { .. } => IndicatorKind::Ema,
+            Self::Kama { .. } => IndicatorKind::Kama,
             Self::Keltner { .. } => IndicatorKind::Keltner,
             Self::Macd { .. } => IndicatorKind::Macd,
             Self::Rsi { .. } => IndicatorKind::Rsi,

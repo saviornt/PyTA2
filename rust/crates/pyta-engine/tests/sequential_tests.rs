@@ -24,6 +24,7 @@ fn params(kind: IndicatorKind, period: usize) -> Params {
         IndicatorKind::Wma => Params::Wma { period },
         IndicatorKind::Dema => Params::Dema { period },
         IndicatorKind::Tema => Params::Tema { period },
+        IndicatorKind::Kama => Params::Kama { period },
         IndicatorKind::Bbands => Params::Bbands { period, k: 2.0 },
         IndicatorKind::Stddev => Params::Stddev { period, k: 1.0 },
         IndicatorKind::Keltner => Params::Keltner {
@@ -182,6 +183,7 @@ fn parallel_matches_sequential_on_multi_output_requests() {
             _ if i % 8 == 7 => request(IndicatorKind::Wma, 100 + 29 * i, 3 + i % 20),
             _ if i % 8 == 6 => request(IndicatorKind::Dema, 100 + 29 * i, 3 + i % 20),
             _ if i % 8 == 5 => request(IndicatorKind::Tema, 100 + 29 * i, 3 + i % 20),
+            _ if i % 8 == 4 => request(IndicatorKind::Kama, 100 + 29 * i, 3 + i % 20),
             _ => request(IndicatorKind::Sma, 100 + 29 * i, 3 + i % 20),
         })
         .collect();

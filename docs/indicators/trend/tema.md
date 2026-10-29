@@ -96,4 +96,4 @@ The Rust kernel (`pyta-trend`) runs the three EMAs in one pass, with constant wo
 
 ## See also
 
-[DEMA](dema.md) · [EMA](ema.md) · [SMA](sma.md) · [WMA](wma.md) · [MACD](macd.md) · [API reference](../../API.md) · [Batch API](../../API.md#9-batch-calculation)
+[DEMA](dema.md) · [EMA](ema.md) · [KAMA](kama.md) · [SMA](sma.md) · [WMA](wma.md) · [MACD](macd.md) · [API reference](../../API.md) · [Batch API](../../API.md#9-batch-calculation)

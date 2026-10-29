@@ -123,6 +123,12 @@ def test_smoke() -> None:
     assert np.isnan(tema_values[:87]).all(), "TEMA warm-up alignment is incorrect"
     assert np.isfinite(tema_values[87:]).all()
 
+    kama_values = np.array(pyta.kama(data, period=30)["kama"])
+    assert kama_values.dtype == np.float64
+    assert kama_values.shape == (length,), "KAMA output length mismatch"
+    assert np.isnan(kama_values[:30]).all(), "KAMA warm-up alignment is incorrect"
+    assert np.isfinite(kama_values[30:]).all()
+
     # Multi-output: one key per output, in documented order, each with its own warm-up.
     macd = pyta.macd(data)
     assert list(macd) == ["macd", "macd_signal", "macd_hist"]
