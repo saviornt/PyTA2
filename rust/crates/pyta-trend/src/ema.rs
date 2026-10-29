@@ -42,8 +42,8 @@ pub fn ema(input: &Series, period: usize) -> PytaResult<IndicatorOutput> {
 /// before `start` as they are.
 ///
 /// The seed, at `start`, is the simple average of the `period` values ending
-/// there, so `start` may be later than `period - 1` (MACD seeds its fast EMA
-/// where the slow one starts). The arithmetic follows TA-Lib's `INT_EMA`
+/// there, so `start` may be later than `period - 1` (MACD's fused kernel
+/// seeds its fast EMA that way, with the same arithmetic). The arithmetic follows TA-Lib's `INT_EMA`
 /// exactly, in the same order, so results match it bit for bit.
 ///
 /// The caller guarantees `1 <= period <= start + 1 <= values.len()` and
