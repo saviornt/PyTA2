@@ -12,8 +12,8 @@ An indicator is done only when, in the words of `docs/DEVELOPMENT.md`, "its corr
 ## Before starting
 
 - Read the `pyta-tooling` skill (LSP registration, Context7 rules).
-- Check the indicator is not already there: `IndicatorKind` in `rust/crates/pyta-engine/src/requests.rs` and the README "Indicators" tables.
-- **Copy from the code, not from this skill.** Open the most recently added indicator of the same shape and follow it: RSI for one input column, CCI for several (high, low, close). Sprint 10 (multi-output) changes the layout again; where the code and this skill disagree, the code wins, and say so in the report so the skill can be updated.
+- Check the indicator is not already there: `Params` in `rust/crates/pyta-engine/src/requests.rs` and the README "Indicators" tables.
+- **Copy from the code, not from this skill.** Open the most recently added indicator of the same shape and follow it: RSI for one input column, CCI for several (high, low, close), MACD for extra parameters and several outputs (EMA for the simplest single-output trend indicator). Where the code and this skill disagree, the code wins, and say so in the report so the skill can be updated.
 - Commit only on worktree branches, never on `main`; never push. The maintainer reviews, merges into `main` locally and pushes.
 
 ## Step 1: Spec, then stop
@@ -22,14 +22,14 @@ Write the spec with `references/spec-template.md` and present it. **Do not write
 
 - **Formula: TA-Lib's convention wins** when sources disagree, because PyTA is a TA-Lib replacement. Read TA-Lib's C source with WebFetch (free, no Context7 budget): `https://raw.githubusercontent.com/TA-Lib/ta-lib/main/src/ta_func/ta_<NAME>.c`. It gives the formula, the lookback (warm-up length), the defaults and the parameter ranges. Note any difference from the original author's definition for the docs. Use `deep-research` only if TA-Lib's behaviour is unclear or sources conflict on something TA-Lib does not settle.
 - **Errors** map to existing `PytaError` variants (`InvalidPeriod`, `InsufficientData { required, length }`, ...) in `rust/crates/pyta-core/src/error.rs`. Add a variant only if none fits, and say so in the spec.
-- **Reference values** come from a published worked example (textbook, StockCharts ChartSchool, the author's book), cited, and stored under `tests/fixtures/` for both the Rust and Python tests. Hand-computed tables are fine for edge cases; they are not the reference.
-- **Shape check:** today's contract is one `Series` or several `Columns` in, one `period`, one series out (`IndicatorRequest { kind, input: IndicatorInput, period }` → `IndicatorOutput`). Several input columns are supported: the spec lists the slots (name, accepted roles in preference order, order for unnamed input), and `references/extending-contracts.md` says how to build them. If the indicator needs other parameters or several outputs, the spec must include the contract extension: read `references/extending-contracts.md` and design it there. The extension is part of what the user approves.
+- **Reference values** come from a published worked example (textbook, StockCharts ChartSchool, the author's book), or TA-Lib's own output generated in a throwaway env (PyPI `TA-Lib`, never a dependency; ask the user before installing it), cited, and stored under `tests/fixtures/` for both the Rust and Python tests. Hand-computed tables are fine for edge cases; they are not the reference.
+- **Shape check:** today's contract is one `Series` or several `Columns` in, the indicator's own parameters, one or more series out (`IndicatorRequest { input: IndicatorInput, params: Params }` → `IndicatorOutput`). Several input columns, extra parameters and several outputs are all supported: the spec lists the slots (name, accepted roles in preference order, order for unnamed input), the parameters (keyword names, defaults, ranges) and the outputs (bare names in documented order, which parts are abbreviations, each output's warm-up), and `references/extending-contracts.md` says how to declare them. Only a shape none of these covers needs a contract extension, designed in the spec and approved with it.
 
 ## Step 2: Rust kernel
 
 In `rust/crates/pyta-<category>/`:
 
-- `src/<name>.rs`: `pub fn <name>(input: &Series, period: usize) -> PytaResult<IndicatorOutput>`, or one `&Series` per slot for a multi-column indicator (`cci(high, low, close, period)`), or the extended signature from the spec. Doc comment like `pyta-momentum/src/rsi.rs`: what it computes, how much input it needs, warm-up positions, edge cases, `# Errors`. Validate parameters first, then length. Output length equals input length, warm-up is `NaN`. Comment the non-obvious lines only, as `rsi.rs` does.
+- `src/<name>.rs`: `pub fn <name>(input: &Series, period: usize) -> PytaResult<IndicatorOutput>`, or one `&Series` per slot for a multi-column indicator (`cci(high, low, close, period)`), with the indicator's own parameters (`macd(input, fast, slow, signal)`), returning `IndicatorOutput::with_outputs(...)` for several outputs. Doc comment like `pyta-momentum/src/rsi.rs`: what it computes, how much input it needs, warm-up positions, edge cases, `# Errors`. Validate parameters first, then length. Output length equals input length, warm-up is `NaN`. Comment the non-obvious lines only, as `rsi.rs` does.
 - `src/lib.rs`: `mod <name>;` and `pub use <name>::<name>;`, alphabetical.
 - `tests/<name>_tests.rs`, mirroring `tests/rsi_tests.rs`: length and warm-up alignment, zero period, insufficient data with the exact `required` and `length`, the minimum amount of data, each edge case from the spec, and the reference values from the fixture (compare with a tolerance, such as `1e-9` relative, unless the source rounds; then use its precision).
 - If the crate's dev-dependencies include `proptest`, add invariants: output length, exact warm-up count, and value bounds where the indicator has them.
@@ -37,30 +37,30 @@ In `rust/crates/pyta-<category>/`:
 
 ## Step 3: Engine
 
-- `rust/crates/pyta-engine/src/requests.rs`: add `IndicatorKind::<Name>`.
-- `rust/crates/pyta-engine/src/dispatch.rs`: add the `use`, an arm in `dispatch()` (`<name>(input.series()?, period)`, or `let [a, b, c] = input.columns()?;` for several columns), and an arm in `estimated_cost_ns()`. Both matches are exhaustive on purpose, so the build fails until both exist.
+- `rust/crates/pyta-engine/src/requests.rs`: add `IndicatorKind::<Name>` and a `Params::<Name> { ... }` variant with the indicator's parameters, and its arm in `Params::kind()`.
+- `rust/crates/pyta-engine/src/dispatch.rs`: add the `use`, an arm in `dispatch()` that destructures its variant (`Params::Ema { period } => ema(input.series()?, period)`, or `let [a, b, c] = input.columns()?;` for several columns), and an arm in `estimated_cost_ns()`. The matches are exhaustive on purpose, so the build fails until both exist.
 - `rust/crates/pyta-common/src/costs.rs`: `pub const <NAME>_NS_PER_ELEMENT: f64 = ...;` with a doc comment like the others. If the algorithm is O(n · period), the estimate in `estimated_cost_ns()` must include `period` (update the comment there too). The value comes from step 4; put in a provisional figure until then.
-- `rust/crates/pyta-engine/tests/engine_tests.rs`: add the new kind to the success and error cases, following the existing `request(IndicatorKind::Rsi, ...)` entries.
+- `rust/crates/pyta-engine/tests/engine_tests.rs`: add the new kind to the success and error cases, following the existing RSI and MACD entries.
 
 ## Step 4: Benchmarks and the cost constant
 
 Register the indicator where `scripts/README.md` ("Adding an indicator") says:
 
-- one line in `INDICATORS` in `rust/crates/pyta-engine/benches/single_call.rs` (and raise the array length in its type): label, kind, a closure calling the kernel on its columns, period, and number of columns,
-- one entry in the `for (kind, label) in [...]` loop of `many_datasets` in `rust/crates/pyta-engine/benches/workloads.rs`, and the kind in its `period()` and `request()` matches,
-- one line in `INDICATORS` in `benches/python/bench_boundary.py` and in `benches/python/bench_batch.py`: the benchmark period (the TA-Lib default) and the number of columns.
+- one line in `INDICATORS` in `rust/crates/pyta-engine/benches/single_call.rs` (and raise the array length in its type): label, a closure calling the kernel on its columns with its benchmark parameters, the `Params`, and number of columns,
+- one entry in the `for (kind, label) in [...]` loop of `many_datasets` in `rust/crates/pyta-engine/benches/workloads.rs`, and its `Params` in the request builder,
+- one line in `INDICATORS` in `benches/python/bench_boundary.py` and in `benches/python/bench_batch.py`: its keyword parameters (the TA-Lib defaults) and the number of columns.
 
 Then measure: run `./scripts/benchmark.sh --single --rust --quick` (all indicators, so RSI is measured in the same run, on the same machine). Take the `kernel` time at 1,000,000 points for the new indicator and for RSI, and set the constant to `RSI_NS_PER_ELEMENT * new_kernel / rsi_kernel`. For an O(n · period) kernel, time it at a few periods as well (CCI timed the native call at periods 1 to 100) and split the cost into a per-row and a per-period constant. Scaling against RSI keeps the constants consistent with the planner's calibration (`pyta-common` constants were measured on the 16-thread i9-9900K; relative accuracy is what matters). Tell the user the figure is provisional from a quick run and should be confirmed with a full `./scripts/benchmark.sh --single --rust --indicator <name>` on a quiet machine.
 
 ## Step 5: PyO3 bindings
 
-- `rust/crates/pyta-python/src/<name>.rs`: copy `rsi.rs` (or `cci.rs` for several columns). `<name>` calls `single::compute(py, values, period, IndicatorKind::<Name>)` (`compute_columns` for several columns), `<name>_batch` calls `batch::compute_batch(...)` (`compute_columns_batch`). Doc comments say what it calculates and what it returns.
+- `rust/crates/pyta-python/src/<name>.rs`: copy `rsi.rs` (or `cci.rs` for several columns). `<name>` takes the indicator's parameters and calls `single::compute(py, values, Params::<Name> { ... })` (`compute_columns` for several columns), `<name>_batch` calls `batch::compute_batch(...)` (`compute_columns_batch`). Doc comments say what it calculates and what it returns.
 - `rust/crates/pyta-python/src/lib.rs`: `mod <name>;` (alphabetical) and two `m.add_function(wrap_pyfunction!(...))` lines. Nothing else belongs in `lib.rs`.
 - `python/pyta/_native.pyi`: stubs for `<name>` and `<name>_batch`, matching the existing signatures.
 
 ## Step 6: Python package
 
-- `python/pyta/indicators/<category>/<name>.py`: copy `momentum/rsi.py`, or `momentum/cci.py` for several columns (its `SLOTS`, `columns=`, and `_api.run_columns`; see `references/extending-contracts.md`). Module docstring names the indicator and its category. The single function delegates to `_api.run(_native.<name>, "<name>", data, period, column, default_column=<ROLE>)` and the batch function to `_api.run_batch(...)`. Default `period` = TA-Lib's default when it has a standard one (RSI 14); required otherwise (SMA). Docstrings follow `rsi.py`: Args, Returns (output name `<name>_<period>`), Raises. No formula code in Python.
+- `python/pyta/indicators/<category>/<name>.py`: copy `momentum/rsi.py`, or `momentum/cci.py` for several columns (its `SLOTS`, `columns=`, and `_api.run_columns`; see `references/extending-contracts.md`). Module docstring names the indicator and its category. It declares `OUTPUTS` (bare lower-case names in documented order) and `_NAMES = OutputNames("<name>", OUTPUTS, abbreviations=(...))`; the single function validates its parameters into a tuple (`(validate_period(period),)`, or MACD's `_params`) and delegates to `_api.run(_native.<name>, _NAMES, data, params, column, <ROLE>, columns)`, the batch function to `_api.run_batch(...)`. Default parameters = TA-Lib's defaults when it has standard ones (RSI 14, EMA 30, MACD 12/26/9); required otherwise (SMA). Docstrings follow `rsi.py` (or `macd.py`): Args, Returns (the bare output names, cased like the input's columns; a tuple of outputs for one-series input to a multi-output indicator), Raises. No formula code in Python.
 - Exports, each a re-export with a sorted `__all__`, so every style is the same function object (`pyta.<category>.<name> is pyta.<name>`):
   - `python/pyta/indicators/<category>/__init__.py`: `from pyta.indicators.<category>.<name> import <name>`; move the indicator from "planned" to "available" in its docstring.
   - `python/pyta/indicators/__init__.py`: `from pyta.indicators.<category> import <name>`.

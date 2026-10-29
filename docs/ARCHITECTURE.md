@@ -164,7 +164,7 @@ Each crate owns the formulas for one technical-analysis category. One indicator 
 
 | Crate | Indicators |
 |---|---|
-| `pyta-trend` | SMA; EMA (TA-Lib `TA_EMA`: seeded with the SMA of the first `period` values, `k = 2 / (period + 1)`); MACD (TA-Lib `TA_MACD`: three outputs, both EMAs start at `slow - 1`, `slow < fast` swapped; built on EMA's crate-level `ema_into` with a start offset) |
+| `pyta-trend` | SMA; EMA (TA-Lib `TA_EMA`: seeded with the SMA of the first `period` values, `k = 2 / (period + 1)`); MACD (TA-Lib `TA_MACD`: three outputs, both EMAs start at `slow - 1`, `slow < fast` swapped; one fused pass after the seeds, bit-identical to separate EMA passes) |
 | `pyta-momentum` | RSI (Wilder's smoothing), CCI (high, low, close; compensated running mean, O(rows × period) for the mean deviation) |
 
 New categories (volatility, volume, valuation) are added as new `pyta-<category>` crates when there is a concrete indicator to implement.
@@ -246,24 +246,29 @@ Adding a category or an indicator only adds names; no existing import path chang
 
 | File | Responsibility |
 |---|---|
-| `_api.py` | `run()` / `run_batch()`: validate the period, normalize data, call native, restore the container; also skip and re-pad a leading `NaN` run. `run_columns()` / `run_columns_batch()`: the same for multi-column indicators, plus the row-order check (`ORDERED_ROLES`) and column-named value errors |
-| `_validation.py` | `validate_period` and `normalize` for every supported container; single-column selection; the role registry (`register_role`, `role_of`) and `Slot` |
+| `_api.py` | `run()` / `run_batch()`: normalize data, call native with the indicator's validated parameters, restore the container with every output named; also skip and re-pad a leading `NaN` run (for each output). `run_columns()` / `run_columns_batch()`: the same for multi-column indicators, plus the row-order check (`ORDERED_ROLES`) and column-named value errors |
+| `_validation.py` | Parameter validators (`validate_period`, `validate_fast`, `validate_slow`, `validate_signal`) and `normalize` for every supported container; single-column selection; the role registry (`register_role`, `role_of`) and `Slot` |
 | `_columns.py` | `normalize_columns`: every named container matched to an indicator's slots by role (or by `columns=`), unnamed ones in slot order |
-| `_types.py` | `Prepared` (a normalized series) and `PreparedColumns` (one series per slot, with labels and roles), each with a function that rebuilds the caller's container |
+| `_outputs.py` | `OutputNames` (an indicator's output names in lower, upper and title case) and the casing rule that picks one from the input's column names |
+| `_types.py` | `Prepared` (a normalized series) and `PreparedColumns` (one series per slot, with labels and roles), each with the input column names used and a function that rebuilds the caller's container from (name, values) pairs |
 | `_native.pyi` | Type stubs for the native module |
 
 ### Input and output contract
 
-Every supported container is reduced to one 1-D, C-contiguous `float64` array, with a function to rebuild the caller's container from a result.
+Every supported container is reduced to one 1-D, C-contiguous `float64` array, with a function to rebuild the caller's container from the results, one (name, values) pair per output.
 
 | Input | Output |
 |---|---|
-| `list`, `tuple` | Same type |
-| NumPy array (any real numeric dtype) | `float64` array |
-| pandas Series | Series with the same index, named `<indicator>_<period>` |
-| pandas DataFrame | DataFrame with one `<indicator>_<period>` column and the same index |
-| `dict` of columns | `dict` with one `<indicator>_<period>` key |
-| JSON (`str` or `bytes`): array, records, or object of arrays | JSON of the same shape and type; `NaN` is written as `null` |
+| `list`, `tuple` | Same type; a tuple of them for a multi-output indicator |
+| NumPy array (any real numeric dtype) | `float64` array; a tuple of them for a multi-output indicator |
+| pandas Series | Series with the same index, named after the output (`sma`); a tuple of Series for a multi-output indicator |
+| pandas DataFrame | DataFrame with one column per output and the same index |
+| `dict` of columns | `dict` with one key per output, each value in the input column's container type |
+| JSON (`str` or `bytes`): array, records, or object of arrays | JSON of the same shape and type, one key per output (a JSON array of numbers gives an object keyed by output name for a multi-output indicator); `NaN` is written as `null` |
+
+**Output names.** Each indicator module declares `OUTPUTS` (lower case, documented order: `("macd", "macd_signal", "macd_hist")`) and which parts are abbreviations, as an `OutputNames`; names are bare, without parameters. Their casing follows the input column names the call used (`_outputs.casing`): all lower → lower; no lower-case letters → upper (`MACD_SIGNAL`); title case, where each word is capitalized or all capitals (`Close`, `Adj Close`, and PyTA's own `MACD_Signal`, so outputs chain) → abbreviations upper and words title (`SMA`, `MACD_Signal`); mixed, disagreeing or unnamed → lower. The separator is always `_`.
+
+**Parameters.** Each indicator module validates its own parameters with the shared validators in `_validation.py` and passes them, in its native function's order, to the runners (`run(native, OUTPUTS, data, params, ...)`), which call `native(values, *params)`. A batch shares them across datasets, so an invalid one raises for the whole call.
 
 Column selection (for DataFrame, dict, and JSON objects) uses an explicit `column=`, else the only column, else the indicator's own default column role. Each indicator function passes its default (`default_column=CLOSE` for `sma` and `rsi`) to `_api.run` / `_api.run_batch`; `_validation.py` holds no default of its own. Names ignore case, whitespace and `. _ -`, match the aliases of their role (`OPEN`, `HIGH`, `LOW`, `CLOSE`, `ADJ_CLOSE`, `VOLUME`; a role never matches another role's aliases), and are rejected when two collide after normalization.
 
@@ -272,7 +277,7 @@ Column selection (for DataFrame, dict, and JSON objects) uses an explicit `colum
 | Layer | Handles |
 |---|---|
 | Python | Container detection, column selection and matching columns to slots, dtype conversion, `None` and `null` gaps, parameter types and ranges, leading-`NaN` skipping so indicators can be chained, rows checked across columns (high not below low), restoring the user's container |
-| Rust | Emptiness, finiteness, magnitude, equal column lengths and count, period against length, and the calculation itself |
+| Rust | Emptiness, finiteness, magnitude, equal column lengths and count, parameters against length (MACD's swap of `slow < fast`), and the calculation itself |
 
 For multi-column input, Python checks values only after Rust has rejected one, to name the column and the row in the caller's data; on success it never scans them, so the Rust check is the only one paid.
 
@@ -292,7 +297,6 @@ Multi-column indicators follow the same rule as single-column ones: the user pas
 
 Still planned:
 
-- Multi-output indicators (such as MACD and Bollinger Bands) return their outputs in the input's container type: extra columns for a DataFrame, extra keys for a dict or JSON object.
 - CSV input will be added alongside the existing types, so data returned by AlphaVantage works directly.
 
 ---
@@ -308,8 +312,8 @@ results = pyta.batch.sma(datasets, period=14)
 - `pyta.batch` mirrors the top-level indicator functions, with the same names and parameters. A new indicator gets a batch variant by following the same pattern.
 - `datasets` is a list (or mapping) of any supported containers. Results are returned in the same shape and order, each in its own input's container type.
 - The call is synchronous from the user's perspective; the planner decides internally whether to run sequentially or concurrently.
-- `period` and `column` (or `columns` for a multi-column indicator) are shared by the whole batch. One indicator per call; mixed-indicator batches are a later sprint.
-- **Error policy.** Nothing is raised for a bad dataset, so the others still complete. Python normalizes and validates each dataset first (`_api.run_batch`); a dataset that fails there becomes its exception. The rest go to Rust in a single call, and a per-request engine error becomes the matching exception (`ValueError`, or `RuntimeError` for internal failures). Invalid `period` or `column` raise, because they affect every dataset.
+- The parameters (`period`, or MACD's `fast`, `slow`, `signal`) and `column` (or `columns` for a multi-column indicator) are shared by the whole batch. One indicator per call; mixed-indicator batches are a later sprint.
+- **Error policy.** Nothing is raised for a bad dataset, so the others still complete. Python normalizes and validates each dataset first (`_api.run_batch`); a dataset that fails there becomes its exception. The rest go to Rust in a single call, and a per-request engine error becomes the matching exception (`ValueError`, or `RuntimeError` for internal failures). Invalid parameters or `column` raise, because they affect every dataset.
 - **Native side.** `pyta._native.sma_batch` / `rsi_batch` / `ema_batch` / `macd_batch` take a list of arrays (`cci_batch` a list of lists of arrays, one per slot), copy and validate each, release the GIL, and return a list in input order whose entries are each an array (a list of arrays for `macd_batch`) or an exception. The bridge asks `should_parallelize` and then runs `execute_sequential` or `execute_parallel` on its own Rayon pool.
 
 ---
@@ -382,7 +386,7 @@ Every step runs even if one fails, and the report is written to `tests/results/t
 
 - Python modules and Rust source files: `snake_case`. Rust crate directories: kebab-case (`pyta-trend`). Private Python modules start with `_`.
 - Crates are named `pyta-<category>`; one indicator per file when practical.
-- Python function names are `snake_case` (`sma`, `rsi`). Use consistent parameter names across indicators (`period`, `column`, `columns`).
+- Python function names are `snake_case` (`sma`, `rsi`). Use consistent parameter names across indicators (`period`, `column`, `columns`); an indicator with other parameters names them as its usual definition does (MACD's `fast`, `slow`, `signal`).
 - Anything re-exported from `pyta/__init__.py` is public API. Internal modules and `pyta._native` carry no stability promise.
 - Document any non-default formula variants or smoothing methods.
 

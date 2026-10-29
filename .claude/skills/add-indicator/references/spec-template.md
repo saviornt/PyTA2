@@ -20,8 +20,8 @@ TA-Lib source: `https://raw.githubusercontent.com/TA-Lib/ta-lib/main/src/ta_func
 | period | int | <TA-Lib default, or required> | 1 to 2**31 - 1 | |
 
 ### Input and output
-- **Input:** <one series; default column `close` | other role | several roles (needs extension)>
-- **Output:** <one series named `<name>_<period>` | several (needs extension)>
+- **Input:** <one series; default column `close` | other role | several roles: slots, accepted roles, order for unnamed input>
+- **Output:** <one series named `<name>` | several, bare names in documented order (`<name>`, `<name>_<part>`), which parts are abbreviations, and each one's warm-up>
 - **Warm-up:** first <k> values are NaN (TA-Lib lookback = <k>); needs at least <k + 1> values.
 - **Complexity:** O(n) | O(n · period) (affects the cost estimate)
 

@@ -53,7 +53,7 @@ The report is `tests/results/test-suite_<date>_<time>.txt`: result, duration, co
 | Per-indicator Python numerics | `tests/python/test_<name>.py` | Like `test_sma.py`, `test_rsi.py` |
 | Python properties | `tests/python/test_properties.py` | `hypothesis` |
 | Kernel invariants | `rust/crates/<crate>/tests/property_tests.rs` | `proptest` |
-| Published reference values | `tests/fixtures/<name>_<period>_<source>.csv`, read by `tests/reference/test_<name>_reference.py` and `rust/crates/<crate>/tests/reference_tests.rs` | Fixture cites its source and tolerance; Rust reads it through `rust/test-support/reference.rs` |
+| Reference values (published, or TA-Lib-generated) | `tests/fixtures/<name>_<params>_<source>.csv` (`ema_10_talib.csv`, `macd_12_26_9_talib.csv`), read by `tests/reference/test_<name>_reference.py` and `rust/crates/<crate>/tests/reference_tests.rs` | Fixture cites its source and tolerance; Rust reads it through `rust/test-support/reference.rs` |
 | Build and import | `tests/smoke/test_smoke.py` | Fast; keep it small |
 
 Benchmarks never go in tests: no timing assertions anywhere (see `pyta-benchmarks`).

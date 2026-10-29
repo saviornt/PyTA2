@@ -2,29 +2,29 @@
 
 Read this when the spec's shape check fails: the indicator needs more than one input column, a parameter other than `period`, or more than one output. The extension is designed in the spec and approved with it; then it is built before the indicator itself, so the indicator is the extension's first user.
 
-Today's contract, end to end:
+Today's contract, end to end (multi-column input since Sprint 9; extra parameters and multi-output since Sprint 10):
 
-- Rust: `IndicatorRequest { kind, input: Series, period: usize }` (`pyta-engine/src/requests.rs`) → `dispatch()` → kernel `fn(&Series, usize) -> PytaResult<IndicatorOutput>`; `IndicatorOutput` wraps one `Vec<f64>` (`pyta-core/src/output.rs`).
-- Bindings: `single::compute` and `batch::compute_batch` take one array and one `period` (`pyta-python/src/single.rs`, `batch.rs`).
-- Python: `_api.run` / `_api.run_batch` validate one `period` (`_validation.py`, Pydantic), pick one column, and restore one result named `<label>_<period>`.
+- Rust: `IndicatorRequest { input: IndicatorInput, params: Params }` (`pyta-engine/src/requests.rs`); `Params` has one variant per indicator with its own parameters (`Sma { period }`, `Macd { fast, slow, signal }`), and the kind is derived from it (`params.kind()`). `dispatch()` destructures the variant and calls the kernel, which returns `IndicatorOutput`: one series (`new(values)`) or several in documented order (`with_outputs(vec![...])`) (`pyta-core/src/output.rs`).
+- Bindings: `single::compute` / `compute_columns` and `batch::compute_batch` / `compute_columns_batch` take the input and a `Params` (`pyta-python/src/single.rs`, `batch.rs`); `output_to_python` returns one array for one output, a list of arrays for several.
+- Python: each indicator module validates its own parameters with the shared validators in `_validation.py` and declares `OUTPUTS` and an `OutputNames`; `_api.run` / `run_batch` / `run_columns` / `run_columns_batch` take `(native, names, data, params, ...)`, call `native(values, *params)`, and restore one bare-named output per entry of `OUTPUTS`, cased like the input's columns (`_outputs.py`).
 
 ## Rules for any extension
 
 - **Generic, never indicator-specific.** Sprint 16's acceptance criterion: "The engine does not accumulate category-specific special cases." Design for the class of indicators (every multi-output indicator), not for this one.
-- **Existing indicators keep working unchanged**: same Python signatures, same output names, same errors. Their tests must pass untouched.
+- **Existing indicators keep working unchanged**: same Python signatures, same output names, same errors. Their tests must pass untouched (Sprint 10's renaming to bare names was a user decision, not an exception to this rule).
 - **No performance regression.** Rerun `./scripts/benchmark.sh --single --python` and `--batch --python` before and after; single-call cost must stay within the ~5% run-to-run noise.
-- **Docs in the same change.** `docs/ARCHITECTURE.md` (the contract), `docs/API.md` (the planned sections 10 and 11 become real), and the matching tasks in `docs/DEVELOPMENT.md` ticked. Record the design decision in `.claude/memory.md`.
+- **Docs in the same change.** `docs/ARCHITECTURE.md` (the contract), `docs/API.md`, and the matching tasks in `docs/DEVELOPMENT.md` ticked. Record the design decision in `.claude/memory.md`.
 - **Keep the division of validation.** Python validates containers, columns and parameter types and ranges; Rust rejects empty and non-finite input and impossible parameters.
-- **Keep the exhaustive matches.** A new `IndicatorKind` must still fail to compile without a dispatch arm and a cost.
+- **Keep the exhaustive matches.** A new `Params` variant (and its `IndicatorKind`) must still fail to compile without a dispatch arm, a cost and a `kind()` arm.
 
-## Extra parameters (Bollinger's `k`, MACD's three periods, Stochastic's smoothing)
+## Extra parameters (Bollinger's `k`, Stochastic's smoothing): built in Sprint 10
 
-No sprint covers this yet, so the spec must propose it.
+MACD was the first user. A new indicator with its own parameters needs no contract work:
 
-- Give `IndicatorRequest` a parameter set that each indicator interprets, rather than more positional fields. For example a typed `Params` enum with one variant per parameter shape (`Period(usize)`, `PeriodMultiplier { period, k }`, `Fast/Slow/Signal`), which the dispatch arm destructures; a mismatched variant is a bug, so make it unrepresentable where possible.
-- Python: each new parameter gets a Pydantic validator next to `_PERIOD` in `_validation.py`, with a range and a one-sentence error like the existing ones. Keyword names stay consistent across indicators (`period`, `fast_period`, `slow_period`, `signal_period`, `k`).
-- Output names include the parameters that distinguish results (`bbands_20_2`), decided in the spec.
-- Batch: parameters stay shared across the batch, like `period` today.
+- **Rust.** Add a `Params` variant with the indicator's parameters as named fields (`Bbands { period, k }`), its `kind()` arm, a dispatch arm that destructures it, and an `estimated_cost_ns` arm that reads only the parameters the cost depends on. The kernel takes the parameters as arguments and checks them first: `InvalidPeriod` for a zero `period`, `InvalidParameter { name, minimum, value }` for any other parameter below its minimum. Requests are built as `IndicatorRequest::new(series, Params::Macd { fast: 12, slow: 26, signal: 9 })`.
+- **Bindings.** `<name>(values, <params...>)` builds the `Params` and calls `single::compute` (or `compute_columns`); `<name>_batch` likewise. Stubs list the parameters by name.
+- **Python.** Keyword names follow the indicator's usual definition (MACD: `fast`, `slow`, `signal`; not `fast_period`), decided in the spec. Each parameter gets a validator in `_validation.py` beside `validate_period` (same type rules and upper bound, a one-sentence error naming the parameter; `validate_fast`, `validate_slow`, `validate_signal` are the models). The module validates its parameters into a tuple in its native function's order (see `_params` in `indicators/trend/macd.py`) and passes it to the runner. A batch shares the parameters across datasets, so an invalid one raises for the whole call.
+- **Output names never include parameters** (`sma`, not `sma_20`): the caller renames when joining two runs.
 
 ## Multi-column input (ATR, Stochastic, OBV, VWAP, ...): built in Sprint 9
 
@@ -37,11 +37,11 @@ Multi-column input exists (CCI was its first user), so a new multi-column indica
 - **A rule between columns on every row** (like high not below low) is an entry in `ORDERED_ROLES` in `_columns.py`, checked for any indicator that has both roles.
 - **Tests and docs.** The reference fixture names its input columns by role (`label,high,low,close,expected`); `reference.columns` (Rust, in file order) and `reference.columns` (Python, a dict by name) read them. `tests/python/test_batch.py` feeds one series per dataset, so a multi-column indicator's batch tests go in `test_<name>.py`; add it to `MULTI_COLUMN` in `test_namespaces.py`. The wiki page gets a "Required columns" table (slot, accepted roles, order for unnamed input), as `docs/indicators/momentum/cci.md` has.
 
-## Multi-output (MACD, Bollinger Bands, Stochastic %K/%D, Aroon): Sprint 10
+## Multi-output (Bollinger Bands, Stochastic %K/%D, Aroon): built in Sprint 10
 
-From the Sprint 10 plan in `docs/DEVELOPMENT.md` and `docs/API.md` section 11:
+MACD was the first user; `tests/python/test_multi_output.py` proves a multi-column, multi-output indicator (a fake Stochastic) needs no more plumbing.
 
-- `IndicatorOutput` (or a sibling type) carries several named series, all the same length as the input, each with its own warm-up.
-- Results come back in the caller's container: extra columns for DataFrames, extra keys for dicts and JSON objects. A NumPy or list input needs a documented shape (for example a dict of arrays, or a 2-D array in documented order); decide it in the spec.
-- Output names follow the pattern `macd`, `macd_signal`, `macd_hist`, and match the casing of the input's columns.
-- Batch returns one multi-output result per dataset, failures still in place.
+- **Rust.** The kernel returns `IndicatorOutput::with_outputs(vec![main, ...])`, all as long as the input, in documented order, each with its own `NaN` warm-up. Allocate only the outputs. The cost constant is per row, not per output.
+- **Python.** Declare `OUTPUTS` beside the function, lower case, in documented order: `<indicator>` for the main output and `<indicator>_<part>` for the rest (`("macd", "macd_signal", "macd_hist")`), and `_NAMES = OutputNames("<name>", OUTPUTS, abbreviations=(...))` listing the parts that are abbreviations (written upper case in title-case output: `MACD_Signal`). Nothing else: the runners restore every output and apply the casing rule.
+- **Containers** (decided, `docs/API.md` §11): a DataFrame gains one column per output; a dict, JSON records and a JSON object one key per output; a one-series input (list, tuple, 1-D array, Series) returns a tuple of outputs in documented order, each in the input's own form; a JSON array of numbers returns a JSON object keyed by output name.
+- **Tests and docs.** The reference fixture has one `expected_<output>` column per output (`expected_macd,expected_macd_signal,expected_macd_hist`) and its parameters as comment lines (`# fast: 12`); both readers handle it. The wiki page lists the outputs and each one's warm-up, as `docs/indicators/trend/macd.md` does. Batch tests of a multi-output indicator go in `test_<name>.py`.
