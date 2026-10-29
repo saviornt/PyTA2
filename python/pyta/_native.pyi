@@ -29,6 +29,8 @@ __all__ = [
     "keltner_batch",
     "macd",
     "macd_batch",
+    "mfi",
+    "mfi_batch",
     "roc",
     "roc_batch",
     "rsi",
@@ -99,6 +101,10 @@ def stoch_batch(
 ) -> list[list[NDArray[np.float64]] | Exception]: ...
 def willr(columns: list[NDArray[np.float64]], period: int) -> NDArray[np.float64]: ...
 def willr_batch(
+    datasets: list[list[NDArray[np.float64]]], period: int
+) -> list[NDArray[np.float64] | Exception]: ...
+def mfi(columns: list[NDArray[np.float64]], period: int) -> NDArray[np.float64]: ...
+def mfi_batch(
     datasets: list[list[NDArray[np.float64]]], period: int
 ) -> list[NDArray[np.float64] | Exception]: ...
 def adx(columns: list[NDArray[np.float64]], period: int) -> list[NDArray[np.float64]]: ...

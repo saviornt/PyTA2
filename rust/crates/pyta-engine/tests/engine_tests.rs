@@ -21,6 +21,7 @@ fn params(kind: IndicatorKind, period: usize) -> Params {
             kijun: period,
             senkou: period,
         },
+        IndicatorKind::Mfi => Params::Mfi { period },
         IndicatorKind::Roc => Params::Roc { period },
         IndicatorKind::Rsi => Params::Rsi { period },
         IndicatorKind::Sma => Params::Sma { period },
@@ -308,6 +309,7 @@ fn the_kind_comes_from_the_params() {
         (Params::Donchian { period: 2 }, IndicatorKind::Donchian),
         (Params::Ema { period: 2 }, IndicatorKind::Ema),
         (Params::Willr { period: 2 }, IndicatorKind::Willr),
+        (Params::Mfi { period: 2 }, IndicatorKind::Mfi),
         (Params::Roc { period: 1 }, IndicatorKind::Roc),
         (
             Params::Ichimoku {
@@ -878,6 +880,58 @@ async fn roc_runs_through_the_engine_and_reports_its_errors() {
         PytaError::ColumnCount {
             expected: 1,
             actual: 2,
+        }
+    );
+}
+
+#[tokio::test]
+async fn mfi_runs_through_the_engine_and_reports_its_errors() {
+    // Typical prices 9, 10, 11, 10. Period 2: row 2 has flows +2000
+    // (10 * 200) and +3300 (11 * 300) -> 100; row 3 drops row 1's and adds
+    // -4000 (10 * 400) -> 100 * 3300 / 7300.
+    let high: &[f64] = &[10.0, 11.0, 12.0, 11.0];
+    let low: &[f64] = &[8.0, 9.0, 10.0, 9.0];
+    let close: &[f64] = &[9.0, 10.0, 11.0, 10.0];
+    let volume: &[f64] = &[100.0, 200.0, 300.0, 400.0];
+    let requests = vec![
+        columns_request(IndicatorKind::Mfi, &[high, low, close, volume], 2),
+        columns_request(IndicatorKind::Mfi, &[high, low, close, volume], 1),
+        columns_request(IndicatorKind::Mfi, &[high, low, close, volume], 4),
+        columns_request(IndicatorKind::Mfi, &[high, low, close], 2),
+    ];
+
+    let direct = execute_direct(&requests[0]).unwrap();
+    assert_values(
+        direct.values(),
+        &[NAN, NAN, 100.0, 100.0 * (3300.0 / 7300.0)],
+    );
+
+    let results = execute_batch(requests).await;
+
+    match &results[0].status {
+        IndicatorStatus::Success(output) => assert_values(output.values(), direct.values()),
+        IndicatorStatus::Error(error) => panic!("expected MFI success, got {error:?}"),
+    }
+    assert_eq!(
+        *error_of(&results[1]),
+        PytaError::InvalidParameter {
+            name: "period",
+            minimum: 2,
+            value: 1,
+        }
+    );
+    assert_eq!(
+        *error_of(&results[2]),
+        PytaError::InsufficientData {
+            required: 5,
+            length: 4,
+        }
+    );
+    assert_eq!(
+        *error_of(&results[3]),
+        PytaError::ColumnCount {
+            expected: 4,
+            actual: 3,
         }
     );
 }

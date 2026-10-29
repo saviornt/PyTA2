@@ -37,6 +37,7 @@ INDICATORS = {
     "stoch": "momentum",
     "roc": "momentum",
     "willr": "momentum",
+    "mfi": "momentum",
     "atr": "volatility",
     "stddev": "volatility",
     "bbands": "volatility",
@@ -56,6 +57,7 @@ MULTI_COLUMN = {
     "donchian",
     "ichimoku",
     "keltner",
+    "mfi",
     "sar",
     "stoch",
     "willr",
@@ -194,6 +196,12 @@ DOCUMENTED_PATHS = [
     "pyta.indicators.momentum.roc",
     "pyta.batch.roc",
     "pyta.batch.momentum.roc",
+    "pyta.mfi",
+    "pyta.momentum.mfi",
+    "pyta.indicators.mfi",
+    "pyta.indicators.momentum.mfi",
+    "pyta.batch.mfi",
+    "pyta.batch.momentum.mfi",
 ]
 
 

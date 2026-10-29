@@ -1,12 +1,12 @@
 //! RSI and CCI against the published StockCharts ChartSchool examples, and
-//! Stochastic, Williams %R and ROC against TA-Lib's own output (generated
-//! fixtures, see their comments).
+//! Stochastic, Williams %R, ROC and MFI against TA-Lib's own output
+//! (generated fixtures, see their comments).
 
 #[path = "../../../test-support/reference.rs"]
 mod reference;
 
 use pyta_core::Series;
-use pyta_momentum::{cci, roc, rsi, stoch, willr};
+use pyta_momentum::{cci, mfi, roc, rsi, stoch, willr};
 use reference::{assert_matches, assert_output_matches, load};
 
 #[test]
@@ -134,4 +134,37 @@ fn roc_10_matches_talib() {
 #[test]
 fn roc_10_matches_talib_on_the_edge_series() {
     check_roc("roc_10_edge_talib.csv");
+}
+
+/// Asserts every value is the wheel's own, bit for bit (the fixtures print
+/// them with `repr`).
+fn assert_same_bits(name: &str, actual: &[f64], expected: &[f64]) {
+    for (index, (a, e)) in actual.iter().zip(expected).enumerate() {
+        assert!(
+            (a.is_nan() && e.is_nan()) || a.to_bits() == e.to_bits(),
+            "{name}, index {index}: {a:e} != {e:e}"
+        );
+    }
+}
+
+fn check_mfi(name: &str) {
+    let reference = load(name);
+    let [high, low, close, volume] =
+        [0, 1, 2, 3].map(|i| Series::new(reference.columns[i].clone()).unwrap());
+
+    let output = mfi(&high, &low, &close, &volume, reference.period()).unwrap();
+
+    assert_matches(output.values(), &reference);
+    // TA-Lib's own sums, residue resets and divisions, in its order.
+    assert_same_bits(name, output.values(), &reference.outputs[0]);
+}
+
+#[test]
+fn mfi_14_matches_talib() {
+    check_mfi("mfi_14_talib.csv");
+}
+
+#[test]
+fn mfi_14_matches_talib_on_the_edge_series() {
+    check_mfi("mfi_14_edge_talib.csv");
 }

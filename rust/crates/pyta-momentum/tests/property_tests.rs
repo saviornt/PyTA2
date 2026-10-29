@@ -1,4 +1,4 @@
-//! RSI, CCI, Stochastic, Williams %R and ROC invariants that must hold for any valid input.
+//! RSI, CCI, Stochastic, Williams %R, ROC and MFI invariants that must hold for any valid input.
 
 use proptest::prelude::*;
 use pyta_core::Series;
@@ -423,6 +423,131 @@ proptest! {
 
         for value in &output.values()[period..] {
             prop_assert!(value.is_finite() && *value > -100.0, "{}", value);
+        }
+    }
+}
+
+/// High, low, close and volume of 3 to 300 rows (high at or above low, close
+/// inside its row, some rows repeating the previous one so the typical price
+/// is unchanged, some volumes zero) and a period from 2 to rows - 1.
+fn columns_and_mfi_period() -> impl Strategy<Value = ([Vec<f64>; 4], usize)> {
+    let row = (
+        prop_oneof![4 => 1.0..1.0e4_f64, 1 => Just(f64::NAN)],
+        0.0..10.0_f64,
+        0.0..=1.0_f64,
+        prop_oneof![4 => 0.0..1.0e9_f64, 1 => Just(0.0)],
+    );
+    prop::collection::vec(row, 3..300).prop_flat_map(|rows| {
+        let length = rows.len();
+        let (mut high, mut low, mut close, mut volume) = (vec![], vec![], vec![], vec![]);
+        for (index, &(base, range, at, size)) in rows.iter().enumerate() {
+            // NaN means "repeat the previous row's prices".
+            if base.is_nan() && index > 0 {
+                high.push(high[index - 1]);
+                low.push(low[index - 1]);
+                close.push(close[index - 1]);
+            } else {
+                let base = if base.is_nan() { 100.0 } else { base };
+                high.push(base + range);
+                low.push(base);
+                close.push(base + range * at);
+            }
+            volume.push(size);
+        }
+        (Just([high, low, close, volume]), 2..length)
+    })
+}
+
+fn mfi_of(columns: &[Vec<f64>; 4], period: usize) -> Vec<f64> {
+    let [high, low, close, volume] = columns.clone().map(|values| Series::new(values).unwrap());
+    pyta_momentum::mfi(&high, &low, &close, &volume, period)
+        .unwrap()
+        .values()
+        .to_vec()
+}
+
+/// TA-Lib 0.8.3's `TA_MFI` loop written out: ring buffers of the flows,
+/// subtract the oldest before adding the newest, the null-run reset and the
+/// clamped ratio, in TA-Lib's own branches (to check the kernel's `clamp`
+/// against).
+fn reference_mfi([high, low, close, volume]: &[Vec<f64>; 4], period: usize) -> Vec<f64> {
+    let mut output = vec![f64::NAN; close.len()];
+    let (mut positive_ring, mut negative_ring) = (vec![0.0; period], vec![0.0; period]);
+    let (mut positive, mut negative) = (0.0_f64, 0.0_f64);
+    let mut previous = (high[0] + low[0] + close[0]) / 3.0;
+    let (mut null_run, mut slot) = (0, 0);
+
+    for today in 1..close.len() {
+        if today > period {
+            positive -= positive_ring[slot];
+            negative -= negative_ring[slot];
+        }
+        let typical = (high[today] + low[today] + close[today]) / 3.0;
+        let change = typical - previous;
+        let scale = typical.abs() + previous.abs();
+        previous = typical;
+        let money_flow = if change.abs() <= 1.0e-14 * scale {
+            0.0
+        } else {
+            typical * volume[today]
+        };
+        positive_ring[slot] = if change < 0.0 { 0.0 } else { money_flow };
+        negative_ring[slot] = if change < 0.0 { money_flow } else { 0.0 };
+        positive += positive_ring[slot];
+        negative += negative_ring[slot];
+        null_run = if money_flow == 0.0 { null_run + 1 } else { 0 };
+        if null_run >= period {
+            null_run = period;
+            positive = 0.0;
+            negative = 0.0;
+        }
+        if today >= period {
+            let total = positive + negative;
+            let clamped = if positive < 0.0 {
+                0.0
+            } else if positive > total {
+                total
+            } else {
+                positive
+            };
+            output[today] = if total <= 0.0 {
+                0.0
+            } else {
+                100.0 * (clamped / total)
+            };
+        }
+        slot = (slot + 1) % period;
+    }
+    output
+}
+
+proptest! {
+    #[test]
+    fn mfi_output_length_and_warm_up_are_exact((columns, period) in columns_and_mfi_period()) {
+        let output = mfi_of(&columns, period);
+
+        prop_assert_eq!(output.len(), columns[0].len());
+        prop_assert!(output[..period].iter().all(|value| value.is_nan()));
+        prop_assert!(output[period..].iter().all(|value| value.is_finite()));
+    }
+
+    #[test]
+    fn mfi_stays_between_0_and_100((columns, period) in columns_and_mfi_period()) {
+        for value in &mfi_of(&columns, period)[period..] {
+            prop_assert!((0.0..=100.0).contains(value), "{} outside [0, 100]", value);
+        }
+    }
+
+    #[test]
+    fn mfi_matches_talibs_loop_bit_for_bit((columns, period) in columns_and_mfi_period()) {
+        let actual = mfi_of(&columns, period);
+        let expected = reference_mfi(&columns, period);
+
+        for (index, (a, e)) in actual.iter().zip(&expected).enumerate() {
+            prop_assert!(
+                (a.is_nan() && e.is_nan()) || a.to_bits() == e.to_bits(),
+                "index {}: {:e} != {:e}", index, a, e
+            );
         }
     }
 }

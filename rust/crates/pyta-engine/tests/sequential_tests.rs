@@ -26,6 +26,7 @@ fn params(kind: IndicatorKind, period: usize) -> Params {
             kijun: period,
             senkou: period,
         },
+        IndicatorKind::Mfi => Params::Mfi { period },
         IndicatorKind::Roc => Params::Roc { period },
         IndicatorKind::Rsi => Params::Rsi { period },
         IndicatorKind::Sma => Params::Sma { period },

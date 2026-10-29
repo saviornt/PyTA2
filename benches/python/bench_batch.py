@@ -36,6 +36,7 @@ INDICATORS: dict[str, tuple[dict[str, int | float], int]] = {
     "stoch": ({"k": 14, "k_smooth": 3, "d": 3}, 3),
     "willr": ({"period": 14}, 3),
     "roc": ({"period": 10}, 1),
+    "mfi": ({"period": 14}, 4),
     "ema": ({"period": 30}, 1),
     "wma": ({"period": 30}, 1),
     "dema": ({"period": 30}, 1),
@@ -74,8 +75,8 @@ def best_time(fn: Callable[[], object], repeats: int) -> float:
 
 
 def datasets(count: int, size: int, width: int) -> list[object]:
-    """Distinct, deterministic random walks; a dict of high, low and close for
-    a multi-column indicator."""
+    """Distinct, deterministic random walks; a dict of high, low and close (and
+    volume for four columns) for a multi-column indicator."""
     walks = [
         1_000.0 + np.cumsum(np.random.default_rng(seed).uniform(-1.0, 1.0, size))
         for seed in range(count)
@@ -83,6 +84,12 @@ def datasets(count: int, size: int, width: int) -> list[object]:
 
     if width == 1:
         return list(walks)
+
+    if width == 4:
+        return [
+            {"high": walk + 0.5, "low": walk - 0.5, "close": walk, "volume": 1_000.0 * walk}
+            for walk in walks
+        ]
 
     return [{"high": walk + 0.5, "low": walk - 0.5, "close": walk} for walk in walks]
 

@@ -42,6 +42,7 @@ INDICATORS: dict[str, tuple[dict[str, int | float], int]] = {
     "stoch": ({"k": 14, "k_smooth": 3, "d": 3}, 3),
     "willr": ({"period": 14}, 3),
     "roc": ({"period": 10}, 1),
+    "mfi": ({"period": 14}, 4),
     "ema": ({"period": 30}, 1),
     "wma": ({"period": 30}, 1),
     "dema": ({"period": 30}, 1),
@@ -91,7 +92,10 @@ def inputs(size: int, width: int) -> tuple[object, object, Callable[[], object]]
         return close, close, close.copy
 
     columns = {"high": close + 0.5, "low": close - 0.5, "close": close}
-    arrays = list(columns.values())
+    if width == 4:
+        columns["volume"] = 1_000_000.0 + 1_000.0 * close
+    # The native function takes exactly its own columns, in slot order.
+    arrays = list(columns.values())[:width]
     return columns, arrays, lambda: [array.copy() for array in arrays]
 
 

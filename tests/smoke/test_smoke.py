@@ -162,6 +162,13 @@ def test_smoke() -> None:
     raw_k = np.array(pyta.stoch(data, k=14, k_smooth=1, d=1)["stoch_k"])
     assert np.allclose(willr_values[13:], raw_k[13:] - 100.0, atol=1e-9)
 
+    mfi_values = np.array(pyta.mfi(data, period=14)["mfi"])
+    assert mfi_values.dtype == np.float64
+    assert mfi_values.shape == (length,), "MFI output length mismatch"
+    assert np.isnan(mfi_values[:14]).all(), "MFI warm-up alignment is incorrect"
+    assert np.isfinite(mfi_values[14:]).all()
+    assert ((mfi_values[14:] >= 0.0) & (mfi_values[14:] <= 100.0)).all()
+
     stddev_values = np.array(pyta.stddev(data, period=20, k=2.0)["stddev"])
     assert stddev_values.dtype == np.float64
     assert stddev_values.shape == (length,), "STDDEV output length mismatch"

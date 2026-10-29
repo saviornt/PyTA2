@@ -33,6 +33,8 @@ pub enum IndicatorKind {
     Keltner,
     /// Moving Average Convergence/Divergence (`pyta-trend`; three outputs).
     Macd,
+    /// Money Flow Index (`pyta-momentum`; high, low, close, volume).
+    Mfi,
     /// Rate of Change (`pyta-momentum`).
     Roc,
     /// Relative Strength Index (`pyta-momentum`).
@@ -150,6 +152,12 @@ pub enum Params {
         /// Period of the signal line's EMA.
         signal: usize,
     },
+    /// Money Flow Index: positive money flow's share of all money flow over
+    /// the last `period` rows, from 0 to 100.
+    Mfi {
+        /// Rows of money flow in each sum, at least 2.
+        period: usize,
+    },
     /// Rate of Change: the percentage change from the value `period` rows
     /// earlier.
     Roc {
@@ -227,6 +235,7 @@ impl Params {
             Self::Kama { .. } => IndicatorKind::Kama,
             Self::Keltner { .. } => IndicatorKind::Keltner,
             Self::Macd { .. } => IndicatorKind::Macd,
+            Self::Mfi { .. } => IndicatorKind::Mfi,
             Self::Roc { .. } => IndicatorKind::Roc,
             Self::Rsi { .. } => IndicatorKind::Rsi,
             Self::Sar { .. } => IndicatorKind::Sar,

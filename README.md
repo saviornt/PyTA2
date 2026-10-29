@@ -101,6 +101,7 @@ PyTA logs through Python's standard `logging` (Rust messages included) under the
 | Momentum | [Stochastic Oscillator](docs/indicators/momentum/stoch.md) (`stoch`, high, low and close; Lane's full stochastic, %K and %D; two outputs) |
 | Momentum | [Williams %R](docs/indicators/momentum/willr.md) (`willr`, high, low and close; from -100 to 0) |
 | Momentum | [Rate of Change](docs/indicators/momentum/roc.md) (`roc`, percentage change over `period` rows) |
+| Momentum | [Money Flow Index](docs/indicators/momentum/mfi.md) (`mfi`, high, low, close and volume; volume-weighted, from 0 to 100) |
 | Volatility | [Average True Range](docs/indicators/volatility/atr.md) (`atr`, high, low and close; Wilder's smoothing) |
 | Volatility | [Standard Deviation](docs/indicators/volatility/stddev.md) (`stddev`, population, times `k`) |
 | Volatility | [Bollinger Bands](docs/indicators/volatility/bbands.md) (`bbands`, SMA ± `k` population standard deviations; three outputs) |
@@ -112,7 +113,7 @@ PyTA logs through Python's standard `logging` (Rust messages included) under the
 The catalog below is the planned scope and is subject to change.
 
 **Momentum Indicators**
-MFI, TRIX, Ultimate Oscillator
+TRIX, Ultimate Oscillator
 
 **Volume Indicators**
 OBV, VWAP, Accumulation/Distribution, Chaikin Money Flow, Volume Rate of Change

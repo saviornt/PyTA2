@@ -224,6 +224,17 @@ pub const WILLR_NS_PER_ELEMENT: f64 = 10.9;
 /// `--single --rust --indicator roc`.
 pub const ROC_NS_PER_ELEMENT: f64 = 1.5;
 
+/// Money Flow Index, in nanoseconds per input row; independent of `period`
+/// (running sums over a ring of the last `period` flows).
+///
+/// Provisional, from a quick run on 2026-10-29
+/// (`benches/results/benchmark_2026-10-29_16-50-14.txt`, `--single --rust
+/// --quick`, governor `performance`): kernels at 1,000,000 rows took
+/// 8.366 ms for MFI-14 and 2.513 ms for RSI-14, scaled here by
+/// `RSI_NS_PER_ELEMENT` (3.0 * 3.33). Confirm with a full
+/// `--single --rust --indicator mfi`.
+pub const MFI_NS_PER_ELEMENT: f64 = 10.0;
+
 /// Parabolic SAR, in nanoseconds per input row; independent of
 /// `acceleration` and `maximum` (one pass).
 ///
