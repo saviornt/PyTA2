@@ -9,7 +9,7 @@ PyTA is a TA-Lib replacement: a Python API that cleans/validates user data and a
 - Commit only on a worktree branch (one task per worktree); never commit to, stage on or merge into `main`, and never `git push`. The maintainer reviews the branch, merges it into `main` locally with `scripts/merge_into_main.sh` (never run it yourself) and pushes.
 - Be concise in answers. Use the latest stable Rust and Python, no deprecated APIs.
 - Every performance change needs a benchmark justification; tunable numbers go in `pyta-common`, not inline.
-- Tooling (LSP, Context7, review skills): read the `pyta-tooling` skill. Prefer the LSP tools over grep for references and call trees.
+- Tooling (LSP, Context7, review skills, agent roles): read the `pyta-tooling` skill. Prefer the LSP tools over grep for references and call trees.
 
 ## Commands
 

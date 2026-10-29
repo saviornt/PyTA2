@@ -1,6 +1,6 @@
 ---
 name: pyta-tooling
-description: Which skills, MCP servers and tools to use in the PyTA repository (Rust indicator engine plus Python API), and how they are set up here. Read this at the start of any PyTA task that involves navigating code, looking up library docs, reviewing changes, benchmarking or charting, and before calling Context7 or the LSP tools in this project. It names the languages to register with LSP, the libraries worth a Context7 lookup and where their versions are pinned, and what not to use.
+description: Which skills, MCP servers and tools to use in the PyTA repository (Rust indicator engine plus Python API), and how they are set up here. Read this at the start of any PyTA task that involves navigating code, looking up library docs, reviewing changes, benchmarking or charting, before calling Context7 or the LSP tools in this project, and before delegating PyTA work to an agent (researcher, implementer, reviewer, tester). It names the languages to register with LSP, the libraries worth a Context7 lookup and where their versions are pinned, the PyTA rules for each agent role, and what not to use.
 ---
 
 # PyTA tooling
@@ -47,9 +47,10 @@ Not worth a lookup: indicator formulas or TA-Lib behaviour (use `tests/fixtures/
 
 The global roles in `~/.claude/agents/` apply here, delegated by default (`orchestrator` skill). PyTA specifics:
 
-- `implementer`: one task per worktree branch; commits there only, never on `main`, never pushes. The maintainer merges with `scripts/merge_into_main.sh`. For an indicator, get the `add-indicator` spec approved by the user first, then hand the build to one implementer.
+- `implementer`: one task per worktree branch; commits there only, never on `main`, never pushes. The maintainer merges with `scripts/merge_into_main.sh`; Claude never runs it, even when told to merge (this overrides the `orchestrator` skill's "unless the user tells you to"). For an indicator, the orchestrator writes the `add-indicator` spec (a `researcher` may gather the sources) and gets it approved by the user, then hands the build to one implementer.
 - One indicator at a time unless the user asks otherwise: every indicator edits the same shared files (engine `IndicatorKind`/dispatch/cost, `pyta-python/src/lib.rs`, `_native.pyi`, the `pyta/batch/` and export modules, the README catalog), so parallel implementers would conflict.
-- `tester`: runs `scripts/test-suite.sh`, `scripts/benchmark.sh` or the targeted commands in `CLAUDE.md`. Never benchmark while other agents build or test (CPU contention skews results); follow `pyta-benchmarks` (A/B in one session).
+- `tester`: runs `scripts/test-suite.sh`, `scripts/benchmark.sh` or the targeted commands in `CLAUDE.md`, following `pyta-testing` or `pyta-benchmarks`.
+- A benchmarking tester runs alone: the orchestrator starts no other agent until it finishes, since parallel builds and tests skew the numbers through CPU contention (the tester cannot see other agents).
 - `researcher`: for formulas, TA-Lib's convention wins (`add-indicator`); cite `tests/fixtures/` or published sources.
 - `reviewer`: review against `CLAUDE.md`, `docs/ARCHITECTURE.md` and the `add-indicator` checklist.
 
