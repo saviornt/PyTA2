@@ -41,6 +41,17 @@ Not worth a lookup: indicator formulas or TA-Lib behaviour (use `tests/fixtures/
 - `security-review`: before a public release (FFI boundary, `unsafe`).
 - `dataviz`: charts of benchmark results from `benches/results/`.
 - `deep-research`: the canonical definition of an indicator when sources disagree (Wilder smoothing, ADX, Stochastic variants).
+- `orchestrator` (global): delegating to the agent roles below.
+
+## Agents
+
+The global roles in `~/.claude/agents/` apply here, delegated by default (`orchestrator` skill). PyTA specifics:
+
+- `implementer`: one task per worktree branch; commits there only, never on `main`, never pushes. The maintainer merges with `scripts/merge_into_main.sh`. For an indicator, get the `add-indicator` spec approved by the user first, then hand the build to one implementer.
+- One indicator at a time unless the user asks otherwise: every indicator edits the same shared files (engine `IndicatorKind`/dispatch/cost, `pyta-python/src/lib.rs`, `_native.pyi`, the `pyta/batch/` and export modules, the README catalog), so parallel implementers would conflict.
+- `tester`: runs `scripts/test-suite.sh`, `scripts/benchmark.sh` or the targeted commands in `CLAUDE.md`. Never benchmark while other agents build or test (CPU contention skews results); follow `pyta-benchmarks` (A/B in one session).
+- `researcher`: for formulas, TA-Lib's convention wins (`add-indicator`); cite `tests/fixtures/` or published sources.
+- `reviewer`: review against `CLAUDE.md`, `docs/ARCHITECTURE.md` and the `add-indicator` checklist.
 
 ## Project rules that affect tool use
 
