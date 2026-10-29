@@ -293,10 +293,10 @@ macd, signal, hist = pyta.macd(close)    # one series in: a tuple of three, in o
 |---|---|---|
 | no upper-case letters (`close`) | lower | `sma`, `macd_signal` |
 | no lower-case letters (`CLOSE`) | upper | `SMA`, `MACD_SIGNAL` |
-| each word a capital then lower case (`Close`, `Adj Close`, as yfinance) | title | `SMA`, `MACD_Signal`, `MACD_Hist` |
-| mixed (`cLose`), columns that disagree, or no names (lists, arrays, unnamed Series, JSON arrays of numbers, unnamed 2-D input) | lower | `sma`, `macd_signal` |
+| some lower-case letters, and each word either a capital then no other capitals or all capitals (`Close`, `Adj Close` as yfinance; `SPY Close`; PyTA's own `MACD_Signal`) | title | `SMA`, `MACD_Signal`, `MACD_Hist` |
+| mixed (`cLose`, `ClosePrice`), columns that disagree, or no names (lists, arrays, unnamed Series, JSON arrays of numbers, unnamed 2-D input) | lower | `sma`, `macd_signal` |
 
-In title case, abbreviations (`SMA`, `EMA`, `RSI`, `CCI`, `MACD`) are upper case and words (`Signal`, `Hist`) title case. The separator is always `_`.
+In title case, abbreviations (`SMA`, `EMA`, `RSI`, `CCI`, `MACD`) are upper case and words (`Signal`, `Hist`) title case. The separator is always `_`. Because a word in capitals counts as title case, title-case outputs chain as title case: `pyta.sma(pyta.macd(yf_frame)["MACD_Signal"], 5)` is named `SMA`. A name that is not a string is cased by its `str()`.
 
 ## 12. Data sources *(planned)*
 

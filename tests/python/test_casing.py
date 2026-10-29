@@ -6,6 +6,7 @@ import numpy as np
 import pyta
 import pytest
 from ohlcv_data import Ohlcv
+from pyta import _outputs as outputs_module
 from pyta._outputs import OutputNames, casing
 
 # Output names per indicator in lower, upper and title case.
@@ -58,6 +59,14 @@ def dict_with(ohlcv: Ohlcv, names: list[str]) -> dict[str, list[float]]:
         (("Close",), "title"),
         (("Adj Close",), "title"),
         (("Adj_Close", "High"), "title"),
+        # A word in capitals is title-compatible, so PyTA's own outputs chain.
+        (("MACD_Signal",), "title"),
+        (("SPY Close",), "title"),
+        (("SPY_Close", "SPY_High"), "title"),
+        (("Close", "MACD_Hist"), "title"),
+        (("SPy Close",), "lower"),  # mixed word
+        ((True,), "title"),  # the casing of str(name)
+        ((1,), "lower"),
         (("adj Close",), "lower"),  # mixed
         (("ClosePrice",), "lower"),  # mixed
         (("Close", "close"), "lower"),  # disagreement
@@ -201,3 +210,48 @@ def test_batch_cases_each_dataset_on_its_own(ohlcv: Ohlcv, name: str) -> None:
     results = batch(datasets) if name == "macd" else batch(datasets, 10)
 
     assert [list(result) for result in results] == [TITLE[name], LOWER[name]]
+
+
+# --- regressions ----------------------------------------------------------------------------
+
+
+def test_names_that_compare_equal_but_print_differently_are_cased_apart() -> None:
+    # True == 1 == 1.0 and they hash alike, but their str() casings differ.
+    names = OutputNames("sma", ("sma",), ("sma",))
+
+    assert names.cased((True,)) == ("SMA",)
+    assert names.cased((1,)) == ("sma",)
+    assert names.cased((1.0,)) == ("sma",)
+    assert names.cased((True, "Close")) == ("SMA",)
+    assert names.cased((1, "Close")) == ("sma",)
+
+
+@pytest.mark.pandas
+def test_series_names_that_compare_equal_are_cased_apart(ohlcv: Ohlcv) -> None:
+    pd = pytest.importorskip("pandas")
+
+    assert pyta.sma(pd.Series(ohlcv.close, name=True), 3).name == "SMA"
+    assert pyta.sma(pd.Series(ohlcv.close, name=1), 3).name == "sma"
+
+
+def test_the_memo_is_bounded(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(outputs_module, "_MEMO_SIZE", 2)
+    names = OutputNames("sma", ("sma",), ("sma",))
+
+    cased = [names.cased((name,)) for name in ("a", "B", "Cc", "a")]
+
+    assert cased == [("sma",), ("SMA",), ("SMA",), ("sma",)]
+    assert len(names._memo) <= 2  # pyright: ignore[reportPrivateUsage]
+
+
+@pytest.mark.pandas
+def test_title_case_outputs_chain_as_title_case(ohlcv: Ohlcv) -> None:
+    pd = pytest.importorskip("pandas")
+    frame = pd.DataFrame(dict_with(ohlcv, YFINANCE))
+
+    macd = pyta.macd(frame)
+
+    assert list(macd.columns) == ["MACD", "MACD_Signal", "MACD_Hist"]
+    assert pyta.sma(macd["MACD_Signal"], 5).name == "SMA"
+    assert list(pyta.ema(macd[["MACD_Hist"]], 5).columns) == ["EMA"]
+    assert list(pyta.rsi({"MACD_Signal": macd["MACD_Signal"].tolist()}, 5)) == ["RSI"]

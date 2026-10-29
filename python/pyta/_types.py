@@ -1,6 +1,6 @@
 """Internal types shared by the Python API layer."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -9,11 +9,9 @@ from numpy.typing import NDArray
 
 type Float64Array = NDArray[np.float64]
 
-#: An indicator's results as (name, values) pairs in its documented output order.
-type Outputs = tuple[tuple[str, Float64Array], ...]
-
-#: Rebuilds the caller's container from an indicator's named results.
-type Restore = Callable[[Outputs], Any]
+#: Rebuilds the caller's container from an indicator's output names and results,
+#: two equal-length sequences in its documented output order.
+type Restore = Callable[[Sequence[str], Sequence[Float64Array]], Any]
 
 
 @dataclass(frozen=True, slots=True)

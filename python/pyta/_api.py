@@ -16,7 +16,7 @@ import numpy as np
 from ._columns import ORDERED_ROLES, normalize_columns, validate_columns
 from ._native import MAX_ABS_INPUT
 from ._outputs import OutputNames
-from ._types import Float64Array, Outputs, Prepared, PreparedColumns, Restore
+from ._types import Float64Array, Prepared, PreparedColumns
 from ._validation import Slot, normalize
 
 _log = logging.getLogger("pyta.api")
@@ -59,21 +59,15 @@ def run(
     first, valid = _trim(prepared.values)
     results = _pad_all(native(valid, *params), first, prepared.values.shape[0])
 
-    return _restore(prepared.restore, outputs.cased(prepared.names), results)
+    return prepared.restore(outputs.cased(prepared.names), results)
 
 
-def _pad_all(result: NativeResult, first: int, length: int) -> list[Float64Array]:
-    """`_pad` applied to every output of a native result."""
+def _pad_all(result: NativeResult, first: int, length: int) -> Sequence[Float64Array]:
+    """`_pad` applied to every output of a native result, in output order."""
     if isinstance(result, np.ndarray):
-        return [_pad(result, first, length)]
+        return (_pad(result, first, length),)
 
     return [_pad(values, first, length) for values in result]
-
-
-def _restore(restore: Restore, names: tuple[str, ...], results: list[Float64Array]) -> Any:
-    """Pairs each output with its name and rebuilds the caller's container."""
-    named: Outputs = tuple(zip(names, results, strict=True))
-    return restore(named)
 
 
 def _leading_nan_count(values: Float64Array) -> int:
@@ -189,7 +183,7 @@ def run_batch(
             failed += 1
         else:
             padded = _pad_all(result, first, prepared.values.shape[0])
-            outcomes[position] = _restore(prepared.restore, outputs.cased(prepared.names), padded)
+            outcomes[position] = prepared.restore(outputs.cased(prepared.names), padded)
 
     if failed:
         _log_failures(label, outcomes, keys, failed)
@@ -259,7 +253,7 @@ def run_columns(
         raise explained from None
 
     results = _pad_all(result, first, prepared.values[0].shape[0])
-    return _restore(prepared.restore, outputs.cased(prepared.names), results)
+    return prepared.restore(outputs.cased(prepared.names), results)
 
 
 def run_columns_batch(
@@ -305,7 +299,7 @@ def run_columns_batch(
             failed += 1
         else:
             padded = _pad_all(result, first, prepared.values[0].shape[0])
-            outcomes[position] = _restore(prepared.restore, outputs.cased(prepared.names), padded)
+            outcomes[position] = prepared.restore(outputs.cased(prepared.names), padded)
 
     if failed:
         _log_failures(label, outcomes, keys, failed)
