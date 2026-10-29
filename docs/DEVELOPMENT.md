@@ -405,7 +405,7 @@ Scripts, CI and docs:
 ### Tasks: decide
 
 - [x] **What "export" means.** *(2026-10-29, maintainer's decision.)* By default the output keeps the input's container type, as today (guiding principle 3). A new `output=` option converts the result to another container, for example DataFrame in and JSON out.
-- [ ] **`output=` design.** *Recommended:*
+- [x] **`output=` design.** *(2026-10-29, maintainer accepted the recommendation; an index goes first in a `dict` or JSON object, dates become ISO 8601 strings, and each target always has its fixed shape.)*
   - `output=None` (the default) keeps the input's container; otherwise one of `"list"`, `"tuple"`, `"numpy"`, `"pandas"`, `"dict"`, `"json"`, `"json_bytes"`, `"csv"`, `"csv_bytes"`. Any other value raises `ValueError` listing the valid names.
   - Names and casing are the same as in the default output.
   - Each target has one fixed shape:
@@ -420,7 +420,7 @@ Scripts, CI and docs:
 
 ### Tasks: CSV
 
-- [ ] Accept CSV (`str` and `bytes`) as input.
+- [ ] Accept CSV (`str` and `bytes`) as input. *(2026-10-29: text starting with `[` or `{` is JSON, anything else CSV; header row required; `,` only.)*
 - [ ] Return CSV in the same form as the input.
 - [ ] Apply the same column selection and NaN policy as other containers.
 - [ ] Add tests, including headers, missing values, and mixed-case column names.
@@ -430,7 +430,7 @@ Scripts, CI and docs:
 - [ ] **pandas:** Series and DataFrame with a default, date, datetime or non-unique index; nullable dtypes (`Float64`, `Int64` with `pd.NA`); integer and float columns; extra non-numeric columns; title-case (yfinance) and upper-case column names. Output keeps the index, its name and its order, and the casing rule.
 - [ ] **dict:** values as list, tuple, NumPy array or pandas Series, including mixed types in one dict; keys that aren't strings; extra keys; each output value keeps its input column's type.
 - [ ] **tuple:** a tuple of numbers (one series) and a tuple of arrays or lists (unnamed multi-column input, documented order); multi-output results as a tuple of outputs.
-- [ ] **JSON (`str`, `bytes`, `bytearray`):** array of numbers, array of records and object of arrays; `null` gaps; numbers as strings (decide: accept or reject); output in the same shape and type, with `null` for `NaN`.
+- [ ] **JSON (`str`, `bytes`, `bytearray`):** array of numbers, array of records and object of arrays; `null` gaps; numbers as strings accepted (2026-10-29, maintainer's decision; in every container, not only JSON); names with a numbered prefix (`1. open`) matched without it, in every container; output in the same shape and type, with `null` for `NaN`.
 - [ ] **Round-trip tests:** one parametrized matrix over container × indicator shape (SMA, CCI, MACD, and one multi-column multi-output indicator if one exists by then) checking the output type, length, names and casing, index, and that values equal the NumPy result exactly.
 - [ ] **Hypothesis:** for random valid data, every container gives the same values as the plain NumPy call.
 - [ ] Fix every gap the matrix finds, or record it as a documented limitation in `API.md`.
