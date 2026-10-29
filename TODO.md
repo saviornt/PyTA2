@@ -75,7 +75,7 @@ EMA is single-output and uses `period=`, so it needs only Part B's `Params`; doi
 
 ### Part G: benchmarks (about 45 min, via the `pyta-benchmarks` skill)
 
-- [ ] Before Part B: `./scripts/benchmark.sh --single --python` and `--batch --python` on `main` in a scratch worktree, kept as the baseline for this sprint (Sprint 9 asked for a current one).
+- [x] Before Part B: `./scripts/benchmark.sh --single --python` and `--batch --python` on `main` in a scratch worktree, kept as the baseline for this sprint (Sprint 9 asked for a current one). *(2026-10-28, governor `performance`, `main` at 3721679 in `.claude/worktrees/bench-base`: `benches/results/base-3721679_benchmark_2026-10-28_21-39-13.txt` (single) and `_21-40-08` (batch), after a discarded quick warm-up run.)*
 - [ ] MACD workloads in the Criterion and Python benchmarks; check the kernel (one pass per EMA, no extra allocations beyond the three outputs) and record the numbers.
 - [ ] A/B against `main`, alternating, twice each: SMA, RSI and CCI single and batch calls within ~5%.
 
