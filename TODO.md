@@ -53,9 +53,14 @@ Where things stand:
 - [ ] `output=` matrix: every input container × every target × shape: type, names, casing, index carried or dropped, `null` in JSON, empty CSV field for `NaN`, invalid target, `"pandas"` without pandas (simulated via `sys.modules`).
 - [ ] Hypothesis: random valid data gives the same values in every container (CSV included) as the plain NumPy call.
 - [ ] Fix every gap from Part B, or document it as a limitation in `API.md`:
+  - [ ] **More unnamed multi-column forms** *(2026-10-29, maintainer's decision: fix, not a limitation)*:
+    - a 2-D array (or a list of lists) in `(columns, rows)` layout is detected: when exactly one axis equals the indicator's column count, that axis is the columns; when both do (as many rows as columns), `(rows, columns)` is assumed, as documented today;
+    - a list of rows (`[[h, l, c], ...]`) or a list of column lists is multi-column input, by the same rule; one output comes back as a `list`, several as a tuple of lists;
+    - a list or tuple of pandas Series: matched by name like a dict when every Series is named with a recognized role, else taken in documented order; all must share one index (else `ValueError`); the result is a Series (several outputs: a tuple of Series) with that index;
+    - tests for each form and shape (CCI and the stand-in), the square case, mismatched indexes, and a list of numbers still raising `TypeError` for multi-column indicators; §4 and §10 updated and the limitation removed.
   - [ ] Clearer `TypeError`/`ValueError` messages: a tuple or list of Series, a list of lists, or a JSON array of arrays into a multi-column indicator (today: "a tuple of numbers holds one series"); a `(columns, rows)` 2-D array (say `(rows, columns)` is expected); a 2-D array or one-item tuple into a single-column indicator (point at `column=` / passing one column).
   - [ ] NumPy dtype names in errors (`unsupported dtype <U6`) replaced by A4's message naming the column and row.
-  - [x] Documented as limitations in §4: `(columns, rows)` and `(rows, 1)` arrays, lists of rows/columns/Series as multi-column input, MultiIndex columns, interior gaps, bools mixed into lists and JSON (open: see the note under A4), AlphaVantage's nested JSON.
+  - [x] Documented as limitations in §4: `(rows, 1)` arrays (the `(columns, rows)` and list forms are now a fix, above), MultiIndex columns, interior gaps, bools mixed into lists and JSON (open: see the note under A4), AlphaVantage's nested JSON.
   - [x] §4 corrected: a dict's values take the container type of the column used (the first input column for multi-column indicators), so a mixed dict can drop a Series' index.
   - [ ] §12: CSV available; AlphaVantage's nested JSON unsupported (with Part G).
 
