@@ -105,6 +105,18 @@ pub const DONCHIAN_NS_PER_ELEMENT: f64 = 10.6;
 /// Confirm with a full `--single --rust --indicator ema`.
 pub const EMA_NS_PER_ELEMENT: f64 = 3.6;
 
+/// Keltner Channels, in nanoseconds per input row; independent of `period`,
+/// `atr_period` and `k` (one EMA pass, one true-range and Wilder pass, one
+/// band pass).
+///
+/// Provisional, from a quick run on 2026-10-29
+/// (`benches/results/benchmark_2026-10-29_07-04-38.txt`, `--single --rust
+/// --quick`, governor `performance`: kernels at 1,000,000 rows took
+/// 9.165 ms for Keltner-20/10 and 2.428 ms for RSI-14), scaled here by
+/// `RSI_NS_PER_ELEMENT` (3.0 * 3.77). Confirm with a full
+/// `--single --rust --indicator keltner`.
+pub const KELTNER_NS_PER_ELEMENT: f64 = 11.3;
+
 /// Moving Average Convergence/Divergence, in nanoseconds per input row for
 /// all three outputs; independent of its periods (one fused pass for the
 /// three EMAs after their seeds).

@@ -15,6 +15,8 @@ __all__ = [
     "donchian_batch",
     "ema",
     "ema_batch",
+    "keltner",
+    "keltner_batch",
     "macd",
     "macd_batch",
     "rsi",
@@ -64,4 +66,10 @@ def bbands_batch(
 def donchian(columns: list[NDArray[np.float64]], period: int) -> list[NDArray[np.float64]]: ...
 def donchian_batch(
     datasets: list[list[NDArray[np.float64]]], period: int
+) -> list[list[NDArray[np.float64]] | Exception]: ...
+def keltner(
+    columns: list[NDArray[np.float64]], period: int, atr_period: int, k: float
+) -> list[NDArray[np.float64]]: ...
+def keltner_batch(
+    datasets: list[list[NDArray[np.float64]]], period: int, atr_period: int, k: float
 ) -> list[list[NDArray[np.float64]] | Exception]: ...

@@ -18,6 +18,11 @@ fn params(kind: IndicatorKind, period: usize) -> Params {
         IndicatorKind::Sma => Params::Sma { period },
         IndicatorKind::Bbands => Params::Bbands { period, k: 2.0 },
         IndicatorKind::Stddev => Params::Stddev { period, k: 1.0 },
+        IndicatorKind::Keltner => Params::Keltner {
+            period,
+            atr_period: period,
+            k: 2.0,
+        },
         IndicatorKind::Macd => panic!("MACD takes three periods"),
     }
 }
@@ -281,6 +286,14 @@ fn the_kind_comes_from_the_params() {
         (Params::Cci { period: 2 }, IndicatorKind::Cci),
         (Params::Donchian { period: 2 }, IndicatorKind::Donchian),
         (Params::Ema { period: 2 }, IndicatorKind::Ema),
+        (
+            Params::Keltner {
+                period: 2,
+                atr_period: 1,
+                k: 2.0,
+            },
+            IndicatorKind::Keltner,
+        ),
         (
             Params::Macd {
                 fast: 2,
@@ -597,6 +610,55 @@ async fn donchian_runs_through_the_engine_with_three_outputs_and_reports_its_err
         *error_of(&results[3]),
         PytaError::ColumnCount {
             expected: 2,
+            actual: 1,
+        }
+    );
+}
+
+#[tokio::test]
+async fn keltner_runs_through_the_engine_with_three_outputs_and_reports_its_errors() {
+    // period 1 and atr_period 1: the middle is close and the ATR is the true
+    // range (2 on rows 1-3), so the bands are close +/- 4 from row 1.
+    let high: &[f64] = &[11.0, 12.0, 13.0, 12.0];
+    let low: &[f64] = &[9.0, 10.0, 11.0, 10.0];
+    let close: &[f64] = &[10.0, 11.0, 12.0, 11.0];
+    let requests = vec![
+        columns_request(IndicatorKind::Keltner, &[high, low, close], 1),
+        columns_request(IndicatorKind::Keltner, &[high, low, close], 0),
+        columns_request(IndicatorKind::Keltner, &[high, low, close], 5),
+        request(IndicatorKind::Keltner, close.to_vec(), 1),
+    ];
+
+    let direct = execute_direct(&requests[0]).unwrap();
+    let [upper, middle, lower] = direct.outputs() else {
+        panic!("expected three outputs, got {}", direct.output_count());
+    };
+    assert_values(upper, &[NAN, 15.0, 16.0, 15.0]);
+    assert_values(middle, close);
+    assert_values(lower, &[NAN, 7.0, 8.0, 7.0]);
+
+    let results = execute_batch(requests).await;
+
+    match &results[0].status {
+        IndicatorStatus::Success(output) => {
+            for (got, want) in output.outputs().iter().zip(direct.outputs()) {
+                assert_values(got, want);
+            }
+        }
+        IndicatorStatus::Error(error) => panic!("expected Keltner success, got {error:?}"),
+    }
+    assert_eq!(*error_of(&results[1]), PytaError::InvalidPeriod);
+    assert_eq!(
+        *error_of(&results[2]),
+        PytaError::InsufficientData {
+            required: 6,
+            length: 4,
+        }
+    );
+    assert_eq!(
+        *error_of(&results[3]),
+        PytaError::ColumnCount {
+            expected: 3,
             actual: 1,
         }
     );

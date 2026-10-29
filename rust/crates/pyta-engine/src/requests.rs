@@ -16,6 +16,8 @@ pub enum IndicatorKind {
     Donchian,
     /// Exponential Moving Average (`pyta-trend`).
     Ema,
+    /// Keltner Channels (`pyta-volatility`; high, low, close; three outputs).
+    Keltner,
     /// Moving Average Convergence/Divergence (`pyta-trend`; three outputs).
     Macd,
     /// Relative Strength Index (`pyta-momentum`).
@@ -68,6 +70,16 @@ pub enum Params {
         /// Rows in the seed average; sets the weight `2 / (period + 1)`.
         period: usize,
     },
+    /// Keltner Channels: an EMA of close with bands `k` ATRs above and below
+    /// it.
+    Keltner {
+        /// Rows in the EMA's seed average; sets its weight `2 / (period + 1)`.
+        period: usize,
+        /// The ATR's period (Wilder's smoothing).
+        atr_period: usize,
+        /// Width of each band in ATRs, finite and above 0.
+        k: f64,
+    },
     /// Moving Average Convergence/Divergence.
     Macd {
         /// Period of the fast EMA.
@@ -105,6 +117,7 @@ impl Params {
             Self::Cci { .. } => IndicatorKind::Cci,
             Self::Donchian { .. } => IndicatorKind::Donchian,
             Self::Ema { .. } => IndicatorKind::Ema,
+            Self::Keltner { .. } => IndicatorKind::Keltner,
             Self::Macd { .. } => IndicatorKind::Macd,
             Self::Rsi { .. } => IndicatorKind::Rsi,
             Self::Sma { .. } => IndicatorKind::Sma,

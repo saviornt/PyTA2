@@ -51,11 +51,22 @@ pub fn atr(
         });
     }
 
+    Ok(IndicatorOutput::new(atr_values(high, low, close, period)))
+}
+
+/// The ATR of already validated columns, `NaN` in the first `period`
+/// positions: the calculation behind [`atr`], shared with Keltner Channels
+/// so both give the same bits.
+///
+/// The caller guarantees equal lengths and `1 <= period < close.len()`.
+pub(crate) fn atr_values(high: &[f64], low: &[f64], close: &[f64], period: usize) -> Vec<f64> {
+    debug_assert!(period >= 1 && period < close.len());
+    debug_assert!(high.len() == close.len() && low.len() == close.len());
+
     // Row 0's true range is NaN; the seed at row `period` averages rows
     // `1..=period`, so it never reads it.
     let ranges = true_range(high, low, close);
     let mut output = vec![f64::NAN; ranges.len()];
     wilder_into(&ranges, period, period, &mut output);
-
-    Ok(IndicatorOutput::new(output))
+    output
 }

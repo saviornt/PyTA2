@@ -1,9 +1,9 @@
-//! ATR, STDDEV, BBANDS and Donchian Channels invariants that must hold for any valid input.
+//! ATR, STDDEV, BBANDS, Donchian and Keltner Channels invariants that must hold for any valid input.
 
 use proptest::prelude::*;
 use pyta_core::Series;
-use pyta_core::kernels::true_range_at;
-use pyta_volatility::{atr, bbands, donchian, stddev};
+use pyta_core::kernels::{ema, true_range_at};
+use pyta_volatility::{atr, bbands, donchian, keltner, stddev};
 
 /// High, low and close columns of 2 to 300 rows (high at or above low,
 /// close between them) and a period that leaves at least one ATR value.
@@ -241,6 +241,62 @@ proptest! {
             prop_assert_eq!(lower, bottom);
             prop_assert_eq!(middle, (top + bottom) / 2.0);
             prop_assert!(lower <= middle && middle <= upper);
+        }
+    }
+}
+
+/// High, low and close columns with an EMA period and an ATR period that
+/// leave at least one value of every output.
+fn keltner_columns_and_periods() -> impl Strategy<Value = ([Vec<f64>; 3], usize, usize)> {
+    columns_and_period().prop_flat_map(|(columns, atr_period)| {
+        let length = columns[0].len();
+        (Just(columns), 1..=length, Just(atr_period))
+    })
+}
+
+fn keltner_of(columns: &[Vec<f64>; 3], period: usize, atr_period: usize, k: f64) -> Vec<Vec<f64>> {
+    let [high, low, close] = columns.clone().map(|values| Series::new(values).unwrap());
+
+    keltner(&high, &low, &close, period, atr_period, k)
+        .unwrap()
+        .into_outputs()
+}
+
+proptest! {
+    #[test]
+    fn keltner_outputs_have_input_length_and_their_own_warm_ups(
+        (columns, period, atr_period) in keltner_columns_and_periods(),
+        k in 0.01..10.0_f64,
+    ) {
+        let lines = keltner_of(&columns, period, atr_period, k);
+        let band_start = (period - 1).max(atr_period);
+
+        prop_assert_eq!(lines.len(), 3);
+        for (line, start) in lines.iter().zip([band_start, period - 1, band_start]) {
+            prop_assert_eq!(line.len(), columns[0].len());
+            prop_assert!(line[..start].iter().all(|value| value.is_nan()));
+            prop_assert!(line[start..].iter().all(|value| value.is_finite()));
+        }
+    }
+
+    #[test]
+    fn keltner_is_the_ema_plus_and_minus_k_atr(
+        (columns, period, atr_period) in keltner_columns_and_periods(),
+        k in 0.01..10.0_f64,
+    ) {
+        // Bit for bit: the middle is the shared EMA kernel (as `pyta.ema`)
+        // and the bands use PyTA's ATR (as `pyta.atr`).
+        let lines = keltner_of(&columns, period, atr_period, k);
+        let middle = ema(&columns[2], period);
+        let range = atr_of(&columns, atr_period);
+
+        for row in (period - 1).max(atr_period)..columns[0].len() {
+            let (upper, mid, lower) = (lines[0][row], lines[1][row], lines[2][row]);
+
+            prop_assert_eq!(mid.to_bits(), middle[row].to_bits());
+            prop_assert_eq!(upper.to_bits(), (middle[row] + k * range[row]).to_bits());
+            prop_assert_eq!(lower.to_bits(), (middle[row] - k * range[row]).to_bits());
+            prop_assert!(lower <= mid && mid <= upper);
         }
     }
 }

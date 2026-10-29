@@ -23,6 +23,11 @@ fn params(kind: IndicatorKind, period: usize) -> Params {
         IndicatorKind::Sma => Params::Sma { period },
         IndicatorKind::Bbands => Params::Bbands { period, k: 2.0 },
         IndicatorKind::Stddev => Params::Stddev { period, k: 1.0 },
+        IndicatorKind::Keltner => Params::Keltner {
+            period,
+            atr_period: period,
+            k: 2.0,
+        },
         IndicatorKind::Macd => panic!("MACD takes three periods"),
     }
 }

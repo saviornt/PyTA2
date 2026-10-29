@@ -150,4 +150,4 @@ The Rust kernel (`pyta-volatility`) uses the shared rolling-extreme kernels of `
 
 ## See also
 
-[BBANDS](bbands.md) · [ATR](atr.md) · [Keltner Channels](README.md) (planned) · [API reference](../../API.md) · [Multi-column indicators](../../API.md#10-multi-column-indicators) · [Batch API](../../API.md#9-batch-calculation)
+[BBANDS](bbands.md) · [ATR](atr.md) · [Keltner Channels](keltner.md) · [API reference](../../API.md) · [Multi-column indicators](../../API.md#10-multi-column-indicators) · [Batch API](../../API.md#9-batch-calculation)

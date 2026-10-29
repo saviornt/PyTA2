@@ -94,6 +94,7 @@ PyTA logs through Python's standard `logging` (Rust messages included) under the
 | Volatility | [Standard Deviation](docs/indicators/volatility/stddev.md) (`stddev`, population, times `k`) |
 | Volatility | [Bollinger Bands](docs/indicators/volatility/bbands.md) (`bbands`, SMA ± `k` population standard deviations; three outputs) |
 | Volatility | [Donchian Channels](docs/indicators/volatility/donchian.md) (`donchian`, high and low; highest high and lowest low, current row included; three outputs) |
+| Volatility | [Keltner Channels](docs/indicators/volatility/keltner.md) (`keltner`, high, low and close; EMA ± `k` Wilder ATRs; three outputs) |
 
 ### Planned
 
@@ -104,9 +105,6 @@ WMA, DEMA, TEMA, KAMA, ADX, Parabolic SAR, Ichimoku Cloud, Aroon
 
 **Momentum Indicators**
 Stochastic Oscillator, Williams %R, ROC, MFI, TRIX, Ultimate Oscillator
-
-**Volatility Indicators**
-Keltner Channels
 
 **Volume Indicators**
 OBV, VWAP, Accumulation/Distribution, Chaikin Money Flow, Volume Rate of Change

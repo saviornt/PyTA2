@@ -1,10 +1,12 @@
-//! ATR, STDDEV, BBANDS and Donchian Channels against TA-Lib's own output (generated fixtures, see their comments).
+//! ATR, STDDEV, BBANDS and Donchian Channels against TA-Lib's own output
+//! (generated fixtures, see their comments), and Keltner Channels against a
+//! hand calculation (TA-Lib has none).
 
 #[path = "../../../test-support/reference.rs"]
 mod reference;
 
 use pyta_core::Series;
-use pyta_volatility::{atr, bbands, donchian, stddev};
+use pyta_volatility::{atr, bbands, donchian, keltner, stddev};
 use reference::{assert_matches, assert_output_matches, load};
 
 fn check_atr(name: &str) {
@@ -129,4 +131,27 @@ fn donchian_20_matches_talib_on_spy() {
 #[test]
 fn donchian_20_matches_talib_on_the_edge_series() {
     check_donchian("donchian_20_edge_talib.csv");
+}
+
+#[test]
+fn keltner_matches_the_hand_calculation() {
+    // No reference library has Keltner Channels; the fixture is derived by
+    // hand with exact fractions (see its comments).
+    let reference = load("keltner_hand.csv");
+    let [high, low, close] = [0, 1, 2].map(|i| Series::new(reference.columns[i].clone()).unwrap());
+
+    let output = keltner(
+        &high,
+        &low,
+        &close,
+        reference.period(),
+        reference.parameter("atr_period"),
+        reference.float_parameter("k"),
+    )
+    .unwrap();
+
+    assert_eq!(output.output_count(), 3);
+    for (index, line) in output.outputs().iter().enumerate() {
+        assert_output_matches(line, &reference, index);
+    }
 }

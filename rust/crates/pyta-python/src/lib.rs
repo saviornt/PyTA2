@@ -12,6 +12,7 @@ mod cci;
 mod donchian;
 mod ema;
 mod error;
+mod keltner;
 mod log_bridge;
 mod macd;
 mod rsi;
@@ -43,5 +44,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(bbands::bbands_batch, m)?)?;
     m.add_function(wrap_pyfunction!(donchian::donchian, m)?)?;
     m.add_function(wrap_pyfunction!(donchian::donchian_batch, m)?)?;
+    m.add_function(wrap_pyfunction!(keltner::keltner, m)?)?;
+    m.add_function(wrap_pyfunction!(keltner::keltner_batch, m)?)?;
     Ok(())
 }

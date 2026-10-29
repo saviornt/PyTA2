@@ -30,13 +30,14 @@ INDICATORS = {
     "stddev": "volatility",
     "bbands": "volatility",
     "donchian": "volatility",
+    "keltner": "volatility",
 }
 
 # Every category subpackage, including those without indicators yet.
 CATEGORIES = {"momentum", "trend", "volatility", "volume"}
 
 # Multi-column indicators, which take full OHLCV data rather than one series.
-MULTI_COLUMN = {"atr", "cci", "donchian"}
+MULTI_COLUMN = {"atr", "cci", "donchian", "keltner"}
 
 # Documented function paths (README, docs/API.md, docs/indicators/). These must
 # keep resolving: never remove an entry, only add.
@@ -95,6 +96,12 @@ DOCUMENTED_PATHS = [
     "pyta.indicators.volatility.donchian",
     "pyta.batch.donchian",
     "pyta.batch.volatility.donchian",
+    "pyta.keltner",
+    "pyta.volatility.keltner",
+    "pyta.indicators.keltner",
+    "pyta.indicators.volatility.keltner",
+    "pyta.batch.keltner",
+    "pyta.batch.volatility.keltner",
 ]
 
 

@@ -39,6 +39,7 @@ INDICATORS: dict[str, tuple[dict[str, int | float], int]] = {
     "stddev": ({"period": 5, "k": 1.0}, 1),
     "bbands": ({"period": 20, "k": 2.0}, 1),
     "donchian": ({"period": 20}, 2),
+    "keltner": ({"period": 20, "atr_period": 10, "k": 2.0}, 3),
 }
 
 COUNTS = (10, 100, 1_000)

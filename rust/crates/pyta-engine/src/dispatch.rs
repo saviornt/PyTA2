@@ -1,12 +1,13 @@
 use pyta_common::{
     ATR_NS_PER_ELEMENT, BBANDS_NS_PER_ELEMENT, BBANDS_NS_PER_WINDOW_VALUE, CCI_NS_PER_ELEMENT,
-    CCI_NS_PER_WINDOW_VALUE, DONCHIAN_NS_PER_ELEMENT, EMA_NS_PER_ELEMENT, MACD_NS_PER_ELEMENT,
-    RSI_NS_PER_ELEMENT, SMA_NS_PER_ELEMENT, STDDEV_NS_PER_ELEMENT, STDDEV_NS_PER_WINDOW_VALUE,
+    CCI_NS_PER_WINDOW_VALUE, DONCHIAN_NS_PER_ELEMENT, EMA_NS_PER_ELEMENT, KELTNER_NS_PER_ELEMENT,
+    MACD_NS_PER_ELEMENT, RSI_NS_PER_ELEMENT, SMA_NS_PER_ELEMENT, STDDEV_NS_PER_ELEMENT,
+    STDDEV_NS_PER_WINDOW_VALUE,
 };
 use pyta_core::{IndicatorOutput, PytaResult};
 use pyta_momentum::{cci, rsi};
 use pyta_trend::{ema, macd, sma};
-use pyta_volatility::{atr, bbands, donchian, stddev};
+use pyta_volatility::{atr, bbands, donchian, keltner, stddev};
 
 use crate::requests::{IndicatorRequest, Params};
 
@@ -34,6 +35,14 @@ pub(crate) fn dispatch(request: &IndicatorRequest) -> PytaResult<IndicatorOutput
             donchian(high, low, period)
         }
         Params::Ema { period } => ema(input.series()?, period),
+        Params::Keltner {
+            period,
+            atr_period,
+            k,
+        } => {
+            let [high, low, close] = input.columns()?;
+            keltner(high, low, close, period, atr_period, k)
+        }
         Params::Macd { fast, slow, signal } => macd(input.series()?, fast, slow, signal),
         Params::Rsi { period } => rsi(input.series()?, period),
         Params::Sma { period } => sma(input.series()?, period),
@@ -63,6 +72,7 @@ pub(crate) fn estimated_cost_ns(request: &IndicatorRequest) -> f64 {
         Params::Cci { period } => CCI_NS_PER_ELEMENT + CCI_NS_PER_WINDOW_VALUE * period as f64,
         Params::Donchian { .. } => DONCHIAN_NS_PER_ELEMENT,
         Params::Ema { .. } => EMA_NS_PER_ELEMENT,
+        Params::Keltner { .. } => KELTNER_NS_PER_ELEMENT,
         Params::Macd { .. } => MACD_NS_PER_ELEMENT,
         Params::Rsi { .. } => RSI_NS_PER_ELEMENT,
         Params::Sma { .. } => SMA_NS_PER_ELEMENT,
@@ -143,6 +153,23 @@ mod tests {
         assert_eq!(
             cost(Params::Donchian { period: 5 }),
             cost(Params::Donchian { period: 200 })
+        );
+    }
+
+    #[test]
+    fn keltner_cost_does_not_depend_on_its_parameters() {
+        // One EMA pass and one ATR pass, O(n) whatever the periods.
+        assert_eq!(
+            cost(Params::Keltner {
+                period: 5,
+                atr_period: 5,
+                k: 1.0
+            }),
+            cost(Params::Keltner {
+                period: 200,
+                atr_period: 100,
+                k: 3.0
+            })
         );
     }
 }

@@ -82,6 +82,17 @@ def test_smoke() -> None:
     assert (lower[19:] <= middle[19:]).all()
     assert (middle[19:] <= upper[19:]).all()
 
+    keltner = pyta.keltner(data, period=20, atr_period=10, k=2.0)
+    assert list(keltner) == ["keltner_upper", "keltner_middle", "keltner_lower"]
+    upper, middle, lower = (np.array(keltner[name]) for name in keltner)
+    assert middle.dtype == np.float64
+    assert upper.shape == middle.shape == lower.shape == (length,), "Keltner output length mismatch"
+    assert np.isnan(middle[:19]).all(), "Keltner warm-up alignment is incorrect"
+    assert np.isnan(upper[:19]).all(), "Keltner warm-up alignment is incorrect"
+    assert np.array_equal(middle, np.array(pyta.ema(data["close"], period=20)), equal_nan=True)
+    assert (lower[19:] < middle[19:]).all()
+    assert (middle[19:] < upper[19:]).all()
+
     stddev_values = np.array(pyta.stddev(data, period=20, k=2.0)["stddev"])
     assert stddev_values.dtype == np.float64
     assert stddev_values.shape == (length,), "STDDEV output length mismatch"
