@@ -5,6 +5,8 @@ members = [
     "rust/crates/pyta-core",
     "rust/crates/pyta-momentum",
     "rust/crates/pyta-trend",
+    "rust/crates/pyta-volatility",
+    "rust/crates/pyta-volume",
     "rust/crates/pyta-engine",
     "rust/crates/pyta-python",
 ]

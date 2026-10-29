@@ -45,25 +45,33 @@ PyTA/
 │       ├── py.typed
 │       ├── trend.py                # pyta.trend namespace; re-exports only
 │       ├── momentum.py             # pyta.momentum namespace; re-exports only
+│       ├── volatility.py           # pyta.volatility namespace (empty until its first indicator)
+│       ├── volume.py               # pyta.volume namespace (empty until its first indicator)
 │       ├── batch/                  # pyta.batch namespaces; re-exports only
 │       │   ├── __init__.py         # pyta.batch.<name>
 │       │   ├── trend.py            # pyta.batch.trend.<name>
-│       │   └── momentum.py         # pyta.batch.momentum.<name>
+│       │   ├── momentum.py         # pyta.batch.momentum.<name>
+│       │   ├── volatility.py       # pyta.batch.volatility.<name>
+│       │   └── volume.py           # pyta.batch.volume.<name>
 │       └── indicators/
 │           ├── __init__.py         # pyta.indicators.<name>
 │           ├── trend/
 │           │   ├── __init__.py
 │           │   └── sma.py          # sma() and sma_batch()
-│           └── momentum/
-│               ├── __init__.py
-│               ├── cci.py          # cci() and cci_batch() (high, low, close)
-│               └── rsi.py          # rsi() and rsi_batch()
+│           ├── momentum/
+│           │   ├── __init__.py
+│           │   ├── cci.py          # cci() and cci_batch() (high, low, close)
+│           │   └── rsi.py          # rsi() and rsi_batch()
+│           ├── volatility/         # __init__.py only, until Sprint 11.5's first indicator
+│           └── volume/             # __init__.py only, until Sprint 11.5's first indicator
 ├── rust/crates/
 │   ├── pyta-common/                # Tunable constants (no logic, no dependencies)
 │   ├── pyta-core/                  # Shared types, validation, errors
 │   ├── pyta-engine/                # Requests, dispatch, planning, execution
 │   ├── pyta-trend/                 # Trend indicators
 │   ├── pyta-momentum/              # Momentum indicators
+│   ├── pyta-volatility/            # Volatility indicators (empty until Sprint 11.5's first)
+│   ├── pyta-volume/                # Volume indicators (empty until Sprint 11.5's first)
 │   └── pyta-python/                # PyO3 bridge (pyta._native)
 ├── rust/test-support/reference.rs  # Reads tests/fixtures/ for the Rust reference tests
 ├── scripts/                        # test-suite.sh, benchmark.sh, benchmark_summary.py, README.md
@@ -169,7 +177,10 @@ Each crate owns the formulas for one technical-analysis category. One indicator 
 | `pyta-trend` | SMA; EMA (TA-Lib `TA_EMA`: seeded with the SMA of the first `period` values, `k = 2 / (period + 1)`); MACD (TA-Lib `TA_MACD`: three outputs, both EMAs start at `slow - 1`, `slow < fast` swapped; one fused pass after the seeds, bit-identical to separate EMA passes) |
 | `pyta-momentum` | RSI (Wilder's smoothing), CCI (high, low, close; compensated running mean, O(rows × period) for the mean deviation) |
 
-New categories (volatility, volume, valuation) are added as new `pyta-<category>` crates when there is a concrete indicator to implement.
+| `pyta-volatility` | None yet; scaffolded for Sprint 11.5 (ATR, STDDEV, Bollinger Bands, Donchian, Keltner) |
+| `pyta-volume` | None yet; scaffolded for Sprint 11.5 (OBV, A/D, CMF, VWAP, Volume ROC) |
+
+`pyta-engine` depends on every category crate. Valuation gets its `pyta-valuation` crate when there is a concrete indicator to implement.
 
 ### `pyta-engine`: requests, dispatch, execution
 
@@ -181,7 +192,7 @@ New categories (volatility, volume, valuation) are added as new `pyta-<category>
 | `batch.rs` | `execute_sequential`, `execute_parallel` (Rayon), and `execute_batch` (async front door) |
 | `planner.rs` | `should_parallelize`: predicts whether parallel execution beats sequential execution |
 
-**Parameters.** `IndicatorRequest { input, params }`. `Params` has one variant per indicator, carrying that indicator's own parameters: `Cci { period }`, `Ema { period }`, `Macd { fast, slow, signal }`, `Rsi { period }`, `Sma { period }`. The indicator is the variant, so it cannot disagree with its parameters; `params.kind()` (or `request.kind()`) gives the fieldless `IndicatorKind`, used for logging and benchmark labels. Each `dispatch` arm destructures its own variant, and `estimated_cost_ns` reads the parameters it depends on (CCI's `period`; EMA's and MACD's cost per row does not depend on theirs).
+**Parameters.** `IndicatorRequest { input, params }`. `Params` has one variant per indicator, carrying that indicator's own parameters: `Cci { period }`, `Ema { period }`, `Macd { fast, slow, signal }`, `Rsi { period }`, `Sma { period }`. The indicator is the variant, so it cannot disagree with its parameters; `params.kind()` (or `request.kind()`) gives the fieldless `IndicatorKind`, used for logging and benchmark labels. Each `dispatch` arm destructures its own variant, and `estimated_cost_ns` reads the parameters it depends on (CCI's `period`; EMA's and MACD's cost per row does not depend on theirs). A field may be `f64` (a band multiplier), so `Params` derives `PartialEq` but not `Eq` or `Hash`, and nothing may rely on either; a parameterless indicator is a unit variant (`Params::Obv`).
 
 **Input.** `IndicatorRequest.input` is an `IndicatorInput`: `Series` for a single-column indicator (`IndicatorRequest::new(series, Params::Rsi { period: 14 })`) or `Columns` for a multi-column one (`IndicatorRequest::with_columns(columns, Params::Cci { period: 20 })`). Each `dispatch` arm takes what its kernel needs, `input.series()` or `input.columns::<N>()` (the slots in order), so a kernel receives only `&Series` values; input with the wrong number of columns is a `ColumnCount` error, never a panic. A cost is per row, not per row and column or per output; a multi-column or multi-output constant is measured per row.
 
@@ -226,21 +237,22 @@ The Python layer is responsible for everything about the user's data. Rust only 
 
 ### Public surface
 
-- `pyta/__init__.py` exports the public API (`sma`, `rsi`, `cci`, `batch`, `indicators`, and the category namespaces `trend`, `momentum`).
+- `pyta/__init__.py` exports the public API (`sma`, `rsi`, `cci`, `batch`, `indicators`, and the category namespaces `trend`, `momentum`, `volatility`, `volume`).
 - `pyta/indicators/<category>/` holds one module per indicator (`trend/sma.py`, `momentum/rsi.py`, `momentum/cci.py`). Each module contains that indicator's single-call function and its batch function, with full docstrings, delegating to `_api.run` and `_api.run_batch` (single-column) or `_api.run_columns` and `_api.run_columns_batch` (multi-column, with the indicator's `SLOTS`).
 - Everything else only re-exports, so every import style reaches the same function object (`pyta.trend.sma is pyta.indicators.sma is pyta.sma`): the category `__init__.py`, `pyta/indicators/__init__.py`, the thin top-level `pyta/<category>.py` (a real module, because `import pyta.trend` cannot import an attribute), and the `pyta/batch/` package (`pyta.batch.<name>` and `pyta.batch.<category>.<name>`, both the indicator's `<name>_batch`). None holds logic.
 - Function names shadow their module names (`pyta.indicators.trend.sma` is the function), so code that needs the module imports from it: `from pyta.indicators.trend.sma import sma_batch`.
 
 ### Adding a category
 
-A category has one name used everywhere: the Rust crate `pyta-<category>`, the Python subpackage `pyta/indicators/<category>/`, and the user docs `docs/indicators/<category>/`. Add a category with its first indicator, never empty:
+A category has one name used everywhere: the Rust crate `pyta-<category>`, the Python subpackage `pyta/indicators/<category>/`, and the user docs `docs/indicators/<category>/`. Add a category with its first indicator, or as empty scaffolding when a sprint plans several indicators for it (Sprint 11.5 scaffolded `volatility` and `volume` this way: a crate with only a crate doc, a subpackage, namespaces and batch module with an empty `__all__: list[str] = []`, and a docs folder with a `README.md` listing the planned indicators):
 
 1. `pyta/indicators/<category>/__init__.py`: docstring naming the category and its planned members; re-exports each indicator's single-call function; sorted `__all__`. One module per indicator beside it.
 2. `pyta/indicators/__init__.py`: import the subpackage and its functions; add the category and the names to the sorted `__all__`.
 3. `pyta/<category>.py`: re-exports from `pyta.indicators.<category>`; sorted `__all__`.
 4. `pyta/batch/<category>.py`: `from pyta.indicators.<category>.<name> import <name>_batch as <name>`; sorted `__all__`. `pyta/batch/__init__.py` imports the category and its names and lists them in `__all__`.
 5. `pyta/__init__.py`: import the category module and add it to `__all__`.
-6. `tests/python/test_namespaces.py`: add each indicator to `INDICATORS` and its documented paths to `DOCUMENTED_PATHS`. Its convention test checks the steps above for every subpackage it finds.
+6. `tests/python/test_namespaces.py`: add the category to `CATEGORIES`, each indicator to `INDICATORS` and its documented paths to `DOCUMENTED_PATHS`. Its convention test checks the steps above for every subpackage it finds.
+7. Rust: the `pyta-<category>` crate (copy `pyta-momentum/Cargo.toml`: workspace fields, `pyta-core` and `pyta-common` only), listed in the root `Cargo.toml` members and in `pyta-engine/Cargo.toml`; and `docs/indicators/<category>/`.
 
 Adding a category or an indicator only adds names; no existing import path changes.
 
@@ -248,8 +260,8 @@ Adding a category or an indicator only adds names; no existing import path chang
 
 | File | Responsibility |
 |---|---|
-| `_api.py` | `run()` / `run_batch()`: normalize data, call native with the indicator's validated parameters, restore the container with every output named; also skip and re-pad a leading `NaN` run (for each output). `run_columns()` / `run_columns_batch()`: the same for multi-column indicators, plus the row-order check (`ORDERED_ROLES`) and column-named value errors |
-| `_validation.py` | Parameter validators (`validate_period`, `validate_fast`, `validate_slow`, `validate_signal`) and `normalize` for every supported container; single-column selection; the role registry (`register_role`, `role_of`) and `Slot` |
+| `_api.py` | `run()` / `run_batch()`: normalize data, call native with the indicator's validated parameters, restore the container with every output named; also skip and re-pad a leading `NaN` run (for each output). `run_columns()` / `run_columns_batch()`: the same for multi-column indicators, plus the row checks (`ORDERED_ROLES`, `NONNEGATIVE_ROLES`) and column-named value errors |
+| `_validation.py` | Parameter validators (`validate_period`, `validate_fast`, `validate_slow`, `validate_signal`; for any other parameter `validate_int(name, value, minimum)`, `validate_positive_float(name, value, maximum=None)` and `validate_ascending(*named, strict)` for parameters that must be in order) and `normalize` for every supported container; single-column selection; the role registry (`register_role`, `role_of`) and `Slot` |
 | `_columns.py` | `normalize_columns`: every named container matched to an indicator's slots by role (or by `columns=`), unnamed ones in slot order |
 | `_export.py` | The shared export layer for `output=`: `exporter(output)` checks the name (`TARGETS`, the `Output` literal type) and returns the function that turns (names, results, index) into that target's fixed shape; it reuses `_validation`'s restores, JSON helpers and CSV writer (`csv_fields`, `csv_quote`, `csv_text`) |
 | `_outputs.py` | `OutputNames` (an indicator's output names in lower, upper and title case) and the casing rule that picks one from the input's column names |
@@ -278,7 +290,7 @@ Every supported container is reduced to one 1-D, C-contiguous `float64` array, w
 
 **Output conversion (`output=`).** Every indicator function and batch function takes `output: Output | None = None` (keyword-only) and passes it straight to its `_api` runner; no indicator has conversion code of its own. Each runner calls `_export.exporter(output)` first, when `output` is not None, so an unknown name (`ValueError`) or `"pandas"` without pandas (`ModuleNotFoundError`; pandas is imported with `importlib` only then) raises before any data is read. After the native call, the runner either restores the input's container (`Prepared.restore`, the default path, unchanged) or calls the export function with the cased output names, the re-padded results and `Prepared.index`. The index is set by the pandas normalizers (Series, DataFrame, a dict's Series column, a list of Series) and is None for every other container. Each target has one fixed shape: unnamed targets (`list`, `tuple`, `numpy`) reuse the default restores and drop the index; `pandas`, `dict`, `json`/`json_bytes` and `csv`/`csv_bytes` carry it first (a MultiIndex as one field per level), with dates as ISO 8601 strings in JSON and CSV. In a batch, a conversion error (an index JSON cannot hold) is that dataset's exception in place. `Prepared` and `PreparedColumns` are plain (not frozen) slotted dataclasses, since a frozen one costs ~80 ns per field per call; adding the index field to frozen ones measured +0.25 µs on a 100-row dict call.
 
-**Parameters.** Each indicator module validates its own parameters with the shared validators in `_validation.py` and passes them, in its native function's order, to the runners (`run(native, OUTPUTS, data, params, ...)`), which call `native(values, *params)`. A batch shares them across datasets, so an invalid one raises for the whole call.
+**Parameters.** Each indicator module validates its own parameters with the shared validators in `_validation.py` and passes them, in its native function's order, to the runners (`run(native, OUTPUTS, data, params, ...)`), which call `native(values, *params)`; `params` holds ints and floats, and is `()` for a parameterless indicator. Python rejects parameters out of their required order rather than reordering or clamping them as TA-Lib does. A batch shares them across datasets, so an invalid one raises for the whole call.
 
 Column selection (for DataFrame, dict, JSON objects and records, and CSV) uses an explicit `column=`, else the only column, else the indicator's own default column role. Each indicator function passes its default (`default_column=CLOSE` for `sma` and `rsi`) to `_api.run` / `_api.run_batch`; `_validation.py` holds no default of its own. Names ignore case, whitespace, `. _ -` and a leading number and dot before a letter (`1. open`, AlphaVantage's style; `_validation.squash`, cached), match the aliases of their role (`OPEN`, `HIGH`, `LOW`, `CLOSE`, `ADJ_CLOSE`, `VOLUME`; a role never matches another role's aliases), and are rejected when two collide after normalization.
 
@@ -304,7 +316,7 @@ Multi-column indicators follow the same rule as single-column ones: the user pas
 - **Matching.** With no `columns=`, each slot takes the first role it accepts that the input has, under any alias; unneeded columns are ignored, whatever they hold. `columns=[...]`, in any order, assigns each name to the slot for its role; an unrecognized name, a role no slot takes, two names for one slot, an empty slot or a name not in the input raise `ValueError` naming the indicator's slots. A missing role raises `ValueError` naming the required and the available columns. The match is cached per set of column names.
 - **Named input** is a DataFrame, dict, JSON records or object, or CSV (`_columns._from_csv`, sharing `read_csv` and the number parser).
 - **Unnamed input.** A 2-D table (NumPy array, list of rows or of column lists, JSON array of arrays) or a tuple of arrays is taken in slot order. For a table, the axis whose length equals the slot count holds the columns, `(rows, columns)` when both do (`_columns._split`, an O(1) shape check); a tuple's count must match. A list or tuple of pandas Series sharing one index is matched by name like a dict when every Series is named by a role, else taken in slot order. A single series raises `TypeError`.
-- **Rows.** The longest leading-`NaN` run across the slots is skipped (and re-padded), so chained outputs stay aligned. `ORDERED_ROLES` (in `_columns.py`) lists role pairs that must hold on every row, today `(high, low)`; a violation raises `ValueError` naming both columns and the row.
+- **Rows.** The longest leading-`NaN` run across the slots is skipped (and re-padded), so chained outputs stay aligned. `ORDERED_ROLES` (in `_columns.py`) lists role pairs that must hold on every row, today `(high, low)`; a violation raises `ValueError` naming both columns and the row. `NONNEGATIVE_ROLES` lists roles that must not be negative on any row, today `volume` (zero is valid); a violation raises `ValueError` naming the column and the row. Both checks run eagerly in `_api._trim_columns`, since Rust accepts any finite value, and cost an indicator without those roles only a membership test.
 
 ---
 
@@ -382,6 +394,7 @@ Every step runs even if one fails, and the report is written to `tests/results/t
 | Supported input containers or column rules | `python/pyta/_validation.py` (single-column), `python/pyta/_columns.py` (multi-column) |
 | A column role (for example a fundamental such as `eps`) | `register_role` in `python/pyta/_validation.py` |
 | A rule between columns on every row (high not below low) | `ORDERED_ROLES` in `python/pyta/_columns.py` |
+| A role that must not be negative on any row (volume) | `NONNEGATIVE_ROLES` in `python/pyta/_columns.py` |
 | An indicator's input columns | `SLOTS` in its `python/pyta/indicators/<category>/<name>.py` |
 | Result container restoration | `python/pyta/_validation.py` (`Prepared`), `python/pyta/_columns.py` (`PreparedColumns`) |
 | The shared call path for indicators | `python/pyta/_api.py` |

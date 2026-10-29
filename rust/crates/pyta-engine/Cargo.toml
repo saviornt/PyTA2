@@ -16,6 +16,8 @@ pyta-common = { path = "../pyta-common" }
 pyta-core = { path = "../pyta-core" }
 pyta-momentum = { path = "../pyta-momentum" }
 pyta-trend = { path = "../pyta-trend" }
+pyta-volatility = { path = "../pyta-volatility" }
+pyta-volume = { path = "../pyta-volume" }
 log = { workspace = true }
 tokio = { workspace = true }
 rayon = { workspace = true }

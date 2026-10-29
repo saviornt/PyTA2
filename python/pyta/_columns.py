@@ -52,6 +52,30 @@ _log = logging.getLogger("pyta.validation")
 #: uses both: a high below its low is a data error, not a market move.
 ORDERED_ROLES: tuple[tuple[str, str], ...] = (("high", "low"),)
 
+#: Roles that must not be negative on any row when an indicator uses them:
+#: a negative volume is a data error. Zero is valid. Rust accepts any finite
+#: value, so this cannot wait for a native error like the finiteness check;
+#: an indicator without these roles pays only the membership test.
+NONNEGATIVE_ROLES: tuple[str, ...] = ("volume",)
+
+
+def reject_negative(role: str, label: str, values: Float64Array, first: int) -> None:
+    """Rejects a negative value in the trimmed column `values` of a `NONNEGATIVE_ROLES` role.
+
+    The error names `label` and the row in the caller's numbering (`first`
+    leading rows were trimmed). NaN compares false, so it is left for the
+    value check.
+
+    Raises:
+        ValueError: on the first negative value.
+    """
+    if (values < 0.0).any():
+        row = int(np.flatnonzero(values < 0.0)[0])
+        raise ValueError(
+            f"column {label!r} ({role}) is negative at index {first + row} "
+            f"({float(values[row])}); {role} must be zero or more on every row"
+        )
+
 
 def validate_columns(columns: object) -> list[str] | None:
     """Returns `columns` as a list of names, or None.

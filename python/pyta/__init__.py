@@ -6,7 +6,7 @@ both are the same function. `pyta.batch` mirrors both styles.
 
 import logging
 
-from . import batch, indicators, momentum, trend
+from . import batch, indicators, momentum, trend, volatility, volume
 from ._export import Output
 from .indicators import cci, ema, macd, rsi, sma
 
@@ -25,4 +25,6 @@ __all__ = [
     "rsi",
     "sma",
     "trend",
+    "volatility",
+    "volume",
 ]

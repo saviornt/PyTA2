@@ -41,6 +41,8 @@ def test_top_level_exports() -> None:
         "rsi",
         "sma",
         "trend",
+        "volatility",
+        "volume",
     ]
 
 
@@ -54,6 +56,10 @@ def test_top_level_exports() -> None:
         pyta.momentum,
         pyta.batch.trend,
         pyta.batch.momentum,
+        pyta.volatility,
+        pyta.volume,
+        pyta.batch.volatility,
+        pyta.batch.volume,
     ],
 )
 def test_every_exported_name_exists(module: object) -> None:
@@ -62,7 +68,7 @@ def test_every_exported_name_exists(module: object) -> None:
 
 
 def test_indicator_and_batch_namespaces_list_the_same_indicators() -> None:
-    expected = ["cci", "ema", "macd", "momentum", "rsi", "sma", "trend"]
+    expected = ["cci", "ema", "macd", "momentum", "rsi", "sma", "trend", "volatility", "volume"]
 
     assert sorted(pyta.indicators.__all__) == sorted(pyta.batch.__all__) == expected
 

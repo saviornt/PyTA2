@@ -846,6 +846,8 @@ dependencies = [
  "pyta-core",
  "pyta-momentum",
  "pyta-trend",
+ "pyta-volatility",
+ "pyta-volume",
  "rayon",
  "tokio",
 ]
@@ -874,6 +876,24 @@ dependencies = [
 
 [[package]]
 name = "pyta-trend"
+version = "0.2.0"
+dependencies = [
+ "proptest",
+ "pyta-common",
+ "pyta-core",
+]
+
+[[package]]
+name = "pyta-volatility"
+version = "0.2.0"
+dependencies = [
+ "proptest",
+ "pyta-common",
+ "pyta-core",
+]
+
+[[package]]
+name = "pyta-volume"
 version = "0.2.0"
 dependencies = [
  "proptest",

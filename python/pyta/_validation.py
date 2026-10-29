@@ -11,6 +11,7 @@ CSV with a header row. Numbers written as strings are read by one parser
 import csv
 import functools
 import io
+import itertools
 import json
 import logging
 import math
@@ -191,6 +192,75 @@ def validate_slow(slow: object) -> int:
 def validate_signal(signal: object) -> int:
     """Returns MACD's `signal` period as an int in [1, 2**31 - 1]."""
     return _validate_int("signal", signal, 1, _AT_LEAST_1)
+
+
+@functools.cache
+def _at_least(minimum: int) -> TypeAdapter[int]:
+    """The Pydantic adapter for ints in [minimum, 2**31 - 1], built once per minimum."""
+    return TypeAdapter(Annotated[int, Field(ge=minimum, le=_MAX_PERIOD)])
+
+
+def validate_int(name: str, value: object, minimum: int = 1) -> int:
+    """Returns the integer parameter `name` as an int in [minimum, 2**31 - 1].
+
+    For integer parameters other than `period` (ULTOSC's `short`, `medium`,
+    `long`). Wrong types (including bool) raise `TypeError`; out-of-range
+    values raise `ValueError`.
+    """
+    if type(value) is int and minimum <= value <= _MAX_PERIOD:
+        return value
+
+    return _validate_int(name, value, minimum, _at_least(minimum))
+
+
+def validate_positive_float(name: str, value: object, maximum: float | None = None) -> float:
+    """Returns the parameter `name` as a finite float above 0 (and at most `maximum`).
+
+    An int (or NumPy integer) is accepted and converted; a NumPy float is a
+    float. Wrong types, including bool, raise `TypeError`; zero, negative,
+    non-finite or too-large values raise `ValueError`.
+    """
+    # Fast path: a plain float in range, as most calls pass (false for NaN).
+    if type(value) is float and 0.0 < value < math.inf and (maximum is None or value <= maximum):
+        return value
+
+    if isinstance(value, bool):
+        raise TypeError(f"{name} must be a number, not bool")
+
+    if isinstance(value, float):  # also float subclasses, such as numpy.float64
+        number = float(value)
+    else:
+        try:
+            number = float(operator.index(value))  # type: ignore[arg-type]
+        except TypeError:
+            raise TypeError(f"{name} must be a number, got {type(value).__name__}") from None
+        except OverflowError:  # an int beyond the float range
+            number = math.inf
+
+    if not 0.0 < number < math.inf:
+        raise ValueError(f"{name} must be a finite number greater than 0, got {value!r}")
+    if maximum is not None and number > maximum:
+        raise ValueError(f"{name} must be at most {maximum}, got {value!r}")
+
+    return number
+
+
+def validate_ascending(*named: tuple[str, float], strict: bool) -> None:
+    """Checks that already validated parameters are in ascending order, as given.
+
+    `strict` requires each value to be less than the next (ULTOSC's
+    `short < medium < long`); otherwise equal neighbours are allowed (SAR's
+    `acceleration <= maximum`). Out-of-order values raise `ValueError` naming
+    both parameters; PyTA never reorders or clamps them.
+    """
+    for (lower, low), (upper, high) in itertools.pairwise(named):
+        if low < high or (low == high and not strict):
+            continue
+
+        relation = "less than" if strict else "at most"
+        raise ValueError(
+            f"{lower} must be {relation} {upper}, got {lower}={low} and {upper}={high}"
+        )
 
 
 def normalize(data: object, column: str | None, default_column: str) -> Prepared:

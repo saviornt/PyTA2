@@ -28,6 +28,9 @@ INDICATORS = {
     "cci": "momentum",
 }
 
+# Every category subpackage, including those without indicators yet.
+CATEGORIES = {"momentum", "trend", "volatility", "volume"}
+
 # Multi-column indicators, which take full OHLCV data rather than one series.
 MULTI_COLUMN = {"cci"}
 
@@ -130,7 +133,9 @@ def test_known_indicators_match_the_package() -> None:
     names = set(pyta.indicators.__all__) - set(_categories())
 
     assert names == set(INDICATORS)
-    assert set(INDICATORS.values()) == set(_categories())
+    # A category may be scaffolded before its first indicator (Sprint 11.5).
+    assert set(INDICATORS.values()) <= set(_categories())
+    assert set(_categories()) == CATEGORIES
 
 
 @pytest.mark.parametrize("category", _categories())
@@ -146,7 +151,8 @@ def test_category_follows_the_convention(category: str) -> None:
     # The category is listed by every parent namespace.
     for parent in (pyta, pyta.indicators, pyta.batch):
         assert category in parent.__all__
-    # Each indicator has its user doc, and lives in no other category.
+    # The category has its docs folder; each indicator its user doc, in no other category.
+    assert (DOCS / category).is_dir(), category
     for name in modules:
         assert (DOCS / category / f"{name}.md").is_file(), f"{category}/{name}.md"
         assert INDICATORS[name] == category
@@ -175,8 +181,11 @@ def test_category_imports_work_in_a_fresh_interpreter(code: str, expected: str) 
     assert _run(code) == expected
 
 
-def test_category_import_does_not_load_pandas() -> None:
-    assert _run("import sys, pyta.trend; print('pandas' in sys.modules)") == "False"
+@pytest.mark.parametrize("category", sorted(CATEGORIES))
+def test_category_import_does_not_load_pandas(category: str) -> None:
+    code = f"import sys, pyta.{category}, pyta.batch.{category}; print('pandas' in sys.modules)"
+
+    assert _run(code) == "False"
 
 
 @pytest.mark.parametrize("path", DOCUMENTED_PATHS)

@@ -1,7 +1,8 @@
 """Shared execution boundary between the public API and the native module.
 
 Every runner takes the indicator's `OutputNames` and its validated parameters,
-which are passed to the native function positionally after the input. A native
+which are passed to the native function positionally after the input (ints or
+floats; an empty tuple for a parameterless indicator such as OBV). A native
 function returns one float64 array for a single-output indicator, or a list of
 arrays in documented output order for a multi-output one; each output is
 re-padded for a skipped leading NaN run and named in the input's casing.
@@ -17,7 +18,13 @@ from typing import Any, cast
 
 import numpy as np
 
-from ._columns import ORDERED_ROLES, normalize_columns, validate_columns
+from ._columns import (
+    NONNEGATIVE_ROLES,
+    ORDERED_ROLES,
+    normalize_columns,
+    reject_negative,
+    validate_columns,
+)
 from ._export import Export, exporter
 from ._native import MAX_ABS_INPUT
 from ._outputs import OutputNames
@@ -25,6 +32,10 @@ from ._types import Float64Array, Prepared, PreparedColumns
 from ._validation import Slot, normalize
 
 _log = logging.getLogger("pyta.api")
+
+#: An indicator's validated parameters in its native function's order; `()`
+#: for a parameterless indicator (OBV), whose native function takes only the input.
+type Params = tuple[int | float, ...]
 
 #: One float64 array, or one per output in documented order.
 type NativeResult = Float64Array | Sequence[Float64Array]
@@ -43,7 +54,7 @@ def run(
     native: NativeIndicator,
     outputs: OutputNames,
     data: object,
-    params: tuple[int, ...],
+    params: Params,
     column: object,
     default_column: str,
     columns: object = None,
@@ -148,7 +159,7 @@ def run_batch(
     native: NativeBatchIndicator,
     outputs: OutputNames,
     datasets: object,
-    params: tuple[int, ...],
+    params: Params,
     column: object,
     default_column: str,
     columns: object = None,
@@ -265,7 +276,7 @@ def run_columns(
     native: NativeColumnsIndicator,
     outputs: OutputNames,
     data: object,
-    params: tuple[int, ...],
+    params: Params,
     columns: object,
     slots: Sequence[Slot],
     column: object = None,
@@ -304,7 +315,7 @@ def run_columns_batch(
     native: NativeColumnsBatchIndicator,
     outputs: OutputNames,
     datasets: object,
-    params: tuple[int, ...],
+    params: Params,
     columns: object,
     slots: Sequence[Slot],
     column: object = None,
@@ -363,9 +374,10 @@ def _trim_columns(prepared: PreparedColumns) -> tuple[int, list[Float64Array]]:
 
     Every column is cut at the same row, so chained outputs (each with its own
     warm-up) stay aligned. Rows are then checked against `ORDERED_ROLES` (high
-    not below low), naming the columns and the row in the caller's data. Values
-    themselves are left to Rust, which rejects any non-finite or too-large one;
-    `_value_error` then explains that error by column.
+    not below low) and `NONNEGATIVE_ROLES` (volume not negative), naming the
+    column and the row in the caller's data. Values themselves are left to Rust,
+    which rejects any non-finite or too-large one; `_value_error` then explains
+    that error by column.
     """
     first = max(_leading_nan_count(values) for values in prepared.values)
     rows = prepared.values[0].shape[0]
@@ -375,20 +387,30 @@ def _trim_columns(prepared: PreparedColumns) -> tuple[int, list[Float64Array]]:
 
     valid = [values[first:] for values in prepared.values] if first else list(prepared.values)
 
+    roles = prepared.roles
+
     for upper, lower in ORDERED_ROLES:
-        if upper in prepared.roles and lower in prepared.roles:
-            high = valid[prepared.roles.index(upper)]
-            low = valid[prepared.roles.index(lower)]
+        if upper in roles and lower in roles:
+            high = valid[roles.index(upper)]
+            low = valid[roles.index(lower)]
 
             # NaN compares false, so it is left for the value check.
             if (high < low).any():
                 row = int(np.flatnonzero(high < low)[0])
                 raise ValueError(
-                    f"column {prepared.labels[prepared.roles.index(upper)]!r} ({upper}) is below "
-                    f"column {prepared.labels[prepared.roles.index(lower)]!r} ({lower}) at index "
+                    f"column {prepared.labels[roles.index(upper)]!r} ({upper}) is below "
+                    f"column {prepared.labels[roles.index(lower)]!r} ({lower}) at index "
                     f"{first + row} ({float(high[row])} < {float(low[row])}); "
                     f"{upper} must be at least {lower} on every row"
                 )
+
+    # Inline rather than one shared call: an indicator without a volume slot
+    # pays only this membership test (a shared check function measured ~0.2 us more on
+    # a 100-row CCI call).
+    for role in NONNEGATIVE_ROLES:
+        if role in roles:
+            position = roles.index(role)
+            reject_negative(role, prepared.labels[position], valid[position], first)
 
     return first, valid
 

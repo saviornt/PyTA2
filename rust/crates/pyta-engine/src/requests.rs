@@ -25,7 +25,11 @@ pub enum IndicatorKind {
 /// receive another's parameters. Adding a variant fails to compile until it
 /// has a kind, a dispatch arm and a cost estimate. Python validates the
 /// ranges first; the kernels still reject impossible values.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+///
+/// Fields may be `f64` (a multiplier such as Bollinger's `k`), so `Params` is
+/// `PartialEq` but not `Eq` or `Hash`; a parameterless indicator is a unit
+/// variant (`Obv`).
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Params {
     /// Commodity Channel Index.
     Cci {
