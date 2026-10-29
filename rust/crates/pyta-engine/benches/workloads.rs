@@ -83,6 +83,7 @@ const WORKLOADS: &[Workload] = &[
 fn params(kind: IndicatorKind) -> Params {
     match kind {
         IndicatorKind::Atr => Params::Atr { period: 14 },
+        IndicatorKind::Bbands => Params::Bbands { period: 20, k: 2.0 },
         IndicatorKind::Cci => Params::Cci { period: 14 },
         IndicatorKind::Ema => Params::Ema { period: 20 },
         IndicatorKind::Macd => Params::Macd {
@@ -110,7 +111,8 @@ fn request(kind: IndicatorKind, close: Series) -> IndicatorRequest {
                 .expect("columns have equal lengths");
             IndicatorRequest::with_columns(columns, params(kind))
         }
-        IndicatorKind::Ema
+        IndicatorKind::Bbands
+        | IndicatorKind::Ema
         | IndicatorKind::Macd
         | IndicatorKind::Rsi
         | IndicatorKind::Sma
@@ -258,6 +260,7 @@ fn many_datasets(c: &mut Criterion) {
         (IndicatorKind::Macd, "macd"),
         (IndicatorKind::Atr, "atr"),
         (IndicatorKind::Stddev, "stddev"),
+        (IndicatorKind::Bbands, "bbands"),
     ] {
         for count in MANY_DATASET_COUNTS {
             let mut group = c.benchmark_group(format!("many_{label}_x{count}"));

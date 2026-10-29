@@ -8,6 +8,8 @@ use pyta_core::{Columns, IndicatorOutput, PytaError, PytaResult, Series};
 pub enum IndicatorKind {
     /// Average True Range (`pyta-volatility`; high, low, close).
     Atr,
+    /// Bollinger Bands (`pyta-volatility`; three outputs).
+    Bbands,
     /// Commodity Channel Index (`pyta-momentum`; high, low, close).
     Cci,
     /// Exponential Moving Average (`pyta-trend`).
@@ -39,6 +41,14 @@ pub enum Params {
     Atr {
         /// True ranges in the first average; Wilder's smoothing period.
         period: usize,
+    },
+    /// Bollinger Bands: an SMA with bands `k` population standard deviations
+    /// above and below it.
+    Bbands {
+        /// Rows in each window, at least 2.
+        period: usize,
+        /// Width of each band in standard deviations, finite and above 0.
+        k: f64,
     },
     /// Commodity Channel Index.
     Cci {
@@ -83,6 +93,7 @@ impl Params {
     pub fn kind(&self) -> IndicatorKind {
         match self {
             Self::Atr { .. } => IndicatorKind::Atr,
+            Self::Bbands { .. } => IndicatorKind::Bbands,
             Self::Cci { .. } => IndicatorKind::Cci,
             Self::Ema { .. } => IndicatorKind::Ema,
             Self::Macd { .. } => IndicatorKind::Macd,

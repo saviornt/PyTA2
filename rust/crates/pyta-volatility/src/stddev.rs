@@ -1,5 +1,7 @@
-use pyta_core::kernels::{is_zero_scaled, rolling_mean_std};
+use pyta_core::kernels::rolling_mean_std;
 use pyta_core::{IndicatorOutput, PytaError, PytaResult, Series};
+
+use crate::deviation::scaled_deviation;
 
 /// The smallest `period` STDDEV accepts (TA-Lib's lower bound): a window of
 /// one value has no spread.
@@ -21,7 +23,8 @@ const MIN_PERIOD: usize = 2;
 /// Edge cases:
 /// - A flat window gives exactly 0, as TA-Lib's does: a deviation within
 ///   `ZERO_TOLERANCE` (1e-14) of the window's mean is the kernel's rounding
-///   (`pyta_core::kernels::is_zero_scaled`), not spread.
+///   (`pyta_core::kernels::is_zero_scaled`), not spread. Bollinger Bands
+///   snaps with the same rule.
 /// - `k` scales every value; a `k` so large that the product overflows
 ///   gives infinity.
 ///
@@ -57,11 +60,7 @@ pub fn stddev(input: &Series, period: usize, k: f64) -> PytaResult<IndicatorOutp
     let (means, mut output) = rolling_mean_std(values, period);
 
     for (deviation, mean) in output[period - 1..].iter_mut().zip(&means[period - 1..]) {
-        *deviation = if is_zero_scaled(*deviation, mean.abs()) {
-            0.0
-        } else {
-            *deviation * k
-        };
+        *deviation = scaled_deviation(*deviation, *mean, k);
     }
 
     Ok(IndicatorOutput::new(output))

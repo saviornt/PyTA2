@@ -89,6 +89,17 @@ def test_smoke() -> None:
     assert np.isnan(signal_values[:33]).all()
     assert np.isfinite(signal_values[33:]).all()
 
+    bbands = pyta.bbands(data)
+    assert list(bbands) == ["bbands_upper", "bbands_middle", "bbands_lower"]
+    upper, middle, lower = (np.array(bbands[name]) for name in bbands)
+    assert middle.dtype == np.float64
+    assert upper.shape == middle.shape == lower.shape == (length,), "BBANDS output length mismatch"
+    assert np.isnan(upper[:19]).all(), "BBANDS warm-up alignment is incorrect"
+    assert np.isnan(lower[:19]).all(), "BBANDS warm-up alignment is incorrect"
+    assert (lower[19:] <= middle[19:]).all()
+    assert (middle[19:] <= upper[19:]).all()
+    assert np.isclose(middle[-1], close[-20:].mean(), rtol=1e-12)
+
     batch = pyta.batch.sma({"SPY": data, "SPY open": data["open"]}, period=50)
     assert set(batch) == {"SPY", "SPY open"}
     assert not any(isinstance(result, Exception) for result in batch.values())

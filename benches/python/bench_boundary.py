@@ -43,6 +43,7 @@ INDICATORS: dict[str, tuple[dict[str, int | float], int]] = {
     "macd": ({"fast": 12, "slow": 26, "signal": 9}, 1),
     "atr": ({"period": 14}, 3),
     "stddev": ({"period": 5, "k": 1.0}, 1),
+    "bbands": ({"period": 20, "k": 2.0}, 1),
 }
 
 SIZES = (100, 10_000, 1_000_000)

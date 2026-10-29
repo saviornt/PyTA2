@@ -7,6 +7,8 @@ __all__ = [
     "MAX_ABS_INPUT",
     "atr",
     "atr_batch",
+    "bbands",
+    "bbands_batch",
     "cci",
     "cci_batch",
     "ema",
@@ -53,3 +55,7 @@ def stddev(values: NDArray[np.float64], period: int, k: float) -> NDArray[np.flo
 def stddev_batch(
     datasets: list[NDArray[np.float64]], period: int, k: float
 ) -> list[NDArray[np.float64] | Exception]: ...
+def bbands(values: NDArray[np.float64], period: int, k: float) -> list[NDArray[np.float64]]: ...
+def bbands_batch(
+    datasets: list[NDArray[np.float64]], period: int, k: float
+) -> list[list[NDArray[np.float64]] | Exception]: ...

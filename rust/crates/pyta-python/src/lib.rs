@@ -7,6 +7,7 @@
 
 mod atr;
 mod batch;
+mod bbands;
 mod cci;
 mod ema;
 mod error;
@@ -37,5 +38,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(macd::macd_batch, m)?)?;
     m.add_function(wrap_pyfunction!(stddev::stddev, m)?)?;
     m.add_function(wrap_pyfunction!(stddev::stddev_batch, m)?)?;
+    m.add_function(wrap_pyfunction!(bbands::bbands, m)?)?;
+    m.add_function(wrap_pyfunction!(bbands::bbands_batch, m)?)?;
     Ok(())
 }

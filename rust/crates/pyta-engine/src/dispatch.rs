@@ -1,12 +1,12 @@
 use pyta_common::{
-    ATR_NS_PER_ELEMENT, CCI_NS_PER_ELEMENT, CCI_NS_PER_WINDOW_VALUE, EMA_NS_PER_ELEMENT,
-    MACD_NS_PER_ELEMENT, RSI_NS_PER_ELEMENT, SMA_NS_PER_ELEMENT, STDDEV_NS_PER_ELEMENT,
-    STDDEV_NS_PER_WINDOW_VALUE,
+    ATR_NS_PER_ELEMENT, BBANDS_NS_PER_ELEMENT, BBANDS_NS_PER_WINDOW_VALUE, CCI_NS_PER_ELEMENT,
+    CCI_NS_PER_WINDOW_VALUE, EMA_NS_PER_ELEMENT, MACD_NS_PER_ELEMENT, RSI_NS_PER_ELEMENT,
+    SMA_NS_PER_ELEMENT, STDDEV_NS_PER_ELEMENT, STDDEV_NS_PER_WINDOW_VALUE,
 };
 use pyta_core::{IndicatorOutput, PytaResult};
 use pyta_momentum::{cci, rsi};
 use pyta_trend::{ema, macd, sma};
-use pyta_volatility::{atr, stddev};
+use pyta_volatility::{atr, bbands, stddev};
 
 use crate::requests::{IndicatorRequest, Params};
 
@@ -24,6 +24,7 @@ pub(crate) fn dispatch(request: &IndicatorRequest) -> PytaResult<IndicatorOutput
             let [high, low, close] = input.columns()?;
             atr(high, low, close, period)
         }
+        Params::Bbands { period, k } => bbands(input.series()?, period, k),
         Params::Cci { period } => {
             let [high, low, close] = input.columns()?;
             cci(high, low, close, period)
@@ -46,12 +47,15 @@ pub(crate) fn dispatch(request: &IndicatorRequest) -> PytaResult<IndicatorOutput
 /// This match is exhaustive on purpose: adding a `Params` variant fails
 /// to compile until it has a cost. When adding an indicator, benchmark
 /// it and include any dependence on its parameters (for example O(n * period)
-/// algorithms, such as CCI and STDDEV) in its estimate. Cost scales with rows, not
+/// algorithms, such as CCI, STDDEV and BBANDS) in its estimate. Cost scales with rows, not
 /// rows times columns or outputs: a multi-column or multi-output constant is
 /// measured per row.
 pub(crate) fn estimated_cost_ns(request: &IndicatorRequest) -> f64 {
     let ns_per_element = match request.params {
         Params::Atr { .. } => ATR_NS_PER_ELEMENT,
+        Params::Bbands { period, .. } => {
+            BBANDS_NS_PER_ELEMENT + BBANDS_NS_PER_WINDOW_VALUE * period as f64
+        }
         Params::Cci { period } => CCI_NS_PER_ELEMENT + CCI_NS_PER_WINDOW_VALUE * period as f64,
         Params::Ema { .. } => EMA_NS_PER_ELEMENT,
         Params::Macd { .. } => MACD_NS_PER_ELEMENT,
@@ -113,6 +117,18 @@ mod tests {
         assert_eq!(
             cost(Params::Stddev { period: 5, k: 1.0 }),
             cost(Params::Stddev { period: 5, k: 3.0 })
+        );
+    }
+
+    #[test]
+    fn bbands_cost_grows_with_its_period_but_not_with_k() {
+        assert!(
+            cost(Params::Bbands { period: 50, k: 2.0 })
+                > cost(Params::Bbands { period: 5, k: 2.0 })
+        );
+        assert_eq!(
+            cost(Params::Bbands { period: 20, k: 1.0 }),
+            cost(Params::Bbands { period: 20, k: 3.0 })
         );
     }
 }

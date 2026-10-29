@@ -1,9 +1,9 @@
-//! ATR and STDDEV invariants that must hold for any valid input.
+//! ATR, STDDEV and BBANDS invariants that must hold for any valid input.
 
 use proptest::prelude::*;
 use pyta_core::Series;
 use pyta_core::kernels::true_range_at;
-use pyta_volatility::{atr, stddev};
+use pyta_volatility::{atr, bbands, stddev};
 
 /// High, low and close columns of 2 to 300 rows (high at or above low,
 /// close between them) and a period that leaves at least one ATR value.
@@ -151,6 +151,53 @@ proptest! {
 
         for (a, b) in stddev_of(&values, period, 1.0).iter().zip(stddev_of(&moved, period, 1.0)).skip(period - 1) {
             prop_assert!((a - b).abs() <= 1e-9 * (scale + 1.0), "{} vs {}", a, b);
+        }
+    }
+}
+
+fn bbands_of(values: &[f64], period: usize, k: f64) -> Vec<Vec<f64>> {
+    bbands(&Series::new(values.to_vec()).unwrap(), period, k)
+        .unwrap()
+        .into_outputs()
+}
+
+proptest! {
+    #[test]
+    fn bbands_outputs_have_input_length_and_one_shared_warm_up(
+        (values, period) in values_and_period(),
+        k in 0.01..10.0_f64,
+    ) {
+        let bands = bbands_of(&values, period, k);
+
+        prop_assert_eq!(bands.len(), 3);
+        for band in &bands {
+            prop_assert_eq!(band.len(), values.len());
+            prop_assert!(band[..period - 1].iter().all(|value| value.is_nan()));
+            prop_assert!(band[period - 1..].iter().all(|value| value.is_finite()));
+        }
+    }
+
+    #[test]
+    fn bbands_are_ordered_and_symmetric_about_the_middle(
+        (values, period) in values_and_period(),
+        k in 0.01..10.0_f64,
+    ) {
+        // The middle band is the window's mean, within its range; the bands
+        // lie k STDDEVs either side of it.
+        let bands = bbands_of(&values, period, k);
+        let width = stddev_of(&values, period, k);
+
+        for (offset, window) in values.windows(period).enumerate() {
+            let row = offset + period - 1;
+            let (upper, middle, lower) = (bands[0][row], bands[1][row], bands[2][row]);
+            let high = window.iter().copied().fold(f64::MIN, f64::max);
+            let low = window.iter().copied().fold(f64::MAX, f64::min);
+            let slack = 1e-9 * (high.abs() + low.abs() + 1.0);
+
+            prop_assert!(lower <= middle && middle <= upper, "{} {} {}", lower, middle, upper);
+            prop_assert!(low - slack <= middle && middle <= high + slack);
+            prop_assert_eq!(upper, middle + width[row]);
+            prop_assert_eq!(lower, middle - width[row]);
         }
     }
 }

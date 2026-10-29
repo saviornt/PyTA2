@@ -15,6 +15,7 @@ fn params(kind: IndicatorKind, period: usize) -> Params {
         IndicatorKind::Ema => Params::Ema { period },
         IndicatorKind::Rsi => Params::Rsi { period },
         IndicatorKind::Sma => Params::Sma { period },
+        IndicatorKind::Bbands => Params::Bbands { period, k: 2.0 },
         IndicatorKind::Stddev => Params::Stddev { period, k: 1.0 },
         IndicatorKind::Macd => panic!("MACD takes three periods"),
     }
@@ -275,6 +276,7 @@ fn the_kind_comes_from_the_params() {
     let series = Series::new(vec![1.0, 2.0]).unwrap();
     let cases = [
         (Params::Atr { period: 2 }, IndicatorKind::Atr),
+        (Params::Bbands { period: 2, k: 2.0 }, IndicatorKind::Bbands),
         (Params::Cci { period: 2 }, IndicatorKind::Cci),
         (Params::Ema { period: 2 }, IndicatorKind::Ema),
         (
@@ -491,6 +493,62 @@ async fn stddev_runs_through_the_engine_and_reports_its_errors() {
         PytaError::ColumnCount {
             expected: 1,
             actual: 2,
+        }
+    );
+}
+
+#[tokio::test]
+async fn bbands_runs_through_the_engine_with_three_outputs_and_reports_its_errors() {
+    // Windows of 2: means 2, 5, 7.5 and deviations 1, 2, 0.5, times k = 2.
+    let values = vec![1.0, 3.0, 7.0, 8.0];
+    let bbands = |values: Vec<f64>, period: usize, k: f64| {
+        IndicatorRequest::new(Series::new(values).unwrap(), Params::Bbands { period, k })
+    };
+    let requests = vec![
+        bbands(values.clone(), 2, 2.0),
+        bbands(values.clone(), 1, 2.0),
+        bbands(values.clone(), 2, -1.0),
+        bbands(values, 5, 2.0),
+    ];
+
+    let direct = execute_direct(&requests[0]).unwrap();
+    let [upper, middle, lower] = direct.outputs() else {
+        panic!("expected three outputs, got {}", direct.output_count());
+    };
+    assert_values(upper, &[NAN, 4.0, 9.0, 8.5]);
+    assert_values(middle, &[NAN, 2.0, 5.0, 7.5]);
+    assert_values(lower, &[NAN, 0.0, 1.0, 6.5]);
+
+    let results = execute_batch(requests).await;
+
+    match &results[0].status {
+        IndicatorStatus::Success(output) => {
+            for (got, want) in output.outputs().iter().zip(direct.outputs()) {
+                assert_values(got, want);
+            }
+        }
+        IndicatorStatus::Error(error) => panic!("expected BBANDS success, got {error:?}"),
+    }
+    assert_eq!(
+        *error_of(&results[1]),
+        PytaError::InvalidParameter {
+            name: "period",
+            minimum: 2,
+            value: 1,
+        }
+    );
+    assert_eq!(
+        *error_of(&results[2]),
+        PytaError::InvalidFloatParameter {
+            name: "k",
+            value: -1.0,
+        }
+    );
+    assert_eq!(
+        *error_of(&results[3]),
+        PytaError::PeriodExceedsLength {
+            period: 5,
+            length: 4,
         }
     );
 }

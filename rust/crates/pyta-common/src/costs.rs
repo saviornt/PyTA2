@@ -59,6 +59,26 @@ pub const STDDEV_NS_PER_ELEMENT: f64 = 7.6;
 /// O(rows * period). Measured as [`STDDEV_NS_PER_ELEMENT`].
 pub const STDDEV_NS_PER_WINDOW_VALUE: f64 = 0.23;
 
+/// Bollinger Bands, in nanoseconds per input row, excluding the per-window
+/// pass (see [`BBANDS_NS_PER_WINDOW_VALUE`]): the compensated rolling mean
+/// and the two bands.
+///
+/// Provisional, from a quick run on 2026-10-29
+/// (`benches/results/benchmark_2026-10-29_06-37-49.txt`, `--single --rust
+/// --quick`, governor `performance`: kernels at 1,000,000 rows took
+/// 12.698 ms for BBANDS-20 and 2.535 ms for RSI-14) and a period sweep of
+/// the release-built native call at 1,000,000 rows (periods 2 to 200, best
+/// of 15, twice): `8.19 + 0.217 * period` ms, so the kernel is about
+/// `12.698 - 0.217 * 20 = 8.36` ns per row plus 0.217 per period, scaled
+/// here by `RSI_NS_PER_ELEMENT` / RSI's kernel time (1.18). Confirm with a
+/// full `--single --rust --indicator bbands`.
+pub const BBANDS_NS_PER_ELEMENT: f64 = 9.9;
+
+/// Bollinger Bands, in nanoseconds per row and per unit of `period`: each
+/// row's deviation is a fresh pass over its window, as for STDDEV, so the
+/// cost is O(rows * period). Measured as [`BBANDS_NS_PER_ELEMENT`].
+pub const BBANDS_NS_PER_WINDOW_VALUE: f64 = 0.26;
+
 /// Exponential Moving Average, in nanoseconds per input element; independent
 /// of `period` (one pass after the seed).
 ///
