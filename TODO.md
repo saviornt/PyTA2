@@ -39,9 +39,9 @@ Where things stand:
 ### Part B: infrastructure (about 4 h)
 
 - [ ] **B1. Shared kernels in `pyta-core`** (`kernels` module; category crates may not depend on each other): EMA recurrence with SMA seed (move from `pyta-trend`, EMA/MACD bit-identical before and after), Wilder smoothing (RSI unchanged), true range, rolling highest/lowest (value and index, monotonic deque; benchmark against a rescan), typical price (CCI uses it, unchanged), rolling mean and centred population variance, and the scaled-zero test (`ZERO_TOLERANCE` to `pyta-common`). Unit and property tests; existing indicators' outputs unchanged (their tests and fixtures).
-- [ ] **B2. Float and empty parameters.** Rust: drop `Eq` from `Params`; `f64` fields for SAR, BBANDS, Keltner, STDDEV; unit variants for OBV, A/D, VWAP. Python: `validate_positive_float` (finite, > 0) and range checks beside the int validators; `()` params for parameterless indicators through `_api.run*`.
-- [ ] **B3. New categories** `pyta-volatility`, `pyta-volume` crates; `pyta.volatility`, `pyta.volume` and `pyta.batch.*` namespaces; `docs/indicators/volatility/`, `volume/` (ARCHITECTURE.md §5).
-- [ ] **B4. Negative volume row check** (A13) in `_columns.py`, with tests.
+- [x] **B2. Float and empty parameters.** Rust: drop `Eq` from `Params`; `f64` fields for SAR, BBANDS, Keltner, STDDEV; unit variants for OBV, A/D, VWAP. Python: `validate_positive_float` (finite, > 0) and range checks beside the int validators; `()` params for parameterless indicators through `_api.run*`. *(2026-10-29, 801840a: `Params` is `PartialEq` only; `validate_positive_float`, `validate_int`, `validate_ascending`; `_api.Params` takes ints, floats or `()`; `extending-contracts.md` "Float parameters", "Parameterless indicators". Open: `PytaError::InvalidParameter` holds `usize`, so the first float indicator (Bollinger) adds a float variant in `pyta-core`.)*
+- [x] **B3. New categories** `pyta-volatility`, `pyta-volume` crates; `pyta.volatility`, `pyta.volume` and `pyta.batch.*` namespaces; `docs/indicators/volatility/`, `volume/` (ARCHITECTURE.md §5). *(2026-10-29, 801840a: empty crates and namespaces, `docs/indicators/{volatility,volume}/README.md`.)*
+- [x] **B4. Negative volume row check** (A13) in `_columns.py`, with tests. *(2026-10-29, 801840a: `NONNEGATIVE_ROLES`, inline in `_api._trim_columns`; 100-row CCI dict call within noise (interleaved timeit, 0.996-1.016). Report for B2-B4: `test-suite_2026-10-29_03-17-35.txt` in the agent worktree, PASSED (Rust 145, Python 1358, coverage 99%).)*
 - [x] **B5. TA-Lib fixtures** (A1): one throwaway-env script (in `scripts/` or `tests/reference/`, not a dependency) writing `tests/fixtures/<name>_<params>_talib.csv` for the 19 TA-Lib indicators from the SPY fixture plus edge series, citing the TA-Lib and C versions in each file's header. *(2026-10-29, 4927a63: `tests/reference/generate_talib_fixtures.py`, TA-Lib 0.8.3 wheel with C 0.8.3; 25 SPY fixtures (defaults, plus WMA 10, SAR 0.01/0.2, STOCH 5/3/3, TRIX 15, STDDEV 20/2) and 20 on `tests/fixtures/edge_ohlcv.csv` (flat stretch, high == low, zero volume, zero base); first valid rows match A4; `tests/results/test-suite_2026-10-29_03-10-11.txt` PASSED. For implementers: `reference_data.load` keeps only int parameters (float ones need the loader extended); STOCH %D on a flat window is 4.5e-14, not 0; ADX DIs hold their values on flat data; AD values reach 1e10, so compare relatively.)*
 
 ### Part C: Volatility (about 6 h)
@@ -58,7 +58,7 @@ Where things stand:
 
 ### Part F: Volume (about 5 h)
 
-- [ ] OBV · [ ] Accumulation/Distribution · [ ] Chaikin Money Flow · [ ] VWAP · [ ] Volume ROC
+- [ ] OBV · [ ] Accumulation/Distribution · [ ] Chaikin Money Flow · [ ] VWAP · [ ] Volume ROC (one column, so the B4 check does not reach it: `_api.run` must reject negative values when the column used is the `volume` role)
 
 Every indicator box means the `add-indicator` skill's nine steps are done: spec (from Part A, no further stop unless it departs from A), kernel, engine, cost constant, bindings, Python, tests (TA-Lib fixture to 1e-9 or the cited reference, edge cases, properties), wiki page, and a passing test-suite report.
 
