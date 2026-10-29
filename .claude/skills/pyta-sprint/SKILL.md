@@ -1,6 +1,6 @@
 ---
 name: pyta-sprint
-description: How to plan, start, run and close a PyTA sprint by the rules in docs/DEVELOPMENT.md, with TODO.md as the working plan - confirming the goal and acceptance criteria, ticking tasks only when verified, keeping docs and memory current, adding an inserted sprint (such as 7.5), writing the retrospective and marking a sprint complete. Use this whenever the user says to move on to the next sprint, start, continue, plan, review or finish a sprint, asks what is left in the current sprint, refers to TODO.md items or sprint tasks, or asks to add or revise a sprint.
+description: How to plan, start, run and close a PyTA sprint by the rules in docs/DEVELOPMENT.md, with TODO.md as the working plan - confirming the goal and acceptance criteria, ticking tasks only when verified, keeping docs and memory current, adding an inserted sprint (such as 7.5), and, once the local checks pass, writing the retrospective and marking the sprint complete without being asked. Use this whenever the user says to move on to the next sprint, start, continue, plan, review or finish a sprint, asks what is left in the current sprint, refers to TODO.md items or sprint tasks, or asks to add or revise a sprint.
 ---
 
 # Running a PyTA sprint
@@ -46,7 +46,11 @@ The maintainer's standing workflow, whenever they say to move on to the next spr
 
 1. Run the full checks: `./scripts/test-suite.sh` always, and the benchmarks the sprint's criteria name (or `--single --python` and `--batch --python` if the sprint touched hot paths).
 2. Go through **every acceptance criterion** and give the evidence for each: report file, test name, or manual check. List any that are not met.
-3. Fill the **Retrospective** line (rule 7), in one or two sentences each: what worked, what did not, and the next sprint's priorities. Draft it and let the user adjust it.
-4. **Mark `✓` only after every acceptance criterion passes** (rule 5), and only once the user agrees. Until then the marker stays `☐`, even if every task box is ticked.
+3. **The sprint is complete once every acceptance criterion passes and the local checks in step 1 pass** (the test-suite report says PASSED). Then, in the same change, without waiting to be asked:
+   - fill the **Retrospective** line (rule 7), one or two sentences each: what worked, what did not, and the next sprint's priorities;
+   - change **Sprint completion** from `☐` to `✓` (rule 5).
+
+   Name the test-suite report (and any benchmark report) in the commit message and the final report, so the user can check the evidence and adjust the retrospective in review.
+4. **If anything is unmet or failing, the marker stays `☐`** (rule 4), even if every task box is ticked, and the retrospective stays empty. Report what is open instead.
 5. Update `TODO.md`: summarise what is still open and keep the parking lot. The finished plan is replaced when the next sprint is planned.
 6. Check `.claude/memory.md` and the `pyta-tooling` skill still describe the project as it now is.
