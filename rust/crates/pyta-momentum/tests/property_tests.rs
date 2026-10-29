@@ -1,4 +1,4 @@
-//! RSI, CCI, Stochastic and Williams %R invariants that must hold for any valid input.
+//! RSI, CCI, Stochastic, Williams %R and ROC invariants that must hold for any valid input.
 
 use proptest::prelude::*;
 use pyta_core::Series;
@@ -396,6 +396,33 @@ proptest! {
                 (a.is_nan() && e.is_nan()) || a.to_bits() == e.to_bits(),
                 "index {}: {:e} != {:e}", index, a, e
             );
+        }
+    }
+}
+
+proptest! {
+    #[test]
+    fn roc_output_length_and_warm_up_are_exact((values, period) in series_and_period()) {
+        // `price()` includes tiny values, so a ratio may overflow to an
+        // infinity as TA-Lib's does; only the warm-up is NaN.
+        let output = pyta_momentum::roc(&Series::new(values.clone()).unwrap(), period).unwrap();
+        let output = output.values();
+
+        prop_assert_eq!(output.len(), values.len());
+        prop_assert!(output[..period].iter().all(|value| value.is_nan()));
+        prop_assert!(output[period..].iter().all(|value| !value.is_nan()));
+    }
+
+    #[test]
+    fn roc_of_a_positive_series_is_above_minus_100(
+        values in prop::collection::vec(1.0e-3..1.0e6_f64, 2..300),
+        period_seed in 0_usize..300,
+    ) {
+        let period = period_seed % (values.len() - 1) + 1;
+        let output = pyta_momentum::roc(&Series::new(values).unwrap(), period).unwrap();
+
+        for value in &output.values()[period..] {
+            prop_assert!(value.is_finite() && *value > -100.0, "{}", value);
         }
     }
 }

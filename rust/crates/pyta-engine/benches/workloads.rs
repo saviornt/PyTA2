@@ -93,6 +93,7 @@ fn params(kind: IndicatorKind) -> Params {
             d: 3,
         },
         IndicatorKind::Willr => Params::Willr { period: 14 },
+        IndicatorKind::Roc => Params::Roc { period: 10 },
         IndicatorKind::Donchian => Params::Donchian { period: 20 },
         IndicatorKind::Ema => Params::Ema { period: 20 },
         IndicatorKind::Ichimoku => Params::Ichimoku {
@@ -152,6 +153,7 @@ fn request(kind: IndicatorKind, close: Series) -> IndicatorRequest {
         IndicatorKind::Bbands
         | IndicatorKind::Ema
         | IndicatorKind::Macd
+        | IndicatorKind::Roc
         | IndicatorKind::Rsi
         | IndicatorKind::Sma
         | IndicatorKind::Stddev
@@ -300,6 +302,7 @@ fn many_datasets(c: &mut Criterion) {
         (IndicatorKind::Cci, "cci"),
         (IndicatorKind::Stoch, "stoch"),
         (IndicatorKind::Willr, "willr"),
+        (IndicatorKind::Roc, "roc"),
         (IndicatorKind::Ema, "ema"),
         (IndicatorKind::Wma, "wma"),
         (IndicatorKind::Dema, "dema"),

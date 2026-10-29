@@ -14,6 +14,7 @@
 
 mod ema;
 mod extremes;
+mod roc;
 mod rolling;
 mod sum;
 mod true_range;
@@ -23,6 +24,7 @@ mod zero;
 
 pub use ema::{ema, ema_into, ema_multiplier, ema_step};
 pub use extremes::{for_each_window_max, for_each_window_min, rolling_max, rolling_min};
+pub use roc::{rate_of_change, rate_of_change_into};
 pub use rolling::{rolling_mean, rolling_mean_into, rolling_mean_std, rolling_std};
 pub use sum::{CompensatedSum, lane_sum, two_sum};
 pub use true_range::{true_range, true_range_at};

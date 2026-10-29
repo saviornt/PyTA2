@@ -213,6 +213,17 @@ pub const STOCH_NS_PER_ELEMENT: f64 = 14.6;
 /// `--single --rust --indicator willr`.
 pub const WILLR_NS_PER_ELEMENT: f64 = 10.9;
 
+/// Rate of Change, in nanoseconds per input row; independent of `period`
+/// (one division per row).
+///
+/// Provisional, from a quick run on 2026-10-29
+/// (`benches/results/benchmark_2026-10-29_16-26-08.txt`, `--single --rust
+/// --quick`, governor `performance`): kernels at 1,000,000 rows took
+/// 1.210 ms for ROC-10 and 2.368 ms for RSI-14, scaled here by
+/// `RSI_NS_PER_ELEMENT` (3.0 * 0.511). Confirm with a full
+/// `--single --rust --indicator roc`.
+pub const ROC_NS_PER_ELEMENT: f64 = 1.5;
+
 /// Parabolic SAR, in nanoseconds per input row; independent of
 /// `acceleration` and `maximum` (one pass).
 ///

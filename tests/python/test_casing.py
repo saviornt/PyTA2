@@ -32,6 +32,7 @@ LOWER = {
     ],
     "stoch": ["stoch_k", "stoch_d"],
     "willr": ["willr"],
+    "roc": ["roc"],
 }
 UPPER = {name: [n.upper() for n in names] for name, names in LOWER.items()}
 TITLE = {
@@ -56,6 +57,7 @@ TITLE = {
     ],
     "stoch": ["Stoch_K", "Stoch_D"],
     "willr": ["WILLR"],
+    "roc": ["ROC"],
 }
 
 #: Indicators on high, low and close, cased by all three columns.

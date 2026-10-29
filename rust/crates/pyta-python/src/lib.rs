@@ -20,6 +20,7 @@ mod kama;
 mod keltner;
 mod log_bridge;
 mod macd;
+mod roc;
 mod rsi;
 mod sar;
 mod single;
@@ -48,6 +49,8 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(sma::sma_batch, m)?)?;
     m.add_function(wrap_pyfunction!(rsi::rsi, m)?)?;
     m.add_function(wrap_pyfunction!(rsi::rsi_batch, m)?)?;
+    m.add_function(wrap_pyfunction!(roc::roc, m)?)?;
+    m.add_function(wrap_pyfunction!(roc::roc_batch, m)?)?;
     m.add_function(wrap_pyfunction!(ema::ema, m)?)?;
     m.add_function(wrap_pyfunction!(ema::ema_batch, m)?)?;
     m.add_function(wrap_pyfunction!(wma::wma, m)?)?;

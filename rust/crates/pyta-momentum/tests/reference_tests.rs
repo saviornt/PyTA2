@@ -1,12 +1,12 @@
 //! RSI and CCI against the published StockCharts ChartSchool examples, and
-//! Stochastic and Williams %R against TA-Lib's own output (generated
+//! Stochastic, Williams %R and ROC against TA-Lib's own output (generated
 //! fixtures, see their comments).
 
 #[path = "../../../test-support/reference.rs"]
 mod reference;
 
 use pyta_core::Series;
-use pyta_momentum::{cci, rsi, stoch, willr};
+use pyta_momentum::{cci, roc, rsi, stoch, willr};
 use reference::{assert_matches, assert_output_matches, load};
 
 #[test]
@@ -101,4 +101,37 @@ fn willr_14_matches_talib() {
 #[test]
 fn willr_14_matches_talib_on_the_edge_series() {
     check_willr("willr_14_edge_talib.csv");
+}
+
+fn check_roc(name: &str) {
+    let reference = load(name);
+    let input = Series::new(reference.input.clone()).unwrap();
+
+    let output = roc(&input, reference.period()).unwrap();
+
+    assert_matches(output.values(), &reference);
+    // Every value is the wheel's own, bit for bit (the fixtures print them
+    // with `repr`): TA-Lib's `(x / base - 1) * 100`, and 0 for the edge
+    // series' zero base.
+    for (index, (a, e)) in output
+        .values()
+        .iter()
+        .zip(&reference.outputs[0])
+        .enumerate()
+    {
+        assert!(
+            (a.is_nan() && e.is_nan()) || a.to_bits() == e.to_bits(),
+            "{name}, index {index}: {a:e} != {e:e}"
+        );
+    }
+}
+
+#[test]
+fn roc_10_matches_talib() {
+    check_roc("roc_10_talib.csv");
+}
+
+#[test]
+fn roc_10_matches_talib_on_the_edge_series() {
+    check_roc("roc_10_edge_talib.csv");
 }

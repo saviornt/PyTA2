@@ -180,6 +180,13 @@ def test_smoke() -> None:
     weights = np.arange(1.0, 31.0)
     assert np.isclose(wma_values[-1], close[-30:] @ weights / weights.sum(), rtol=1e-12)
 
+    roc_values = np.array(pyta.roc(data, period=10)["roc"])
+    assert roc_values.dtype == np.float64
+    assert roc_values.shape == (length,), "ROC output length mismatch"
+    assert np.isnan(roc_values[:10]).all(), "ROC warm-up alignment is incorrect"
+    assert np.isfinite(roc_values[10:]).all()
+    assert roc_values[-1] == (close[-1] / close[-11] - 1.0) * 100.0
+
     dema_values = np.array(pyta.dema(data, period=30)["dema"])
     assert dema_values.dtype == np.float64
     assert dema_values.shape == (length,), "DEMA output length mismatch"

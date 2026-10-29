@@ -35,6 +35,7 @@ INDICATORS = {
     "rsi": "momentum",
     "cci": "momentum",
     "stoch": "momentum",
+    "roc": "momentum",
     "willr": "momentum",
     "atr": "volatility",
     "stddev": "volatility",
@@ -187,6 +188,12 @@ DOCUMENTED_PATHS = [
     "pyta.indicators.momentum.willr",
     "pyta.batch.willr",
     "pyta.batch.momentum.willr",
+    "pyta.roc",
+    "pyta.momentum.roc",
+    "pyta.indicators.roc",
+    "pyta.indicators.momentum.roc",
+    "pyta.batch.roc",
+    "pyta.batch.momentum.roc",
 ]
 
 

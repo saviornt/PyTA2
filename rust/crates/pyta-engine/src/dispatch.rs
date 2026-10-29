@@ -2,12 +2,12 @@ use pyta_common::{
     ADX_NS_PER_ELEMENT, AROON_NS_PER_ELEMENT, ATR_NS_PER_ELEMENT, BBANDS_NS_PER_ELEMENT,
     BBANDS_NS_PER_WINDOW_VALUE, CCI_NS_PER_ELEMENT, CCI_NS_PER_WINDOW_VALUE, DEMA_NS_PER_ELEMENT,
     DONCHIAN_NS_PER_ELEMENT, EMA_NS_PER_ELEMENT, ICHIMOKU_NS_PER_ELEMENT, KAMA_NS_PER_ELEMENT,
-    KELTNER_NS_PER_ELEMENT, MACD_NS_PER_ELEMENT, RSI_NS_PER_ELEMENT, SAR_NS_PER_ELEMENT,
-    SMA_NS_PER_ELEMENT, STDDEV_NS_PER_ELEMENT, STDDEV_NS_PER_WINDOW_VALUE, STOCH_NS_PER_ELEMENT,
-    TEMA_NS_PER_ELEMENT, WILLR_NS_PER_ELEMENT, WMA_NS_PER_ELEMENT,
+    KELTNER_NS_PER_ELEMENT, MACD_NS_PER_ELEMENT, ROC_NS_PER_ELEMENT, RSI_NS_PER_ELEMENT,
+    SAR_NS_PER_ELEMENT, SMA_NS_PER_ELEMENT, STDDEV_NS_PER_ELEMENT, STDDEV_NS_PER_WINDOW_VALUE,
+    STOCH_NS_PER_ELEMENT, TEMA_NS_PER_ELEMENT, WILLR_NS_PER_ELEMENT, WMA_NS_PER_ELEMENT,
 };
 use pyta_core::{IndicatorOutput, PytaResult};
-use pyta_momentum::{cci, rsi, stoch, willr};
+use pyta_momentum::{cci, roc, rsi, stoch, willr};
 use pyta_trend::{adx, aroon, dema, ema, ichimoku, kama, macd, sar, sma, tema, wma};
 use pyta_volatility::{atr, bbands, donchian, keltner, stddev};
 
@@ -64,6 +64,7 @@ pub(crate) fn dispatch(request: &IndicatorRequest) -> PytaResult<IndicatorOutput
             keltner(high, low, close, period, atr_period, k)
         }
         Params::Macd { fast, slow, signal } => macd(input.series()?, fast, slow, signal),
+        Params::Roc { period } => roc(input.series()?, period),
         Params::Rsi { period } => rsi(input.series()?, period),
         Params::Sar {
             acceleration,
@@ -116,6 +117,7 @@ pub(crate) fn estimated_cost_ns(request: &IndicatorRequest) -> f64 {
         Params::Kama { .. } => KAMA_NS_PER_ELEMENT,
         Params::Keltner { .. } => KELTNER_NS_PER_ELEMENT,
         Params::Macd { .. } => MACD_NS_PER_ELEMENT,
+        Params::Roc { .. } => ROC_NS_PER_ELEMENT,
         Params::Rsi { .. } => RSI_NS_PER_ELEMENT,
         Params::Sar { .. } => SAR_NS_PER_ELEMENT,
         Params::Sma { .. } => SMA_NS_PER_ELEMENT,
@@ -268,6 +270,15 @@ mod tests {
                 k_smooth: 50,
                 d: 50
             })
+        );
+    }
+
+    #[test]
+    fn roc_cost_does_not_depend_on_its_period() {
+        // One division per row whatever the period.
+        assert_eq!(
+            cost(Params::Roc { period: 1 }),
+            cost(Params::Roc { period: 200 })
         );
     }
 

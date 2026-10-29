@@ -21,6 +21,7 @@ fn params(kind: IndicatorKind, period: usize) -> Params {
             kijun: period,
             senkou: period,
         },
+        IndicatorKind::Roc => Params::Roc { period },
         IndicatorKind::Rsi => Params::Rsi { period },
         IndicatorKind::Sma => Params::Sma { period },
         IndicatorKind::Willr => Params::Willr { period },
@@ -307,6 +308,7 @@ fn the_kind_comes_from_the_params() {
         (Params::Donchian { period: 2 }, IndicatorKind::Donchian),
         (Params::Ema { period: 2 }, IndicatorKind::Ema),
         (Params::Willr { period: 2 }, IndicatorKind::Willr),
+        (Params::Roc { period: 1 }, IndicatorKind::Roc),
         (
             Params::Ichimoku {
                 tenkan: 1,
@@ -830,6 +832,52 @@ async fn aroon_runs_through_the_engine_with_three_outputs_and_reports_its_errors
         PytaError::ColumnCount {
             expected: 2,
             actual: 1,
+        }
+    );
+}
+
+#[tokio::test]
+async fn roc_runs_through_the_engine_and_reports_its_errors() {
+    // Period 2: (12 / 10 - 1) * 100, (11 / 0 -> 0), (15 / 12 - 1) * 100.
+    let values = vec![10.0, 0.0, 12.0, 11.0, 15.0];
+    let requests = vec![
+        request(IndicatorKind::Roc, values.clone(), 2),
+        request(IndicatorKind::Roc, values.clone(), 0),
+        request(IndicatorKind::Roc, values.clone(), 5),
+        columns_request(IndicatorKind::Roc, &[&values, &values], 2),
+    ];
+
+    let direct = execute_direct(&requests[0]).unwrap();
+    assert_values(
+        direct.values(),
+        &[
+            NAN,
+            NAN,
+            (12.0 / 10.0 - 1.0) * 100.0,
+            0.0,
+            (15.0 / 12.0 - 1.0) * 100.0,
+        ],
+    );
+
+    let results = execute_batch(requests).await;
+
+    match &results[0].status {
+        IndicatorStatus::Success(output) => assert_values(output.values(), direct.values()),
+        IndicatorStatus::Error(error) => panic!("expected ROC success, got {error:?}"),
+    }
+    assert_eq!(*error_of(&results[1]), PytaError::InvalidPeriod);
+    assert_eq!(
+        *error_of(&results[2]),
+        PytaError::InsufficientData {
+            required: 6,
+            length: 5,
+        }
+    );
+    assert_eq!(
+        *error_of(&results[3]),
+        PytaError::ColumnCount {
+            expected: 1,
+            actual: 2,
         }
     );
 }

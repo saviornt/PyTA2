@@ -33,6 +33,8 @@ pub enum IndicatorKind {
     Keltner,
     /// Moving Average Convergence/Divergence (`pyta-trend`; three outputs).
     Macd,
+    /// Rate of Change (`pyta-momentum`).
+    Roc,
     /// Relative Strength Index (`pyta-momentum`).
     Rsi,
     /// Parabolic SAR (`pyta-trend`; high, low).
@@ -148,6 +150,12 @@ pub enum Params {
         /// Period of the signal line's EMA.
         signal: usize,
     },
+    /// Rate of Change: the percentage change from the value `period` rows
+    /// earlier.
+    Roc {
+        /// Rows back to the value compared with, at least 1.
+        period: usize,
+    },
     /// Relative Strength Index.
     Rsi {
         /// Price changes in the first average.
@@ -219,6 +227,7 @@ impl Params {
             Self::Kama { .. } => IndicatorKind::Kama,
             Self::Keltner { .. } => IndicatorKind::Keltner,
             Self::Macd { .. } => IndicatorKind::Macd,
+            Self::Roc { .. } => IndicatorKind::Roc,
             Self::Rsi { .. } => IndicatorKind::Rsi,
             Self::Sar { .. } => IndicatorKind::Sar,
             Self::Sma { .. } => IndicatorKind::Sma,
