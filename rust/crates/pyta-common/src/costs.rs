@@ -11,6 +11,17 @@ pub const SMA_NS_PER_ELEMENT: f64 = 1.8;
 /// Relative Strength Index, in nanoseconds per input element.
 pub const RSI_NS_PER_ELEMENT: f64 = 3.0;
 
+/// Average True Range, in nanoseconds per input row; independent of
+/// `period` (one true-range pass and one smoothing pass after the seed).
+///
+/// Provisional, from a quick run on 2026-10-29
+/// (`benches/results/benchmark_2026-10-29_03-31-27.txt`, `--single --rust
+/// --quick`, governor `performance`): kernels at 1,000,000 rows took
+/// 4.344 ms for ATR-14 and 2.508 ms for RSI-14, scaled here by
+/// `RSI_NS_PER_ELEMENT` (3.0 * 1.73). Confirm with a full
+/// `--single --rust --indicator atr`.
+pub const ATR_NS_PER_ELEMENT: f64 = 5.2;
+
 /// Commodity Channel Index, in nanoseconds per input row, excluding the
 /// mean-deviation pass (see [`CCI_NS_PER_WINDOW_VALUE`]): typical price and
 /// the compensated running mean.

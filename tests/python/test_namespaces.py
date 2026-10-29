@@ -26,13 +26,14 @@ INDICATORS = {
     "macd": "trend",
     "rsi": "momentum",
     "cci": "momentum",
+    "atr": "volatility",
 }
 
 # Every category subpackage, including those without indicators yet.
 CATEGORIES = {"momentum", "trend", "volatility", "volume"}
 
 # Multi-column indicators, which take full OHLCV data rather than one series.
-MULTI_COLUMN = {"cci"}
+MULTI_COLUMN = {"atr", "cci"}
 
 # Documented function paths (README, docs/API.md, docs/indicators/). These must
 # keep resolving: never remove an entry, only add.
@@ -67,6 +68,12 @@ DOCUMENTED_PATHS = [
     "pyta.indicators.trend.macd",
     "pyta.batch.macd",
     "pyta.batch.trend.macd",
+    "pyta.atr",
+    "pyta.volatility.atr",
+    "pyta.indicators.atr",
+    "pyta.indicators.volatility.atr",
+    "pyta.batch.atr",
+    "pyta.batch.volatility.atr",
 ]
 
 

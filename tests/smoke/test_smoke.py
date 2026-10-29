@@ -62,6 +62,12 @@ def test_smoke() -> None:
     assert np.isnan(cci_values[:19]).all(), "CCI warm-up alignment is incorrect"
     assert np.isfinite(cci_values[19:]).all()
 
+    atr_values = np.array(pyta.atr(data, period=14)["atr"])
+    assert atr_values.dtype == np.float64
+    assert atr_values.shape == (length,), "ATR output length mismatch"
+    assert np.isnan(atr_values[:14]).all(), "ATR warm-up alignment is incorrect"
+    assert (atr_values[14:] > 0.0).all()
+
     ema_values = np.array(pyta.ema(data, period=30)["ema"])
     assert ema_values.shape == (length,), "EMA output length mismatch"
     assert np.isnan(ema_values[:29]).all(), "EMA warm-up alignment is incorrect"

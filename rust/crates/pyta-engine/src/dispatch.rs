@@ -1,10 +1,11 @@
 use pyta_common::{
-    CCI_NS_PER_ELEMENT, CCI_NS_PER_WINDOW_VALUE, EMA_NS_PER_ELEMENT, MACD_NS_PER_ELEMENT,
-    RSI_NS_PER_ELEMENT, SMA_NS_PER_ELEMENT,
+    ATR_NS_PER_ELEMENT, CCI_NS_PER_ELEMENT, CCI_NS_PER_WINDOW_VALUE, EMA_NS_PER_ELEMENT,
+    MACD_NS_PER_ELEMENT, RSI_NS_PER_ELEMENT, SMA_NS_PER_ELEMENT,
 };
 use pyta_core::{IndicatorOutput, PytaResult};
 use pyta_momentum::{cci, rsi};
 use pyta_trend::{ema, macd, sma};
+use pyta_volatility::atr;
 
 use crate::requests::{IndicatorRequest, Params};
 
@@ -18,6 +19,10 @@ pub(crate) fn dispatch(request: &IndicatorRequest) -> PytaResult<IndicatorOutput
     let input = &request.input;
 
     match request.params {
+        Params::Atr { period } => {
+            let [high, low, close] = input.columns()?;
+            atr(high, low, close, period)
+        }
         Params::Cci { period } => {
             let [high, low, close] = input.columns()?;
             cci(high, low, close, period)
@@ -44,6 +49,7 @@ pub(crate) fn dispatch(request: &IndicatorRequest) -> PytaResult<IndicatorOutput
 /// measured per row.
 pub(crate) fn estimated_cost_ns(request: &IndicatorRequest) -> f64 {
     let ns_per_element = match request.params {
+        Params::Atr { .. } => ATR_NS_PER_ELEMENT,
         Params::Cci { period } => CCI_NS_PER_ELEMENT + CCI_NS_PER_WINDOW_VALUE * period as f64,
         Params::Ema { .. } => EMA_NS_PER_ELEMENT,
         Params::Macd { .. } => MACD_NS_PER_ELEMENT,

@@ -15,6 +15,7 @@ fn request(kind: IndicatorKind, len: usize, period: usize) -> IndicatorRequest {
 /// The parameters of a one-period indicator.
 fn params(kind: IndicatorKind, period: usize) -> Params {
     match kind {
+        IndicatorKind::Atr => Params::Atr { period },
         IndicatorKind::Cci => Params::Cci { period },
         IndicatorKind::Ema => Params::Ema { period },
         IndicatorKind::Rsi => Params::Rsi { period },

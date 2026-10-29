@@ -6,6 +6,8 @@ use pyta_core::{Columns, IndicatorOutput, PytaError, PytaResult, Series};
 /// disagree. Used for logging and benchmark labels.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IndicatorKind {
+    /// Average True Range (`pyta-volatility`; high, low, close).
+    Atr,
     /// Commodity Channel Index (`pyta-momentum`; high, low, close).
     Cci,
     /// Exponential Moving Average (`pyta-trend`).
@@ -31,6 +33,11 @@ pub enum IndicatorKind {
 /// variant (`Obv`).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Params {
+    /// Average True Range.
+    Atr {
+        /// True ranges in the first average; Wilder's smoothing period.
+        period: usize,
+    },
     /// Commodity Channel Index.
     Cci {
         /// Rows in each window.
@@ -66,6 +73,7 @@ impl Params {
     /// The indicator these parameters belong to.
     pub fn kind(&self) -> IndicatorKind {
         match self {
+            Self::Atr { .. } => IndicatorKind::Atr,
             Self::Cci { .. } => IndicatorKind::Cci,
             Self::Ema { .. } => IndicatorKind::Ema,
             Self::Macd { .. } => IndicatorKind::Macd,

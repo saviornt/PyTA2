@@ -46,7 +46,8 @@ Where things stand:
 
 ### Part C: Volatility (about 6 h)
 
-- [ ] ATR · [ ] STDDEV · [ ] Bollinger Bands · [ ] Donchian Channels · [ ] Keltner Channels
+- [x] ATR · [ ] STDDEV · [ ] Bollinger Bands · [ ] Donchian Channels · [ ] Keltner Channels
+  - ATR *(2026-10-29: `pyta-volatility` on the shared `true_range` + `wilder_into`; both TA-Lib fixtures match (Rust absolute 1e-9, Python relative 1e-9); provisional `ATR_NS_PER_ELEMENT = 5.2` from `benchmark_2026-10-29_03-31-27.txt` (`--single --rust --quick`), to confirm with a full `--single --rust --indicator atr`; `tests/results/test-suite_2026-10-29_03-33-50.txt` PASSED (Rust 210, Python 1398).)*
 
 ### Part D: Trend (about 10 h)
 

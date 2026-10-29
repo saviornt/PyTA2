@@ -1,7 +1,9 @@
 """Volatility indicators, one module per indicator.
 
-Available: none yet. Planned (Sprint 11.5): ATR, STDDEV, Bollinger Bands,
-Donchian Channels, Keltner Channels (see the README catalog).
+Available: ATR. Planned (Sprint 11.5): STDDEV, Bollinger Bands, Donchian
+Channels, Keltner Channels (see the README catalog).
 """
 
-__all__: list[str] = []
+from pyta.indicators.volatility.atr import atr
+
+__all__ = ["atr"]

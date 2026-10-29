@@ -17,6 +17,10 @@ use std::path::Path;
 pub struct Reference {
     pub tolerance: f64,
     /// The first input column (the only one for a single-column example).
+    #[allow(
+        dead_code,
+        reason = "a crate with only multi-column reference tests reads `columns`"
+    )]
     pub input: Vec<f64>,
     /// Every input column, in the file's order.
     #[allow(dead_code, reason = "single-column reference tests read only `input`")]

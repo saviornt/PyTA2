@@ -45,7 +45,7 @@ PyTA/
 │       ├── py.typed
 │       ├── trend.py                # pyta.trend namespace; re-exports only
 │       ├── momentum.py             # pyta.momentum namespace; re-exports only
-│       ├── volatility.py           # pyta.volatility namespace (empty until its first indicator)
+│       ├── volatility.py           # pyta.volatility namespace; re-exports only
 │       ├── volume.py               # pyta.volume namespace (empty until its first indicator)
 │       ├── batch/                  # pyta.batch namespaces; re-exports only
 │       │   ├── __init__.py         # pyta.batch.<name>
@@ -62,7 +62,9 @@ PyTA/
 │           │   ├── __init__.py
 │           │   ├── cci.py          # cci() and cci_batch() (high, low, close)
 │           │   └── rsi.py          # rsi() and rsi_batch()
-│           ├── volatility/         # __init__.py only, until Sprint 11.5's first indicator
+│           ├── volatility/
+│           │   ├── __init__.py
+│           │   └── atr.py          # atr() and atr_batch() (high, low, close)
 │           └── volume/             # __init__.py only, until Sprint 11.5's first indicator
 ├── rust/crates/
 │   ├── pyta-common/                # Tunable constants (no logic, no dependencies)
@@ -70,7 +72,7 @@ PyTA/
 │   ├── pyta-engine/                # Requests, dispatch, planning, execution
 │   ├── pyta-trend/                 # Trend indicators
 │   ├── pyta-momentum/              # Momentum indicators
-│   ├── pyta-volatility/            # Volatility indicators (empty until Sprint 11.5's first)
+│   ├── pyta-volatility/            # Volatility indicators
 │   ├── pyta-volume/                # Volume indicators (empty until Sprint 11.5's first)
 │   └── pyta-python/                # PyO3 bridge (pyta._native)
 ├── rust/test-support/reference.rs  # Reads tests/fixtures/ for the Rust reference tests
@@ -167,8 +169,8 @@ Does not own indicator formulas, scheduling, or Python concerns.
 | File | Kernels | Used by (now / planned) |
 |---|---|---|
 | `ema.rs` | `ema`, `ema_into` (seed at any `start`, so cascades pass `&first[period - 1..]`), `ema_multiplier` (`2 / (period + 1)`), `ema_step` (`(value - previous) * k + previous`, TA-Lib's order) | EMA, MACD / DEMA, TEMA, TRIX, Keltner |
-| `wilder.rs` | `WilderAverage` (`average * (n - 1) / n + value / n`, RSI's form), `wilder_into` (seeded with the mean of the `period` values ending at `start`), `WilderSum` (`sum - sum / n + value`, TA-Lib's ADX form) | RSI / ATR, ADX, Keltner |
-| `true_range.rs` | `true_range` (index 0 `NaN`, TA-Lib's lookback 1), `true_range_at` | ATR, ADX, Keltner, ULTOSC |
+| `wilder.rs` | `WilderAverage` (`average * (n - 1) / n + value / n`, RSI's form), `wilder_into` (seeded with the mean of the `period` values ending at `start`), `WilderSum` (`sum - sum / n + value`, TA-Lib's ADX form) | RSI, ATR / ADX, Keltner |
+| `true_range.rs` | `true_range` (index 0 `NaN`, TA-Lib's lookback 1), `true_range_at` | ATR / ADX, Keltner, ULTOSC |
 | `extremes.rs` | `for_each_window_max`/`_min` (row of the extreme, ties to the most recent row), `rolling_max`/`_min` (values) | Donchian, WILLR, STOCH, Aroon, Ichimoku |
 | `typical_price.rs` | `typical_price`, `typical_price_at` (`(high + low + close) / 3`) | CCI / MFI, VWAP |
 | `rolling.rs` | `rolling_mean_into`/`rolling_mean` (compensated running sum, no drift), `rolling_std`/`rolling_mean_std` (population, centred two-pass per window, scaled when squares would overflow or underflow) | CCI / STDDEV, Bollinger |
@@ -195,7 +197,7 @@ Each crate owns the formulas for one technical-analysis category. One indicator 
 | `pyta-trend` | SMA; EMA (TA-Lib `TA_EMA`: seeded with the SMA of the first `period` values, `k = 2 / (period + 1)`); MACD (TA-Lib `TA_MACD`: three outputs, both EMAs start at `slow - 1`, `slow < fast` swapped; one fused pass after the seeds, bit-identical to separate EMA passes) |
 | `pyta-momentum` | RSI (Wilder's smoothing), CCI (high, low, close; compensated running mean, O(rows × period) for the mean deviation) |
 
-| `pyta-volatility` | None yet; scaffolded for Sprint 11.5 (ATR, STDDEV, Bollinger Bands, Donchian, Keltner) |
+| `pyta-volatility` | ATR (high, low, close; shared true range and Wilder smoothing). Planned for Sprint 11.5: STDDEV, Bollinger Bands, Donchian, Keltner |
 | `pyta-volume` | None yet; scaffolded for Sprint 11.5 (OBV, A/D, CMF, VWAP, Volume ROC) |
 
 `pyta-engine` depends on every category crate. Valuation gets its `pyta-valuation` crate when there is a concrete indicator to implement.
@@ -210,7 +212,7 @@ Each crate owns the formulas for one technical-analysis category. One indicator 
 | `batch.rs` | `execute_sequential`, `execute_parallel` (Rayon), and `execute_batch` (async front door) |
 | `planner.rs` | `should_parallelize`: predicts whether parallel execution beats sequential execution |
 
-**Parameters.** `IndicatorRequest { input, params }`. `Params` has one variant per indicator, carrying that indicator's own parameters: `Cci { period }`, `Ema { period }`, `Macd { fast, slow, signal }`, `Rsi { period }`, `Sma { period }`. The indicator is the variant, so it cannot disagree with its parameters; `params.kind()` (or `request.kind()`) gives the fieldless `IndicatorKind`, used for logging and benchmark labels. Each `dispatch` arm destructures its own variant, and `estimated_cost_ns` reads the parameters it depends on (CCI's `period`; EMA's and MACD's cost per row does not depend on theirs). A field may be `f64` (a band multiplier), so `Params` derives `PartialEq` but not `Eq` or `Hash`, and nothing may rely on either; a parameterless indicator is a unit variant (`Params::Obv`).
+**Parameters.** `IndicatorRequest { input, params }`. `Params` has one variant per indicator, carrying that indicator's own parameters: `Atr { period }`, `Cci { period }`, `Ema { period }`, `Macd { fast, slow, signal }`, `Rsi { period }`, `Sma { period }`. The indicator is the variant, so it cannot disagree with its parameters; `params.kind()` (or `request.kind()`) gives the fieldless `IndicatorKind`, used for logging and benchmark labels. Each `dispatch` arm destructures its own variant, and `estimated_cost_ns` reads the parameters it depends on (CCI's `period`; EMA's and MACD's cost per row does not depend on theirs). A field may be `f64` (a band multiplier), so `Params` derives `PartialEq` but not `Eq` or `Hash`, and nothing may rely on either; a parameterless indicator is a unit variant (`Params::Obv`).
 
 **Input.** `IndicatorRequest.input` is an `IndicatorInput`: `Series` for a single-column indicator (`IndicatorRequest::new(series, Params::Rsi { period: 14 })`) or `Columns` for a multi-column one (`IndicatorRequest::with_columns(columns, Params::Cci { period: 20 })`). Each `dispatch` arm takes what its kernel needs, `input.series()` or `input.columns::<N>()` (the slots in order), so a kernel receives only `&Series` values; input with the wrong number of columns is a `ColumnCount` error, never a panic. A cost is per row, not per row and column or per output; a multi-column or multi-output constant is measured per row.
 
@@ -230,8 +232,8 @@ Adding a `Params` variant fails to compile until it has a kind, a dispatch arm a
 
 ### `pyta-python`: native bridge
 
-- Registers `pyta._native` and its functions (`sma`, `rsi`, `cci`, `ema`, `macd`, and their `_batch` forms). Each takes its indicator's own parameters (`macd(values, fast, slow, signal)`) and builds the matching `Params` variant.
-- `lib.rs` only declares modules and registers functions. `error.rs` maps errors to exceptions, `single.rs` and `batch.rs` hold the shared conversion and execution plumbing, and each indicator's bindings live in a file named after it (`sma.rs`, `rsi.rs`, `cci.rs`, `ema.rs`, `macd.rs`).
+- Registers `pyta._native` and its functions (`sma`, `rsi`, `cci`, `ema`, `macd`, `atr`, and their `_batch` forms). Each takes its indicator's own parameters (`macd(values, fast, slow, signal)`) and builds the matching `Params` variant.
+- `lib.rs` only declares modules and registers functions. `error.rs` maps errors to exceptions, `single.rs` and `batch.rs` hold the shared conversion and execution plumbing, and each indicator's bindings live in a file named after it (`sma.rs`, `rsi.rs`, `cci.rs`, `ema.rs`, `macd.rs`, `atr.rs`).
 - A single-column function accepts a read-only 1-D `float64` NumPy array; a multi-column one (`compute_columns`, `compute_columns_batch`) accepts a list of them in slot order. Each array is copied once with validation fused into the copy (`series_from`, `columns_from`), then the GIL is released, the engine runs, and the output is returned without copying by `output_to_python`: a NumPy array for a single-output indicator, or a list of NumPy arrays in documented order for a multi-output one (`macd` returns `[macd, signal, hist]`). Single- and multi-column batches share one loop (`run_datasets`); each batch entry has the same shape as a single call's result, or is the dataset's exception.
 - Maps `PytaError::ExecutionFailed` to `RuntimeError` and every other error to `ValueError`.
 - Single calls use `execute_direct`; batch calls use the planner, then `execute_sequential` or `execute_parallel` (see §6).
@@ -255,8 +257,8 @@ The Python layer is responsible for everything about the user's data. Rust only 
 
 ### Public surface
 
-- `pyta/__init__.py` exports the public API (`sma`, `rsi`, `cci`, `batch`, `indicators`, and the category namespaces `trend`, `momentum`, `volatility`, `volume`).
-- `pyta/indicators/<category>/` holds one module per indicator (`trend/sma.py`, `momentum/rsi.py`, `momentum/cci.py`). Each module contains that indicator's single-call function and its batch function, with full docstrings, delegating to `_api.run` and `_api.run_batch` (single-column) or `_api.run_columns` and `_api.run_columns_batch` (multi-column, with the indicator's `SLOTS`).
+- `pyta/__init__.py` exports the public API (`sma`, `rsi`, `cci`, `atr`, `batch`, `indicators`, and the category namespaces `trend`, `momentum`, `volatility`, `volume`).
+- `pyta/indicators/<category>/` holds one module per indicator (`trend/sma.py`, `momentum/rsi.py`, `momentum/cci.py`, `volatility/atr.py`). Each module contains that indicator's single-call function and its batch function, with full docstrings, delegating to `_api.run` and `_api.run_batch` (single-column) or `_api.run_columns` and `_api.run_columns_batch` (multi-column, with the indicator's `SLOTS`).
 - Everything else only re-exports, so every import style reaches the same function object (`pyta.trend.sma is pyta.indicators.sma is pyta.sma`): the category `__init__.py`, `pyta/indicators/__init__.py`, the thin top-level `pyta/<category>.py` (a real module, because `import pyta.trend` cannot import an attribute), and the `pyta/batch/` package (`pyta.batch.<name>` and `pyta.batch.<category>.<name>`, both the indicator's `<name>_batch`). None holds logic.
 - Function names shadow their module names (`pyta.indicators.trend.sma` is the function), so code that needs the module imports from it: `from pyta.indicators.trend.sma import sma_batch`.
 
@@ -351,7 +353,7 @@ results = pyta.batch.sma(datasets, period=14)
 - The call is synchronous from the user's perspective; the planner decides internally whether to run sequentially or concurrently.
 - The parameters (`period`, or MACD's `fast`, `slow`, `signal`), `column` (or `columns` for a multi-column indicator) and `output` are shared by the whole batch. One indicator per call; mixed-indicator batches are a later sprint.
 - **Error policy.** Nothing is raised for a bad dataset, so the others still complete. Python normalizes and validates each dataset first (`_api.run_batch`); a dataset that fails there becomes its exception. The rest go to Rust in a single call, and a per-request engine error becomes the matching exception (`ValueError`, or `RuntimeError` for internal failures). Invalid parameters or `column` raise, because they affect every dataset.
-- **Native side.** `pyta._native.sma_batch` / `rsi_batch` / `ema_batch` / `macd_batch` take a list of arrays (`cci_batch` a list of lists of arrays, one per slot), copy and validate each, release the GIL, and return a list in input order whose entries are each an array (a list of arrays for `macd_batch`) or an exception. The bridge asks `should_parallelize` and then runs `execute_sequential` or `execute_parallel` on its own Rayon pool.
+- **Native side.** `pyta._native.sma_batch` / `rsi_batch` / `ema_batch` / `macd_batch` take a list of arrays (`cci_batch` and `atr_batch` a list of lists of arrays, one per slot), copy and validate each, release the GIL, and return a list in input order whose entries are each an array (a list of arrays for `macd_batch`) or an exception. The bridge asks `should_parallelize` and then runs `execute_sequential` or `execute_parallel` on its own Rayon pool.
 
 ---
 
@@ -370,12 +372,12 @@ results = pyta.batch.sma(datasets, period=14)
 | Location | Purpose |
 |---|---|
 | Rust `#[cfg(test)]` modules and crate `tests/` | Formulas, boundary cases, warm-up, validation, engine ordering and error isolation, sequential vs parallel equality, logging (a per-thread capturing logger in `pyta-engine`) |
-| Crate `tests/property_tests.rs` (`proptest`) | Kernel invariants for any input: output length, exact warm-up (per output for MACD), SMA and EMA within the input's range, MACD's histogram exactly line minus signal and zero for constant input, RSI in [0, 100], constant input, CCI within `period / 0.03` and unchanged by a shift and a positive scale |
-| Crate `tests/reference_tests.rs` | Reference examples from `tests/fixtures/` (published worked examples, and TA-Lib's own output for EMA and MACD at 1e-9), read by `rust/test-support/reference.rs` |
+| Crate `tests/property_tests.rs` (`proptest`) | Kernel invariants for any input: output length, exact warm-up (per output for MACD), SMA and EMA within the input's range, MACD's histogram exactly line minus signal and zero for constant input, RSI in [0, 100], constant input, CCI within `period / 0.03` and unchanged by a shift and a positive scale, ATR between 0 and the largest true range, within rounding of TA-Lib's form and unchanged by a shift |
+| Crate `tests/reference_tests.rs` | Reference examples from `tests/fixtures/` (published worked examples, and TA-Lib's own output for EMA, MACD and ATR at 1e-9), read by `rust/test-support/reference.rs` |
 | `tests/fixtures/` | Reference examples as CSV (`label,input,expected`, one column per role such as `label,high,low,close,expected` for a multi-column indicator, or one `expected_<output>` column per output such as `expected_macd,expected_macd_signal,expected_macd_hist`), each citing its source, parameters (`period:`, or `fast:`, `slow:`, `signal:`) and tolerance in `#` comments, shared by Rust and Python; and realistic input data (`ohlcv_daily.csv`: 300 sessions of real SPY OHLCV, source cited), which is input only, never a reference. Python tests get it from the `ohlcv` fixture (`tests/conftest.py`, loader and an independent `rolling_mean` in `tests/ohlcv_data.py`) |
-| `tests/python/` | Public API behavior: containers, NaN policy, parameters, errors, batch, logging, fork, import surface; per-indicator numerics (`test_sma.py`, `test_rsi.py`, `test_cci.py`); multi-column input for every container, `columns=`, the role registry and errors (`test_multi_column.py`); `hypothesis` properties (`test_properties.py`, and `columns=` permutations) |
+| `tests/python/` | Public API behavior: containers, NaN policy, parameters, errors, batch, logging, fork, import surface; per-indicator numerics (`test_sma.py`, `test_rsi.py`, `test_cci.py`, `test_atr.py`); multi-column input for every container, `columns=`, the role registry and errors (`test_multi_column.py`); `hypothesis` properties (`test_properties.py`, and `columns=` permutations) |
 | `tests/reference/` | The same published examples through the public API |
-| `tests/smoke/` | Quick build-and-run check: the OHLCV fixture as a dict of columns through `pyta.sma`, `pyta.rsi`, `pyta.cci` and `pyta.batch` (stdlib only, so it also runs as a script) |
+| `tests/smoke/` | Quick build-and-run check: the OHLCV fixture as a dict of columns through `pyta.sma`, `pyta.rsi`, `pyta.cci`, `pyta.atr` and `pyta.batch` (stdlib only, so it also runs as a script) |
 
 Quality gates, all in `scripts/test-suite.sh` and mirrored by CI:
 

@@ -10,6 +10,7 @@ const NAN: f64 = f64::NAN;
 /// The parameters of a one-period indicator.
 fn params(kind: IndicatorKind, period: usize) -> Params {
     match kind {
+        IndicatorKind::Atr => Params::Atr { period },
         IndicatorKind::Cci => Params::Cci { period },
         IndicatorKind::Ema => Params::Ema { period },
         IndicatorKind::Rsi => Params::Rsi { period },
@@ -272,6 +273,7 @@ fn macd_request(values: Vec<f64>, fast: usize, slow: usize, signal: usize) -> In
 fn the_kind_comes_from_the_params() {
     let series = Series::new(vec![1.0, 2.0]).unwrap();
     let cases = [
+        (Params::Atr { period: 2 }, IndicatorKind::Atr),
         (Params::Cci { period: 2 }, IndicatorKind::Cci),
         (Params::Ema { period: 2 }, IndicatorKind::Ema),
         (
@@ -380,6 +382,46 @@ async fn ema_and_macd_errors_are_isolated_in_a_batch() {
         PytaError::ColumnCount {
             expected: 1,
             actual: 2,
+        }
+    );
+}
+
+#[tokio::test]
+async fn atr_runs_through_the_engine_and_reports_its_errors() {
+    // True ranges 3, 1, 4, 2 from row 1: ATR(2) is 2, 3, 2.5 (see the
+    // kernel tests).
+    let high: &[f64] = &[11.0, 12.0, 11.0, 14.0, 13.0];
+    let low: &[f64] = &[9.0, 9.0, 10.0, 12.0, 11.0];
+    let close: &[f64] = &[10.0, 11.0, 10.0, 13.0, 12.0];
+    let requests = vec![
+        columns_request(IndicatorKind::Atr, &[high, low, close], 2),
+        columns_request(IndicatorKind::Atr, &[high, low, close], 0),
+        columns_request(IndicatorKind::Atr, &[high, low, close], 5),
+        request(IndicatorKind::Atr, close.to_vec(), 2),
+    ];
+
+    let direct = execute_direct(&requests[0]).unwrap();
+    assert_values(direct.values(), &[NAN, NAN, 2.0, 3.0, 2.5]);
+
+    let results = execute_batch(requests).await;
+
+    match &results[0].status {
+        IndicatorStatus::Success(output) => assert_values(output.values(), direct.values()),
+        IndicatorStatus::Error(error) => panic!("expected ATR success, got {error:?}"),
+    }
+    assert_eq!(*error_of(&results[1]), PytaError::InvalidPeriod);
+    assert_eq!(
+        *error_of(&results[2]),
+        PytaError::InsufficientData {
+            required: 6,
+            length: 5,
+        }
+    );
+    assert_eq!(
+        *error_of(&results[3]),
+        PytaError::ColumnCount {
+            expected: 3,
+            actual: 1,
         }
     );
 }

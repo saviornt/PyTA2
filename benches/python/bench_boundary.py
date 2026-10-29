@@ -41,6 +41,7 @@ INDICATORS: dict[str, tuple[dict[str, int], int]] = {
     "cci": ({"period": 14}, 3),
     "ema": ({"period": 30}, 1),
     "macd": ({"fast": 12, "slow": 26, "signal": 9}, 1),
+    "atr": ({"period": 14}, 3),
 }
 
 SIZES = (100, 10_000, 1_000_000)
