@@ -3,15 +3,17 @@
 Every supported container is reduced to one 1-D, C-contiguous float64 array
 per slot of the indicator, in slot order, together with a function that
 rebuilds the caller's container from the indicator's named results. Named
-containers are matched by role; unnamed ones (2-D arrays, tuples of arrays) use
-the slot order, and give a tuple of outputs for a multi-output indicator.
+containers are matched by role; unnamed ones (2-D arrays, lists of rows or
+columns, tuples of arrays, JSON arrays of arrays) use the slot order, and give a
+tuple of outputs for a multi-output indicator. A list or tuple of pandas Series
+is matched by name when every Series is named by a role, else taken in order.
 """
 
 import functools
 import json
 import logging
 import sys
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any, cast
 
 import numpy as np
@@ -20,6 +22,7 @@ from numpy.typing import NDArray
 from ._types import Float64Array, Prepared, PreparedColumns, Restore
 from ._validation import (
     RESTORE_ARRAY,
+    RESTORE_LIST,
     RESTORE_TUPLE,
     Slot,
     from_column,
@@ -27,8 +30,10 @@ from ._validation import (
     json_dump,
     restore_columns,
     restore_frame,
+    restore_json_array,
     restore_json_object,
     restore_records,
+    restore_series,
     role_aliases,
     role_names,
     role_of,
@@ -87,7 +92,7 @@ def normalize_columns(
     if isinstance(data, tuple):
         return _from_tuple(cast(tuple[object, ...], data), columns, label, slots)
     if isinstance(data, list):
-        raise _one_column(label, slots, "a list")
+        return _from_list(cast(list[object], data), columns, label, slots)
     if isinstance(data, Mapping):
         return _from_mapping(cast(Mapping[object, object], data), columns, label, slots)
 
@@ -101,7 +106,8 @@ def normalize_columns(
 
     raise TypeError(
         f"unsupported input type {type(data).__name__}; expected a pandas DataFrame, dict of "
-        "columns, JSON string, 2-D NumPy array or tuple of arrays"
+        "columns, JSON string, 2-D NumPy array, list of rows or columns, or a list or tuple "
+        "of arrays or Series"
     )
 
 
@@ -121,7 +127,8 @@ def _column(value: object, key: object) -> Prepared:
 def _one_column(label: str, slots: Sequence[Slot], kind: str) -> TypeError:
     return TypeError(
         f"{needs(label, slots)}, but {kind} holds one series; pass a DataFrame, dict of "
-        "columns, JSON, a 2-D array of shape (rows, columns) or a tuple of arrays"
+        "columns, JSON, a 2-D array or list of rows, or a list or tuple of columns (arrays, "
+        "lists or Series)"
     )
 
 
@@ -300,23 +307,78 @@ def _from_array(
     if data.ndim == 1:
         raise _one_column(label, slots, "a 1-D array")
     if data.ndim != 2:
-        raise ValueError(f"expected a 2-D array of shape (rows, columns), got shape {data.shape}")
+        raise ValueError(
+            f"expected a 2-D array of shape (rows, columns) or (columns, rows), got shape "
+            f"{data.shape}"
+        )
 
     _reject_columns(columns, "a 2-D array", slots)
 
     if isinstance(data, np.ma.MaskedArray):
         data = np.ma.filled(data.astype(np.float64), np.nan)
 
-    arrays = [to_float64(data[:, i]) for i in range(data.shape[1])]
+    arrays = _split(data, label, slots, "a 2-D array")
     labels, roles = _unnamed(arrays, label, slots, "the array")
 
     return _prepared(arrays, labels, roles, RESTORE_ARRAY, named=False)
+
+
+def _split(table: NDArray[Any], label: str, slots: Sequence[Slot], kind: str) -> list[Float64Array]:
+    """The columns of a 2-D table in either layout, chosen by the indicator's column count.
+
+    The axis whose length equals the count holds the columns; when both do (as
+    many rows as columns), the layout is (rows, columns).
+    """
+    count = len(slots)
+    rows, width = table.shape
+
+    if width == count:
+        return [to_float64(table[:, i]) for i in range(count)]
+    if rows == count:
+        return [to_float64(column) for column in table]
+
+    order = ", ".join(slot.name for slot in slots)
+    raise ValueError(
+        f"{label} takes {count} columns in the order {order}; expected {kind} of shape "
+        f"(rows, {count}) or ({count}, rows), got shape ({rows}, {width})"
+    )
+
+
+def _kinds(items: Sequence[object]) -> set[str]:
+    """What a list or tuple holds: "series", "sequences" and/or "numbers"."""
+    pd = sys.modules.get("pandas")
+    kinds: set[str] = set()
+
+    for item in items:
+        if pd is not None and isinstance(item, pd.Series):
+            kinds.add("series")
+        elif isinstance(item, list | tuple) or (isinstance(item, np.ndarray) and item.ndim):
+            kinds.add("sequences")
+        else:
+            kinds.add("numbers")
+
+    return kinds
+
+
+def _mixed(label: str, slots: Sequence[Slot], kind: str, kinds: set[str]) -> TypeError:
+    described = {"series": "pandas Series", "sequences": "lists or arrays", "numbers": "numbers"}
+    found = " and ".join(described[name] for name in described if name in kinds)
+    return TypeError(
+        f"{needs(label, slots)}, but {kind} mixes {found}; pass every column in the same form"
+    )
 
 
 def _from_tuple(
     data: tuple[object, ...], columns: list[str] | None, label: str, slots: Sequence[Slot]
 ) -> PreparedColumns:
     if not data or not all(isinstance(item, list | tuple | np.ndarray) for item in data):
+        # Only tuples that are not of arrays get here, so those pay nothing for this.
+        kinds = _kinds(data)
+
+        if kinds == {"series"}:
+            return _from_series(data, columns, label, slots, "tuple")
+        if len(kinds) > 1:
+            raise _mixed(label, slots, "the tuple", kinds)
         raise _one_column(label, slots, "a tuple of numbers")
 
     _reject_columns(columns, "a tuple of arrays", slots)
@@ -325,6 +387,97 @@ def _from_tuple(
     labels, roles = _unnamed(arrays, label, slots, "the tuple")
 
     return _prepared(arrays, labels, roles, RESTORE_TUPLE, named=False)
+
+
+def _from_list(
+    data: list[object], columns: list[str] | None, label: str, slots: Sequence[Slot]
+) -> PreparedColumns:
+    """A list of rows or of columns (lists, tuples or arrays), or a list of Series."""
+    kinds = _kinds(data)
+
+    if kinds == {"series"}:
+        return _from_series(data, columns, label, slots, "list")
+    if kinds != {"sequences"}:
+        if len(kinds) > 1:
+            raise _mixed(label, slots, "the list", kinds)
+        raise _one_column(label, slots, "a list of numbers")
+
+    _reject_columns(columns, "a list of lists", slots)
+
+    arrays = _nested(cast(list[Sequence[object]], data), label, slots, "a list of lists")
+    labels, roles = _unnamed(arrays, label, slots, "the list")
+
+    return _prepared(arrays, labels, roles, RESTORE_LIST, named=False)
+
+
+def _nested(
+    items: Sequence[Sequence[object]], label: str, slots: Sequence[Slot], kind: str
+) -> list[Float64Array]:
+    """The columns of nested sequences: rows, or columns, by `_split`'s rule.
+
+    Columns of unequal length are returned as they are, for `_prepared` to name.
+    """
+    lengths = {len(item) for item in items}
+
+    if len(lengths) > 1:
+        if len(items) == len(slots):
+            return [_column(item, i).values for i, item in enumerate(items)]
+        raise ValueError(
+            f"{kind} must have rows of one length (or {len(slots)} columns); "
+            f"got lengths {sorted(lengths)}"
+        )
+
+    try:
+        table = np.asarray(items)
+    except ValueError:  # deeper nesting of unequal shape
+        table = None
+
+    if table is None or table.ndim != 2:
+        raise ValueError(f"{kind} must hold numbers, not further nested sequences")
+
+    return _split(table, label, slots, kind)
+
+
+def _from_series(
+    items: Sequence[Any], columns: list[str] | None, label: str, slots: Sequence[Slot], kind: str
+) -> PreparedColumns:
+    """A list or tuple of pandas Series sharing one index.
+
+    Matched by name like a dict when every Series is named by a role, else
+    taken in slot order. The result keeps the shared index.
+    """
+    pd = sys.modules["pandas"]
+    index = items[0].index
+
+    for position, item in enumerate(items):
+        if item.index is not index and not item.index.equals(index):
+            raise ValueError(
+                f"the Series in a {kind} must share one index; Series {position} "
+                f"({item.name!r}) differs from Series 0 ({items[0].name!r}). Align them "
+                "first, for example with pandas.concat(..., axis=1)"
+            )
+
+    restore = restore_series(pd, index)
+    names: list[object] = [item.name for item in items]
+
+    if all(name is not None and role_of(name) is not None for name in names):
+        chosen = _match(names, columns, label, slots)
+        by_name = dict(zip(names, items, strict=True))
+        arrays = [from_pandas_series(pd, by_name[key], None).values for key, _ in chosen]
+
+        return _prepared(arrays, [key for key, _ in chosen], [role for _, role in chosen], restore)
+
+    if columns is not None:
+        order = ", ".join(slot.name for slot in slots)
+        raise ValueError(
+            f"columns= needs every Series in the {kind} named by a column role (such as "
+            f"'high'); Series without role names are taken in the order {order}"
+        )
+
+    arrays = [from_pandas_series(pd, item, None).values for item in items]
+    labels, roles = _unnamed(arrays, label, slots, f"the {kind}")
+
+    return _prepared(arrays, labels, roles, restore, named=False)
 
 
 def _from_pandas_frame(
@@ -361,7 +514,7 @@ def _from_mapping(
 def _from_json(
     data: str | bytes | bytearray, columns: list[str] | None, label: str, slots: Sequence[Slot]
 ) -> PreparedColumns:
-    """Accepts a JSON array of records or an object of arrays.
+    """Accepts a JSON array of records or of arrays (rows or columns), or an object of arrays.
 
     `null` is a gap (NaN). The result is returned as JSON of the same shape
     and the same type (str or bytes), with NaN written as `null`.
@@ -378,9 +531,9 @@ def _from_json(
         records = [cast(dict[str, Any], row) for row in rows if isinstance(row, dict)]
 
         if not records:
-            raise _one_column(label, slots, "a JSON array of numbers")
+            return _from_json_arrays(rows, columns, label, slots, dump)
         if len(records) < len(rows):
-            raise TypeError("JSON array mixes records and numbers; use one or the other")
+            raise TypeError("JSON array mixes records and numbers or arrays; use one shape")
 
         chosen = _match(list(records[0]), columns, label, slots)
         arrays = [
@@ -412,4 +565,29 @@ def _from_json(
             restore_json_object(dump),
         )
 
-    raise TypeError("JSON input must be an array of records or an object of arrays")
+    raise TypeError(
+        "JSON input must be an array of records, an array of arrays or an object of arrays"
+    )
+
+
+def _from_json_arrays(
+    rows: list[Any],
+    columns: list[str] | None,
+    label: str,
+    slots: Sequence[Slot],
+    dump: Callable[[Any], str | bytes],
+) -> PreparedColumns:
+    """A JSON array of arrays: rows or columns, by the same rule as a list of lists."""
+    nested = sum(isinstance(row, list) for row in rows)
+
+    if not nested:
+        raise _one_column(label, slots, "a JSON array of numbers")
+    if nested < len(rows):
+        raise TypeError("JSON array mixes arrays and numbers; use one or the other")
+
+    _reject_columns(columns, "a JSON array of arrays", slots)
+
+    arrays = _nested(cast(list[Sequence[object]], rows), label, slots, "a JSON array of arrays")
+    labels, roles = _unnamed(arrays, label, slots, "the JSON array")
+
+    return _prepared(arrays, labels, roles, restore_json_array(dump), named=False)

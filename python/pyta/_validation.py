@@ -363,6 +363,22 @@ def restore_frame(pd: Any, index: Any) -> Restore:
     return lambda names, results: pd.DataFrame(dict(zip(names, results, strict=True)), index=index)
 
 
+def restore_series(pd: Any, index: Any) -> Restore:
+    """A `Restore` for pandas Series: each output a Series named by it, keeping `index`.
+
+    One output is a Series; several are a tuple of them, in documented order.
+    """
+
+    def restore(names: Sequence[str], results: Sequence[Float64Array]) -> Any:
+        if len(results) == 1:
+            return pd.Series(results[0], index=index, name=names[0])
+        return tuple(
+            pd.Series(out, index=index, name=name) for name, out in zip(names, results, strict=True)
+        )
+
+    return restore
+
+
 def json_dump(as_bytes: bool) -> Callable[[Any], str | bytes]:
     """Serializes to compact JSON, as bytes when the input was bytes."""
 
@@ -379,6 +395,20 @@ def restore_records(dump: Callable[[Any], str | bytes]) -> Restore:
     def restore(names: Sequence[str], results: Sequence[Float64Array]) -> str | bytes:
         columns = [nulls(values) for values in results]
         return dump([dict(zip(names, row, strict=True)) for row in zip(*columns, strict=True)])
+
+    return restore
+
+
+def restore_json_array(dump: Callable[[Any], str | bytes]) -> Restore:
+    """A `Restore` for an unnamed JSON array: one output is an array, several an object.
+
+    The object is keyed by output name, as JSON has no tuple.
+    """
+
+    def restore(names: Sequence[str], results: Sequence[Float64Array]) -> str | bytes:
+        if len(results) == 1:
+            return dump(nulls(results[0]))
+        return dump({name: nulls(out) for name, out in zip(names, results, strict=True)})
 
     return restore
 
@@ -521,13 +551,7 @@ def _from_json(data: str | bytes | bytearray, column: str | None, default_column
         _reject_column(column, "JSON array")
         values = _from_sequence(parsed, None).values
 
-        # One output is an array like the input; several are an object keyed by name.
-        def restore(names: Sequence[str], results: Sequence[Float64Array]) -> str | bytes:
-            if len(results) == 1:
-                return dump(nulls(results[0]))
-            return dump({name: nulls(out) for name, out in zip(names, results, strict=True)})
-
-        return Prepared(values, restore)
+        return Prepared(values, restore_json_array(dump))
 
     if isinstance(parsed, dict):  # columns
         parsed = cast(dict[Any, Any], parsed)

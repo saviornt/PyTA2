@@ -6,7 +6,7 @@ plumbing beyond declaring its slots, outputs and parameters.
 """
 
 import json
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 
 import numpy as np
 import pytest
@@ -71,6 +71,79 @@ def test_unnamed_input_gives_a_tuple_in_output_order(ohlcv: Ohlcv) -> None:
     assert isinstance(as_tuple, tuple)
     assert all(isinstance(o, tuple) for o in as_tuple)
     np.testing.assert_array_equal(as_tuple[1], as_array[1])
+
+
+def stack(ohlcv: Ohlcv) -> Array:
+    return np.column_stack([ohlcv.high, ohlcv.low, ohlcv.close])
+
+
+@pytest.mark.parametrize(
+    ("make", "kind"),
+    [
+        (lambda o: stack(o).T, np.ndarray),  # (columns, rows)
+        (lambda o: stack(o).tolist(), list),  # list of rows
+        (lambda o: stack(o).T.tolist(), list),  # list of column lists
+        (lambda o: [o.high, o.low, o.close], list),  # list of arrays
+    ],
+)
+def test_more_unnamed_forms_give_a_tuple_in_output_order(
+    ohlcv: Ohlcv, make: Callable[[Ohlcv], object], kind: type
+) -> None:
+    reference = run_columns(fake, NAMES, stack(ohlcv), (3, 2), None, SLOTS)
+
+    result = run_columns(fake, NAMES, make(ohlcv), (3, 2), None, SLOTS)
+
+    assert isinstance(result, tuple)
+    assert len(result) == 2
+    assert all(isinstance(output, kind) for output in result)
+    for output, want in zip(result, reference, strict=True):
+        np.testing.assert_array_equal(np.asarray(output), want)
+
+
+@pytest.mark.parametrize("layout", ["rows", "columns"])
+def test_json_array_of_arrays_gives_an_object_keyed_by_output(ohlcv: Ohlcv, layout: str) -> None:
+    table = stack(ohlcv) if layout == "rows" else stack(ohlcv).T
+
+    result = json.loads(run_columns(fake, NAMES, json.dumps(table.tolist()), (3, 2), None, SLOTS))
+
+    assert list(result) == ["stoch_k", "stoch_d"]
+    assert result["stoch_k"][:2] == [None, None]
+    assert result["stoch_d"][1:] == (ohlcv.close[1:] * 2).tolist()
+
+
+@pytest.mark.pandas
+@pytest.mark.parametrize("named", [True, False])
+def test_list_of_series_gives_a_tuple_of_series(ohlcv: Ohlcv, named: bool) -> None:
+    pd = pytest.importorskip("pandas")
+    index = pd.DatetimeIndex(ohlcv.dates)
+    names = ("Low", "Close", "High") if named else (None, None, None)
+    values = (ohlcv.low, ohlcv.close, ohlcv.high) if named else (ohlcv.high, ohlcv.low, ohlcv.close)
+    series = [pd.Series(v, index=index, name=n) for v, n in zip(values, names, strict=True)]
+
+    result = run_columns(fake, NAMES, series, (3, 2), None, SLOTS)
+
+    assert isinstance(result, tuple)
+    assert [output.name for output in result] == (
+        ["STOCH_K", "STOCH_D"] if named else ["stoch_k", "stoch_d"]
+    )
+    assert all(output.index.equals(index) for output in result)
+    np.testing.assert_array_equal(result[1].to_numpy()[1:], ohlcv.close[1:] * 2)
+
+
+@pytest.mark.pandas
+def test_batch_with_the_new_forms_keeps_failures_in_place(ohlcv: Ohlcv) -> None:
+    pd = pytest.importorskip("pandas")
+    mismatched = [pd.Series(ohlcv.high), pd.Series(ohlcv.low, index=range(1, 301))]
+
+    results = run_columns_batch(
+        fake_batch, NAMES, [stack(ohlcv).T, mismatched, stack(ohlcv).tolist()], (3, 2), None, SLOTS
+    )
+
+    assert isinstance(results[0], tuple)
+    assert isinstance(results[1], ValueError)
+    assert "must share one index" in str(results[1])
+    assert isinstance(results[2], tuple)
+    assert all(isinstance(output, list) for output in results[2])
 
 
 def test_json_records_and_object(ohlcv: Ohlcv) -> None:

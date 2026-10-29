@@ -6,7 +6,7 @@ its three slots, so these tests cover every multi-column indicator.
 
 import itertools
 import json
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 
 import numpy as np
 import pyta
@@ -325,7 +325,10 @@ def test_unnamed_input_with_the_wrong_column_count(width: int) -> None:
 
     with pytest.raises(
         ValueError,
-        match=f"cci takes 3 columns in the order high, low, close; the array has {width}",
+        match=(
+            r"cci takes 3 columns in the order high, low, close; expected a 2-D array of shape "
+            rf"\(rows, 3\) or \(3, rows\), got shape \(20, {width}\)"
+        ),
     ):
         pyta.cci(rows, PERIOD)
     with pytest.raises(ValueError, match=f"the tuple has {width}"):
@@ -342,7 +345,8 @@ def test_unnamed_input_has_no_names_to_choose_from() -> None:
 @pytest.mark.parametrize(
     ("data", "kind"),
     [
-        ([1.0, 2.0, 3.0], "a list"),
+        ([1.0, 2.0, 3.0], "a list of numbers"),
+        ([], "a list of numbers"),
         (np.ones(5), "a 1-D array"),
         ((1.0, 2.0, 3.0), "a tuple of numbers"),
         ((), "a tuple of numbers"),
@@ -370,10 +374,178 @@ def test_a_pandas_series_or_multiindex_frame_is_rejected() -> None:
         pyta.cci(frame, PERIOD)
 
 
+def stack(ohlcv: Ohlcv) -> NDArray[np.float64]:
+    """The fixture's high, low and close as a (rows, columns) array."""
+    return np.column_stack([ohlcv.high, ohlcv.low, ohlcv.close])
+
+
+@pytest.mark.parametrize(
+    ("make", "kind"),
+    [
+        (lambda o: stack(o).T, np.ndarray),  # (columns, rows)
+        (lambda o: np.ascontiguousarray(stack(o).T), np.ndarray),
+        (lambda o: stack(o).tolist(), list),  # list of rows
+        (lambda o: [tuple(row) for row in stack(o).tolist()], list),
+        (lambda o: stack(o).T.tolist(), list),  # list of column lists
+        (lambda o: [o.high, o.low, o.close], list),  # list of arrays
+        (lambda o: json.dumps(stack(o).tolist()), str),  # JSON array of rows
+        (lambda o: json.dumps(stack(o).T.tolist()).encode(), bytes),  # JSON array of columns
+    ],
+)
+def test_more_unnamed_forms_take_the_documented_order(
+    ohlcv: Ohlcv, make: Callable[[Ohlcv], object], kind: type
+) -> None:
+    result = pyta.cci(make(ohlcv), PERIOD)
+
+    assert isinstance(result, kind)
+    if isinstance(result, str | bytes):
+        result = [np.nan if value is None else value for value in json.loads(result)]
+    np.testing.assert_array_equal(np.asarray(result, dtype=np.float64), expected(ohlcv))
+
+
+def test_a_square_table_is_read_as_rows_and_columns() -> None:
+    # Read as columns, high would be [3, 1, 2] and low [4, 2, 3]: high below low.
+    rows = [[3.0, 1.0, 2.0], [4.0, 2.0, 3.0], [6.0, 3.0, 5.0]]
+    by_columns = pyta.cci(tuple(np.array(rows).T), 2)
+
+    np.testing.assert_array_equal(pyta.cci(np.array(rows), 2), by_columns)
+    np.testing.assert_array_equal(pyta.cci(rows, 2), by_columns)
+    assert json.loads(pyta.cci(json.dumps(rows), 2)) == [None, *by_columns[1:]]
+
+
 @pytest.mark.parametrize(
     ("data", "error", "message"),
     [
-        (np.ones((2, 3, 3)), ValueError, r"expected a 2-D array of shape \(rows, columns\)"),
+        ([[1.0, 2.0]] * 4, ValueError, r"a list of lists of shape \(rows, 3\) or \(3, rows\)"),
+        ("[[1.0, 2.0], [1.0, 2.0]]", ValueError, r"JSON array of arrays of shape \(rows, 3\)"),
+        ([[3.0, 1.0, 2.0], [3.0, 1.0]] * 2, ValueError, r"rows of one length .* \[2, 3\]"),
+        ([[3.0, 3.0], [1.0], [2.0, 2.0]], ValueError, r"columns have different lengths"),
+        ([[[1.0]], [[2.0]], [[3.0]]], ValueError, "must hold numbers, not further nested"),
+        ([[[1.0], [2.0, 3.0]]] * 3, ValueError, "must hold numbers, not further nested"),
+        ([[[1.0], [2.0]], [[3.0]], [[4.0]]], ValueError, "expected a 1-D series"),
+        ([[1.0, 2.0, 3.0], 4.0], TypeError, "the list mixes lists or arrays and numbers"),
+        ((np.ones(3), 4.0), TypeError, "the tuple mixes lists or arrays and numbers"),
+        ("[[1.0, 2.0, 3.0], 4.0]", TypeError, "JSON array mixes arrays and numbers"),
+        ('[[1.0, 2.0, 3.0], {"high": 1.0}]', TypeError, "mixes records and numbers or arrays"),
+        ([["a", "b", "c"]] * 4, TypeError, "unsupported dtype"),
+    ],
+)
+def test_malformed_nested_input(data: object, error: type[Exception], message: str) -> None:
+    with pytest.raises(error, match=message):
+        pyta.cci(data, PERIOD)
+
+
+def test_nested_input_has_no_names_to_choose_from() -> None:
+    names = ["high", "low", "close"]
+
+    with pytest.raises(ValueError, match="columns= is not valid for a list of lists"):
+        pyta.cci([[3.0, 1.0, 2.0]] * 20, PERIOD, columns=names)
+    with pytest.raises(ValueError, match="columns= is not valid for a JSON array of arrays"):
+        pyta.cci(json.dumps([[3.0, 1.0, 2.0]] * 20), PERIOD, columns=names)
+
+
+def test_a_bad_value_in_a_list_of_rows_names_its_column_and_row() -> None:
+    rows: list[list[float | None]] = [[3.0, 1.0, 2.0] for _ in range(20)]
+    rows[0][2] = None  # leading gap: skipped
+    rows[12][2] = None
+
+    with pytest.raises(
+        ValueError, match=r"column 'column 2 \(close\)': non-finite value .* at index 12"
+    ):
+        pyta.cci(rows, PERIOD)
+
+
+@pytest.mark.pandas
+@pytest.mark.parametrize("container", [list, tuple])
+def test_series_named_by_role_are_matched_by_name(ohlcv: Ohlcv, container: type) -> None:
+    pd = pytest.importorskip("pandas")
+    index = pd.DatetimeIndex(ohlcv.dates)
+    series = [
+        pd.Series(ohlcv.close, index=index, name="Close"),
+        pd.Series(ohlcv.high, index=index, name="High"),
+        pd.Series(ohlcv.low, index=index, name="Low"),
+    ]
+
+    result = pyta.cci(container(series), PERIOD)
+
+    assert isinstance(result, pd.Series)
+    assert result.name == "CCI"
+    assert result.index.equals(index)
+    np.testing.assert_array_equal(result.to_numpy(), expected(ohlcv))
+
+
+@pytest.mark.pandas
+def test_series_without_role_names_take_the_documented_order(ohlcv: Ohlcv) -> None:
+    pd = pytest.importorskip("pandas")
+    named = [
+        pd.Series(ohlcv.high, name="SPY High"),  # not a role name
+        pd.Series(ohlcv.low, name="low"),
+        pd.Series(ohlcv.close),
+    ]
+
+    for data in (named, tuple(pd.Series(values) for values in stack(ohlcv).T)):
+        result = pyta.cci(data, PERIOD)
+
+        assert isinstance(result, pd.Series)
+        assert result.name == "cci"
+        assert result.index.equals(pd.RangeIndex(300))
+        np.testing.assert_array_equal(result.to_numpy(), expected(ohlcv))
+
+    with pytest.raises(ValueError, match=r"cci takes 3 columns .*; the list has 2"):
+        pyta.cci(named[:2], PERIOD)
+
+
+@pytest.mark.pandas
+def test_columns_override_works_for_series_named_by_role(ohlcv: Ohlcv) -> None:
+    pd = pytest.importorskip("pandas")
+    series = [
+        pd.Series(ohlcv.close, name="close"),
+        pd.Series(ohlcv.close * 1.01, name="adj_close"),
+        pd.Series(ohlcv.high, name="high"),
+        pd.Series(ohlcv.low, name="low"),
+    ]
+
+    result = pyta.cci(series, PERIOD, columns=["adj_close", "low", "high"])
+
+    np.testing.assert_array_equal(result.to_numpy(), expected(ohlcv, ohlcv.close * 1.01))
+    with pytest.raises(ValueError, match="columns= needs every Series in the tuple named"):
+        pyta.cci(
+            (pd.Series(ohlcv.high), pd.Series(ohlcv.low), pd.Series(ohlcv.close)),
+            PERIOD,
+            columns=["high", "low", "close"],
+        )
+
+
+@pytest.mark.pandas
+def test_series_must_share_one_index(ohlcv: Ohlcv) -> None:
+    pd = pytest.importorskip("pandas")
+    high = pd.Series(ohlcv.high, name="high")
+    shifted = pd.Series(ohlcv.low, index=range(1, 301), name="low")
+
+    with pytest.raises(
+        ValueError,
+        match=r"the Series in a list must share one index; Series 1 \('low'\) differs from "
+        r"Series 0 \('high'\)",
+    ):
+        pyta.cci([high, shifted, pd.Series(ohlcv.close, name="close")], PERIOD)
+
+
+@pytest.mark.pandas
+def test_series_mixed_with_other_columns_raise(ohlcv: Ohlcv) -> None:
+    pd = pytest.importorskip("pandas")
+
+    with pytest.raises(TypeError, match="the list mixes pandas Series and lists or arrays"):
+        pyta.cci([pd.Series(ohlcv.high), ohlcv.low, ohlcv.close], PERIOD)
+
+
+@pytest.mark.parametrize(
+    ("data", "error", "message"),
+    [
+        (
+            np.ones((2, 3, 3)),
+            ValueError,
+            r"expected a 2-D array of shape \(rows, columns\) or \(columns, rows\)",
+        ),
         (42, TypeError, "unsupported input type int"),
         ("{not json", ValueError, "invalid JSON input"),
         ('[{"high": 1.0}, 2.0]', TypeError, "mixes records and numbers"),
@@ -382,7 +554,7 @@ def test_a_pandas_series_or_multiindex_frame_is_rejected() -> None:
             TypeError,
             "JSON column 'high' must be an array",
         ),
-        ("3.5", TypeError, "JSON input must be an array of records or an object of arrays"),
+        ("3.5", TypeError, "JSON input must be an array of records, an array of arrays or an "),
         ({"high": [1.0], "low": "x", "close": [1.0]}, TypeError, "column 'low' must be a list"),
     ],
 )
@@ -485,6 +657,35 @@ def test_batch_returns_failures_in_place_and_completes_the_rest(
     assert isinstance(results[4], TypeError)
     np.testing.assert_array_equal(results[5], expected(ohlcv))
     assert "cci: 4 of 6 datasets failed" in caplog.text
+
+
+@pytest.mark.pandas
+def test_batch_takes_the_new_unnamed_forms_with_failures_in_place(ohlcv: Ohlcv) -> None:
+    pd = pytest.importorskip("pandas")
+    series = [
+        pd.Series(values, name=name) for values, name in zip(stack(ohlcv).T, "HLC", strict=True)
+    ]
+    datasets = [
+        stack(ohlcv).T,  # (columns, rows)
+        stack(ohlcv).tolist(),  # list of rows
+        series,  # Series named by role ("h", "l", "c")
+        [series[0], series[1].set_axis(range(1, 301)), series[2]],  # indexes differ
+        [1.0, 2.0, 3.0],  # one series
+        json.dumps(stack(ohlcv).T.tolist()),
+    ]
+
+    results = pyta.batch.cci(datasets, PERIOD)
+
+    np.testing.assert_array_equal(results[0], expected(ohlcv))
+    np.testing.assert_array_equal(results[1], expected(ohlcv))
+    assert isinstance(results[2], pd.Series)
+    assert results[2].name == "CCI"
+    np.testing.assert_array_equal(results[2].to_numpy(), expected(ohlcv))
+    assert isinstance(results[3], ValueError)
+    assert "must share one index" in str(results[3])
+    assert isinstance(results[4], TypeError)
+    assert "a list of numbers holds one series" in str(results[4])
+    assert len(json.loads(results[5])) == 300
 
 
 def test_batch_mapping_and_shared_columns_override(ohlcv: Ohlcv) -> None:

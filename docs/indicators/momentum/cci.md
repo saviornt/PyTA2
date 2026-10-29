@@ -50,8 +50,10 @@ Unnamed input takes its columns in the order **high, low, close**:
 ```python
 import numpy as np
 
-pyta.cci(np.column_stack([highs, lows, closes]), period=20)   # 2-D array (rows, 3) -> 1-D array
+pyta.cci(np.column_stack([highs, lows, closes]), period=20)   # 2-D array (rows, 3) or (3, rows) -> 1-D array
 pyta.cci((highs, lows, closes), period=20)                     # tuple of arrays -> tuple
+pyta.cci([list(row) for row in zip(highs, lows, closes)], period=20)   # list of rows -> list
+pyta.cci([df["High"], df["Low"], df["Close"]], period=20)     # list of Series -> Series, matched by name
 ```
 
 CCI is also in the momentum namespace; both names are the same function:
@@ -72,7 +74,7 @@ pyta.batch.momentum.cci({"SPY": spy, "QQQ": qqq})      # dict of results, same k
 
 | Name | Type | Default | Meaning |
 |---|---|---|---|
-| `data` | DataFrame, dict, JSON, 2-D array, tuple of arrays | required | High, low and close prices; other columns are ignored |
+| `data` | DataFrame, dict, JSON, 2-D array, list of rows or columns, tuple of arrays, list or tuple of Series | required | High, low and close prices; other columns are ignored |
 | `period` | `int` | `14` | Number of bars in each window, at least `1`. TA-Lib's default is 14; Lambert and StockCharts use 20 |
 | `columns` | list of `str` or `None` | `None` | The three columns to use, in any order: a high, a low, and a close or adjusted close. `None` finds them by name. Names are standard column names or aliases, such as `High` or `adj close`. See [multi-column indicators](../../API.md#10-multi-column-indicators) |
 

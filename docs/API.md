@@ -96,14 +96,17 @@ Columns are the indicator shapes: one input column and one output (SMA, EMA, RSI
 | Input | One column, one output | One column, several outputs | Several columns, one output | Several columns, several outputs |
 |---|---|---|---|---|
 | `list` of numbers | `list` | tuple of lists | `TypeError` (one series) | `TypeError` (one series) |
+| `list` of rows or of column lists (or arrays) | `ValueError` (expects a flat list) | `ValueError` (expects a flat list) | `list`; layout as for a 2-D array | tuple of lists |
 | `tuple` of numbers | `tuple` | tuple of tuples | `TypeError` (one series) | `TypeError` (one series) |
 | NumPy 1-D array (any real numeric dtype, masked) | `float64` array | tuple of arrays | `TypeError` (one series) | `TypeError` (one series) |
-| NumPy 2-D array `(rows, columns)` | `ValueError` (expects 1-D) | `ValueError` (expects 1-D) | 1-D array; columns in documented order, count must match | tuple of 1-D arrays |
+| NumPy 2-D array `(rows, columns)` or `(columns, rows)` | `ValueError` (expects 1-D) | `ValueError` (expects 1-D) | 1-D array; columns in documented order, the axis of the column count is the columns (both: `(rows, columns)`) | tuple of 1-D arrays |
 | `tuple` of arrays or lists (one per column) | `ValueError` (expects 1-D) | `ValueError` (expects 1-D) | `tuple` | tuple of tuples |
 | pandas Series | Series named by the output, same index | tuple of Series, same index | `TypeError` (one series) | `TypeError` (one series) |
+| `list` or `tuple` of pandas Series (one shared index) | `ValueError` (expects a flat list) | `ValueError` (expects a flat list) | Series named by the output, same index; matched by name when every Series is named by a role, else documented order | tuple of Series, same index |
 | pandas DataFrame | DataFrame, one column, same index | DataFrame, one column per output | DataFrame, one column | DataFrame, one column per output |
 | `dict` of columns (list, tuple, array or Series values) | `dict`, one key | `dict`, one key per output | `dict`, one key | `dict`, one key per output |
 | JSON array of numbers (`str`, `bytes`, `bytearray`) | JSON array | JSON object keyed by output | `TypeError` (one series) | `TypeError` (one series) |
+| JSON array of arrays (rows or columns) | `ValueError` (expects numbers) | `ValueError` (expects numbers) | JSON array; layout as for a 2-D array | JSON object keyed by output |
 | JSON array of records | records, one key per output | records, one key per output | records | records |
 | JSON object of arrays | object, one key per output | object, one key per output | object | object |
 | CSV with a header row (`str`, `bytes`) *(Sprint 11, planned)* | CSV, one column | CSV, one column per output | CSV, one column | CSV, one column per output |
@@ -113,8 +116,8 @@ JSON and CSV results have the input's type: `str` stays `str`, and `bytes` or `b
 
 **Limitations** (each raises, never guesses):
 
-- A 2-D array must be `(rows, columns)`; a `(columns, rows)` array is read as that many columns and fails the column count. A `(rows, 1)` array or a one-item tuple is not taken as one series; pass the column itself.
-- A list of rows, a list of column lists, or a list or tuple of pandas Series is not multi-column input; use a 2-D array, a tuple of arrays, a dict or a DataFrame.
+- A `(rows, 1)` array or a one-item tuple is not taken as one series; pass the column itself.
+- A 2-D table (array, list of lists, JSON array of arrays) with as many rows as columns is read as `(rows, columns)`; neither axis matching the column count raises `ValueError`. A tuple is always a tuple of columns, never of rows.
 - DataFrames with MultiIndex columns are not supported; select a single column level first.
 - Only leading gaps are skipped: a gap (`None`, `null`, `NaN`, `pd.NA`) after the first value raises `ValueError` ([§6](#6-missing-and-non-finite-values)).
 - In a Python list or JSON array, `True` and `False` among numbers are read as 1 and 0 (NumPy's conversion); a list, array or Series of only booleans raises `TypeError`.
@@ -217,7 +220,7 @@ The examples show the current wording, which may change between releases, so cat
 | Exception | Raised for |
 |---|---|
 | `TypeError` | Unsupported container or dtype (strings, booleans, complex numbers), DataFrames with MultiIndex columns, non-integer `period`, `fast`, `slow` or `signal` (including `bool`), non-string `column`, `columns` that is not a list of strings, JSON of the wrong shape (including arrays that mix records and numbers), one series (list, 1-D array, Series) given to a multi-column indicator |
-| `ValueError` | `period` or `signal` outside `1` to `2**31 - 1`, `fast` or `slow` outside `2` to `2**31 - 1`, period larger than the series (`sma`) or fewer than `period` values (`ema`), `period + 1` values (`rsi`), `period` rows (`cci`) or `slow + signal - 1` values (`macd`), empty input or input with no valid values, a non-finite value after the first valid value, a value larger in magnitude than `1e290`, multidimensional or ragged input, invalid JSON, a missing or ambiguous column, `column=` on input without columns; for multi-column indicators: an invalid `columns=` (see [§10](#10-multi-column-indicators)), columns of different lengths, a high below its low on any row, the wrong number of unnamed columns, and `column=` on a multi-column indicator or `columns=` on a single-column one |
+| `ValueError` | `period` or `signal` outside `1` to `2**31 - 1`, `fast` or `slow` outside `2` to `2**31 - 1`, period larger than the series (`sma`) or fewer than `period` values (`ema`), `period + 1` values (`rsi`), `period` rows (`cci`) or `slow + signal - 1` values (`macd`), empty input or input with no valid values, a non-finite value after the first valid value, a value larger in magnitude than `1e290`, multidimensional or ragged input, invalid JSON, a missing or ambiguous column, `column=` on input without columns; for multi-column indicators: an invalid `columns=` (see [§10](#10-multi-column-indicators)), columns of different lengths, a high below its low on any row, the wrong number of unnamed columns (or a 2-D table with neither axis of that length), Series that do not share one index, and `column=` on a multi-column indicator or `columns=` on a single-column one |
 | `RuntimeError` | An internal calculation failure |
 
 NumPy integers are accepted for every integer parameter.
@@ -266,7 +269,12 @@ cci = pyta.cci(df, period=20)   # a DataFrame with one column, "cci" ("CCI" for 
   ```
 
   Each indicator defines its own slots and the roles each slot accepts (CCI's `close` slot takes `close`, or else `adj_close`). The call raises `ValueError`, naming what the indicator needs, when a name is not a recognized role, when its role is not one of the indicator's inputs, when two names fill the same slot, when a slot is left empty, or when a name is not in the input. If your columns have custom names, rename them first.
-- **Unnamed inputs.** A 2-D NumPy array of shape `(rows, columns)` or a tuple of arrays has no names, so its columns are taken in the order documented for the indicator (high, low, close for CCI); the count must match. A 2-D array returns a 1-D array, and a tuple a tuple. A single series (list, 1-D array, pandas Series) raises `TypeError`.
+- **Unnamed inputs.** These have no column names, so their columns are taken in the order documented for the indicator (high, low, close for CCI), and `columns=` raises `ValueError`:
+  - a 2-D NumPy array, a list of rows (`[[h, l, c], ...]`) or of column lists (`[highs, lows, closes]`), or a JSON array of arrays (rows or columns). The axis whose length equals the indicator's column count holds the columns; when both do (as many rows as columns), `(rows, columns)` is assumed. When neither does, `ValueError` names the shape expected: `(rows, 3)` or `(3, rows)` for CCI;
+  - a tuple of arrays or lists, one per column; the count must match.
+
+  A 2-D array returns a 1-D array, a list a `list`, a tuple a `tuple`, and a JSON array a JSON array (several outputs: a tuple of them, or a JSON object keyed by output name). A single series (a flat list, a 1-D array, a pandas Series) raises `TypeError`.
+- **Lists and tuples of pandas Series.** When every Series is named by a role (`High`, `low`, `adj close`), they are matched by name like a dict, and `columns=` works; otherwise they are taken in the documented order and the count must match. All must share one index (`Index.equals`), else `ValueError` naming the first that differs; align them first, for example with `pandas.concat(..., axis=1)`. The result is a Series named by the output with that index (several outputs: a tuple of Series).
 - `column=` is for single-column indicators and `columns=` for multi-column ones; passing the wrong one raises `ValueError`.
 - **Missing data.** If a required column can't be found, a `ValueError` names what the indicator requires and which columns were available, so you don't have to know in advance what an indicator needs:
 
@@ -301,7 +309,8 @@ macd, signal, hist = pyta.macd(close)    # one series in: a tuple of three, in o
 | JSON object of arrays | one key per output |
 | `list`, `tuple`, NumPy array, pandas Series | a `tuple` of outputs in documented order, each in the input's own single-output form (a Series is named by its output and keeps the index) |
 | JSON array of numbers | a JSON object keyed by output name |
-| 2-D array or tuple of arrays (multi-column indicators) | a `tuple` of outputs, each a 1-D array or a tuple |
+| 2-D array, list of rows or columns, tuple of arrays, list or tuple of Series (multi-column indicators) | a `tuple` of outputs, each a 1-D array, a list, a tuple or a Series |
+| JSON array of arrays (multi-column indicators) | a JSON object keyed by output name |
 
 `NaN` is written as `null` in JSON. Each output has its own warm-up, and a leading `NaN` run in the input shifts every output alike. A single-output indicator returns exactly what the [§4](#4-input-containers) table says. To chain from a multi-output result, pass the output itself (`pyta.sma(out["macd_signal"], period=5)`); `column=` takes only the standard role names.
 
@@ -312,7 +321,7 @@ macd, signal, hist = pyta.macd(close)    # one series in: a tuple of three, in o
 | no upper-case letters (`close`) | lower | `sma`, `macd_signal` |
 | no lower-case letters (`CLOSE`) | upper | `SMA`, `MACD_SIGNAL` |
 | some lower-case letters, and each word either a capital then no other capitals or all capitals (`Close`, `Adj Close` as yfinance; `SPY Close`; PyTA's own `MACD_Signal`) | title | `SMA`, `MACD_Signal`, `MACD_Hist` |
-| mixed (`cLose`, `ClosePrice`), columns that disagree, or no names (lists, arrays, unnamed Series, JSON arrays of numbers, unnamed 2-D input) | lower | `sma`, `macd_signal` |
+| mixed (`cLose`, `ClosePrice`), columns that disagree, or no names (lists, arrays, unnamed Series, JSON arrays of numbers or arrays, unnamed 2-D input, Series not all named by role) | lower | `sma`, `macd_signal` |
 
 In title case, abbreviations (`SMA`, `EMA`, `RSI`, `CCI`, `MACD`) are upper case and words (`Signal`, `Hist`) title case. The separator is always `_`. Because a word in capitals counts as title case, title-case outputs chain as title case: `pyta.sma(pyta.macd(yf_frame)["MACD_Signal"], 5)` is named `SMA`. A name that is not a string is cased by its `str()`.
 
