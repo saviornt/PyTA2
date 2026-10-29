@@ -27,10 +27,10 @@ Where things stand:
 
 ### Part B: Rust output and parameter contracts (about 1.5 h)
 
-- [ ] `pyta-core`: `IndicatorOutput` carries one or more equal-length series in the indicator's documented output order (names live in Python, like slots); `new(values)` and `values()`/`into_values()` unchanged for single output; `with_outputs(Vec<Vec<f64>>)`, `outputs()`, `into_outputs()`, `output_count()`. Unit tests, including unequal lengths rejected.
-- [ ] `pyta-engine`: per-indicator `Params` per A1; `IndicatorRequest` carries it; each dispatch arm destructures its own variant. Constructors for SMA/RSI/CCI requests stay as simple as today; their kernel tests unchanged.
-- [ ] `estimated_cost_ns` takes the request's params (MACD's and EMA's cost per row is independent of their periods; confirm with the quick benchmark).
-- [ ] Planner and both execution paths unchanged; test `execute_parallel` = `execute_sequential` on multi-output requests mixed with single-output ones.
+- [x] `pyta-core`: `IndicatorOutput` carries one or more equal-length series in the indicator's documented output order (names live in Python, like slots); `new(values)` and `values()`/`into_values()` unchanged for single output; `with_outputs(Vec<Vec<f64>>)`, `outputs()`, `into_outputs()`, `output_count()`. Unit tests, including unequal lengths rejected. *(`with_outputs` rejects zero or unequal outputs with `LengthMismatch`; `output_tests.rs`; `tests/results/test-suite_2026-10-28_21-53-03.txt`.)*
+- [x] `pyta-engine`: per-indicator `Params` per A1; `IndicatorRequest` carries it; each dispatch arm destructures its own variant. Constructors for SMA/RSI/CCI requests stay as simple as today; their kernel tests unchanged. *(`Params::{Cci, Ema, Macd, Rsi, Sma}`, kind derived by `Params::kind()`; `IndicatorRequest::new(series, Params::Rsi { period: 14 })`; `sma_tests.rs`, `rsi_tests.rs`, `cci_tests.rs` unchanged.)*
+- [x] `estimated_cost_ns` takes the request's params (MACD's and EMA's cost per row is independent of their periods; confirm with the quick benchmark). *(Quick run `benches/results/benchmark_2026-10-28_21-51-12.txt`, governor performance: kernels at 1M rows EMA-20 2.888 ms, MACD 12/26/9 12.007 ms, RSI-14 2.405 ms → `EMA_NS_PER_ELEMENT` 3.6, `MACD_NS_PER_ELEMENT` 15.0; period-independent by construction (one pass per EMA).)*
+- [x] Planner and both execution paths unchanged; test `execute_parallel` = `execute_sequential` on multi-output requests mixed with single-output ones. *(`sequential_tests.rs`: MACD mixed with single-output requests; `assert_same` compares every output.)*
 
 ### Part C: EMA, end to end (about 2 h, via the `add-indicator` skill)
 
@@ -43,15 +43,15 @@ EMA is single-output and uses `period=`, so it needs only Part B's `Params`; doi
 
 ### Part C2: MACD kernel (about 1 h)
 
-- [ ] Spec per the skill, settling A3 and A8; agreed with the user.
-- [ ] `pyta-trend/src/macd.rs`: three outputs per A3/A4; `fast >= slow` per A3; too-short input is `InsufficientData`; unit tests; proptests (hist = macd − signal exactly where both exist; warm-up lengths; constant input gives 0).
-- [ ] Engine `IndicatorKind::Macd`, dispatch arm, cost constant in `pyta-common/src/costs.rs` from a quick benchmark scaled against RSI (confirm with a full `--single --rust --indicator macd`).
+- [x] Spec per the skill, settling A3 and A8; agreed with the user. *(2026-10-28: A3 as recorded; minimum input `slow + signal - 1`, user's answer.)*
+- [x] `pyta-trend/src/macd.rs`: three outputs per A3/A4; `fast >= slow` per A3; too-short input is `InsufficientData`; unit tests; proptests (hist = macd − signal exactly where both exist; warm-up lengths; constant input gives 0). *(`macd_tests.rs`, MACD proptests in `property_tests.rs`, TA-Lib references 12/26/9 and 5/35/5 at 1e-9 in `reference_tests.rs`; new `PytaError::InvalidParameter` for fast/slow < 2, signal < 1; reviewed, fixes in fac7b8a.)*
+- [x] Engine `IndicatorKind::Macd`, dispatch arm, cost constant in `pyta-common/src/costs.rs` from a quick benchmark scaled against RSI (confirm with a full `--single --rust --indicator macd`). *(Provisional 15.0 ns/row from the quick run above; confirm with a full `--single --rust --indicator macd`.)*
 
 ### Part D: bindings (about 45 min)
 
-- [ ] `single.rs`/`batch.rs`: a multi-output result comes back as a list of arrays per dataset; the single-output entry points and their return types are unchanged. Shared helpers, no per-indicator copy. GIL released as today.
-- [ ] `pyta-python/src/macd.rs` (`macd`, `macd_batch` taking the three periods) and registration in `lib.rs`.
-- [ ] `_native.pyi` updated; stubtest passes.
+- [x] `single.rs`/`batch.rs`: a multi-output result comes back as a list of arrays per dataset; the single-output entry points and their return types are unchanged. Shared helpers, no per-indicator copy. GIL released as today. *(Shared `output_to_python`: one array for one output, a list for several; `sma`/`rsi`/`cci` unchanged from Python, 281 Python tests pass untouched.)*
+- [x] `pyta-python/src/macd.rs` (`macd`, `macd_batch` taking the three periods) and registration in `lib.rs`.
+- [x] `_native.pyi` updated; stubtest passes. *(`tests/results/test-suite_2026-10-28_21-53-03.txt`, PASSED.)*
 
 ### Part E: Python multi-output and parameters (about 2.5 h)
 
