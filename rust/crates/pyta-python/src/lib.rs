@@ -27,6 +27,7 @@ mod sma;
 mod stddev;
 mod stoch;
 mod tema;
+mod willr;
 mod wma;
 
 use pyo3::prelude::*;
@@ -41,6 +42,8 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(cci::cci_batch, m)?)?;
     m.add_function(wrap_pyfunction!(stoch::stoch, m)?)?;
     m.add_function(wrap_pyfunction!(stoch::stoch_batch, m)?)?;
+    m.add_function(wrap_pyfunction!(willr::willr, m)?)?;
+    m.add_function(wrap_pyfunction!(willr::willr_batch, m)?)?;
     m.add_function(wrap_pyfunction!(sma::sma, m)?)?;
     m.add_function(wrap_pyfunction!(sma::sma_batch, m)?)?;
     m.add_function(wrap_pyfunction!(rsi::rsi, m)?)?;

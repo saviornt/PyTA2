@@ -4,10 +4,10 @@ use pyta_common::{
     DONCHIAN_NS_PER_ELEMENT, EMA_NS_PER_ELEMENT, ICHIMOKU_NS_PER_ELEMENT, KAMA_NS_PER_ELEMENT,
     KELTNER_NS_PER_ELEMENT, MACD_NS_PER_ELEMENT, RSI_NS_PER_ELEMENT, SAR_NS_PER_ELEMENT,
     SMA_NS_PER_ELEMENT, STDDEV_NS_PER_ELEMENT, STDDEV_NS_PER_WINDOW_VALUE, STOCH_NS_PER_ELEMENT,
-    TEMA_NS_PER_ELEMENT, WMA_NS_PER_ELEMENT,
+    TEMA_NS_PER_ELEMENT, WILLR_NS_PER_ELEMENT, WMA_NS_PER_ELEMENT,
 };
 use pyta_core::{IndicatorOutput, PytaResult};
-use pyta_momentum::{cci, rsi, stoch};
+use pyta_momentum::{cci, rsi, stoch, willr};
 use pyta_trend::{adx, aroon, dema, ema, ichimoku, kama, macd, sar, sma, tema, wma};
 use pyta_volatility::{atr, bbands, donchian, keltner, stddev};
 
@@ -79,6 +79,10 @@ pub(crate) fn dispatch(request: &IndicatorRequest) -> PytaResult<IndicatorOutput
             stoch(high, low, close, k, k_smooth, d)
         }
         Params::Tema { period } => tema(input.series()?, period),
+        Params::Willr { period } => {
+            let [high, low, close] = input.columns()?;
+            willr(high, low, close, period)
+        }
         Params::Wma { period } => wma(input.series()?, period),
     }
 }
@@ -120,6 +124,7 @@ pub(crate) fn estimated_cost_ns(request: &IndicatorRequest) -> f64 {
         }
         Params::Stoch { .. } => STOCH_NS_PER_ELEMENT,
         Params::Tema { .. } => TEMA_NS_PER_ELEMENT,
+        Params::Willr { .. } => WILLR_NS_PER_ELEMENT,
         Params::Wma { .. } => WMA_NS_PER_ELEMENT,
     };
 
@@ -263,6 +268,15 @@ mod tests {
                 k_smooth: 50,
                 d: 50
             })
+        );
+    }
+
+    #[test]
+    fn willr_cost_does_not_depend_on_its_period() {
+        // The rolling extremes are O(n) whatever the window.
+        assert_eq!(
+            cost(Params::Willr { period: 5 }),
+            cost(Params::Willr { period: 200 })
         );
     }
 

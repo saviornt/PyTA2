@@ -23,6 +23,7 @@ fn params(kind: IndicatorKind, period: usize) -> Params {
         },
         IndicatorKind::Rsi => Params::Rsi { period },
         IndicatorKind::Sma => Params::Sma { period },
+        IndicatorKind::Willr => Params::Willr { period },
         IndicatorKind::Wma => Params::Wma { period },
         IndicatorKind::Dema => Params::Dema { period },
         IndicatorKind::Tema => Params::Tema { period },
@@ -305,6 +306,7 @@ fn the_kind_comes_from_the_params() {
         (Params::Cci { period: 2 }, IndicatorKind::Cci),
         (Params::Donchian { period: 2 }, IndicatorKind::Donchian),
         (Params::Ema { period: 2 }, IndicatorKind::Ema),
+        (Params::Willr { period: 2 }, IndicatorKind::Willr),
         (
             Params::Ichimoku {
                 tenkan: 1,
@@ -827,6 +829,54 @@ async fn aroon_runs_through_the_engine_with_three_outputs_and_reports_its_errors
         *error_of(&results[3]),
         PytaError::ColumnCount {
             expected: 2,
+            actual: 1,
+        }
+    );
+}
+
+#[tokio::test]
+async fn willr_runs_through_the_engine_and_reports_its_errors() {
+    // Period 2. Row 1: highest 12, lowest 9, close 11 -> -100/3; row 2:
+    // highest 13, lowest 10, close 13 -> -0; row 3: highest 13, lowest 8,
+    // close 8 -> -100.
+    let high: &[f64] = &[10.0, 12.0, 13.0, 11.0];
+    let low: &[f64] = &[9.0, 10.0, 11.0, 8.0];
+    let close: &[f64] = &[9.5, 11.0, 13.0, 8.0];
+    let requests = vec![
+        columns_request(IndicatorKind::Willr, &[high, low, close], 2),
+        columns_request(IndicatorKind::Willr, &[high, low, close], 1),
+        columns_request(IndicatorKind::Willr, &[high, low, close], 5),
+        request(IndicatorKind::Willr, close.to_vec(), 2),
+    ];
+
+    let direct = execute_direct(&requests[0]).unwrap();
+    assert_values(direct.values(), &[NAN, 1.0 / 3.0 * -100.0, -0.0, -100.0]);
+
+    let results = execute_batch(requests).await;
+
+    match &results[0].status {
+        IndicatorStatus::Success(output) => assert_values(output.values(), direct.values()),
+        IndicatorStatus::Error(error) => panic!("expected Williams %R success, got {error:?}"),
+    }
+    assert_eq!(
+        *error_of(&results[1]),
+        PytaError::InvalidParameter {
+            name: "period",
+            minimum: 2,
+            value: 1,
+        }
+    );
+    assert_eq!(
+        *error_of(&results[2]),
+        PytaError::PeriodExceedsLength {
+            period: 5,
+            length: 4,
+        }
+    );
+    assert_eq!(
+        *error_of(&results[3]),
+        PytaError::ColumnCount {
+            expected: 3,
             actual: 1,
         }
     );

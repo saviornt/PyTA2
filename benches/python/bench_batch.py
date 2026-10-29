@@ -34,6 +34,7 @@ INDICATORS: dict[str, tuple[dict[str, int | float], int]] = {
     "rsi": ({"period": 14}, 1),
     "cci": ({"period": 14}, 3),
     "stoch": ({"k": 14, "k_smooth": 3, "d": 3}, 3),
+    "willr": ({"period": 14}, 3),
     "ema": ({"period": 30}, 1),
     "wma": ({"period": 30}, 1),
     "dema": ({"period": 30}, 1),

@@ -56,6 +56,7 @@ def test_top_level_exports() -> None:
         "trend",
         "volatility",
         "volume",
+        "willr",
         "wma",
     ]
 
@@ -105,6 +106,7 @@ def test_indicator_and_batch_namespaces_list_the_same_indicators() -> None:
         "trend",
         "volatility",
         "volume",
+        "willr",
         "wma",
     ]
 

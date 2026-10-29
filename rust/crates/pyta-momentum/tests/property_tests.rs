@@ -1,4 +1,4 @@
-//! RSI, CCI and Stochastic invariants that must hold for any valid input.
+//! RSI, CCI, Stochastic and Williams %R invariants that must hold for any valid input.
 
 use proptest::prelude::*;
 use pyta_core::Series;
@@ -289,6 +289,98 @@ proptest! {
                     "output {}, index {}: {:e} != {:e}", output, index, a, e
                 );
             }
+        }
+    }
+}
+
+/// High, low and close columns of 2 to 300 rows (high at or above low, some
+/// rows flat, close mostly inside its row but sometimes outside, which
+/// Williams %R clamps) and a period from 2 to the row count.
+fn columns_and_willr_period() -> impl Strategy<Value = ([Vec<f64>; 3], usize)> {
+    let row = (
+        -1.0e6..1.0e6_f64,
+        prop_oneof![Just(0.0), 0.0..1.0e3_f64],
+        prop_oneof![4 => 0.0..=1.0_f64, 1 => -0.5..1.5_f64],
+    );
+    prop::collection::vec(row, 2..300).prop_flat_map(|rows| {
+        let length = rows.len();
+        let low: Vec<f64> = rows.iter().map(|(low, _, _)| *low).collect();
+        let high: Vec<f64> = rows.iter().map(|(low, range, _)| low + range).collect();
+        let close: Vec<f64> = rows
+            .iter()
+            .map(|(low, range, at)| low + range * at)
+            .collect();
+        (Just([high, low, close]), 2..=length)
+    })
+}
+
+fn willr_of(columns: &[Vec<f64>; 3], period: usize) -> Vec<f64> {
+    let [high, low, close] = columns.clone().map(|values| Series::new(values).unwrap());
+    pyta_momentum::willr(&high, &low, &close, period)
+        .unwrap()
+        .values()
+        .to_vec()
+}
+
+/// Williams %R written out plainly: each window scanned for its extremes,
+/// then TA-Lib's guard, ratio and clamp.
+#[expect(
+    clippy::manual_clamp,
+    reason = "TA-Lib's own branches, to check the kernel's `clamp` against"
+)]
+fn reference_willr([high, low, close]: &[Vec<f64>; 3], period: usize) -> Vec<f64> {
+    let mut output = vec![f64::NAN; close.len()];
+    for row in period - 1..close.len() {
+        let window = row + 1 - period..=row;
+        let highest = high[window.clone()]
+            .iter()
+            .copied()
+            .fold(f64::MIN, f64::max);
+        let lowest = low[window].iter().copied().fold(f64::MAX, f64::min);
+        let range = highest - lowest;
+        output[row] = if range.abs() <= 1.0e-14 * (highest.abs() + lowest.abs()) {
+            0.0
+        } else {
+            let value = (highest - close[row]) / range * -100.0;
+            if value > 0.0 {
+                0.0
+            } else if value < -100.0 {
+                -100.0
+            } else {
+                value
+            }
+        };
+    }
+    output
+}
+
+proptest! {
+    #[test]
+    fn willr_output_length_and_warm_up_are_exact((columns, period) in columns_and_willr_period()) {
+        let output = willr_of(&columns, period);
+
+        prop_assert_eq!(output.len(), columns[0].len());
+        prop_assert!(output[..period - 1].iter().all(|value| value.is_nan()));
+        prop_assert!(output[period - 1..].iter().all(|value| value.is_finite()));
+    }
+
+    #[test]
+    fn willr_stays_between_minus_100_and_0((columns, period) in columns_and_willr_period()) {
+        for value in &willr_of(&columns, period)[period - 1..] {
+            prop_assert!((-100.0..=0.0).contains(value), "{} outside [-100, 0]", value);
+        }
+    }
+
+    #[test]
+    fn willr_matches_its_plain_loop_bit_for_bit((columns, period) in columns_and_willr_period()) {
+        let actual = willr_of(&columns, period);
+        let expected = reference_willr(&columns, period);
+
+        for (index, (a, e)) in actual.iter().zip(&expected).enumerate() {
+            prop_assert!(
+                (a.is_nan() && e.is_nan()) || a.to_bits() == e.to_bits(),
+                "index {}: {:e} != {:e}", index, a, e
+            );
         }
     }
 }

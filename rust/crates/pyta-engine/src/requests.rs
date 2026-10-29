@@ -46,6 +46,8 @@ pub enum IndicatorKind {
     Stoch,
     /// Triple Exponential Moving Average (`pyta-trend`).
     Tema,
+    /// Williams %R (`pyta-momentum`; high, low, close).
+    Willr,
     /// Weighted Moving Average (`pyta-trend`).
     Wma,
 }
@@ -188,6 +190,12 @@ pub enum Params {
         /// Period of all three EMAs; sets their weight `2 / (period + 1)`.
         period: usize,
     },
+    /// Williams %R: where close lies between the highest high and lowest
+    /// low of the last `period` rows, from -100 to 0.
+    Willr {
+        /// Rows in each window, the current row included, at least 2.
+        period: usize,
+    },
     /// Weighted Moving Average: weights 1 (oldest) to `period` (newest).
     Wma {
         /// Rows in each window.
@@ -217,6 +225,7 @@ impl Params {
             Self::Stddev { .. } => IndicatorKind::Stddev,
             Self::Stoch { .. } => IndicatorKind::Stoch,
             Self::Tema { .. } => IndicatorKind::Tema,
+            Self::Willr { .. } => IndicatorKind::Willr,
             Self::Wma { .. } => IndicatorKind::Wma,
         }
     }

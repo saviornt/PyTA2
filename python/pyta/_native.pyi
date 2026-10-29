@@ -41,6 +41,8 @@ __all__ = [
     "stoch_batch",
     "tema",
     "tema_batch",
+    "willr",
+    "willr_batch",
     "wma",
     "wma_batch",
 ]
@@ -89,6 +91,10 @@ def stoch(
 def stoch_batch(
     datasets: list[list[NDArray[np.float64]]], k: int, k_smooth: int, d: int
 ) -> list[list[NDArray[np.float64]] | Exception]: ...
+def willr(columns: list[NDArray[np.float64]], period: int) -> NDArray[np.float64]: ...
+def willr_batch(
+    datasets: list[list[NDArray[np.float64]]], period: int
+) -> list[NDArray[np.float64] | Exception]: ...
 def adx(columns: list[NDArray[np.float64]], period: int) -> list[NDArray[np.float64]]: ...
 def adx_batch(
     datasets: list[list[NDArray[np.float64]]], period: int

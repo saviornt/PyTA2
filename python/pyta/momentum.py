@@ -1,5 +1,5 @@
 """Momentum namespace: `pyta.momentum.<indicator>` (see `pyta.indicators.momentum`)."""
 
-from pyta.indicators.momentum import cci, rsi, stoch
+from pyta.indicators.momentum import cci, rsi, stoch, willr
 
-__all__ = ["cci", "rsi", "stoch"]
+__all__ = ["cci", "rsi", "stoch", "willr"]

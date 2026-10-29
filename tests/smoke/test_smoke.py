@@ -152,6 +152,16 @@ def test_smoke() -> None:
         assert ((line[first:] >= 0.0) & (line[first:] <= 100.0)).all()
     assert np.allclose(stoch_d[17:], np.convolve(stoch_k[15:], np.ones(3) / 3, "valid"), rtol=1e-12)
 
+    willr_values = np.array(pyta.willr(data, period=14)["willr"])
+    assert willr_values.dtype == np.float64
+    assert willr_values.shape == (length,), "Williams %R output length mismatch"
+    assert np.isnan(willr_values[:13]).all(), "Williams %R warm-up alignment is incorrect"
+    assert np.isfinite(willr_values[13:]).all()
+    assert ((willr_values[13:] >= -100.0) & (willr_values[13:] <= 0.0)).all()
+    # With the raw %K of a one-row smoothing, %R is %K - 100.
+    raw_k = np.array(pyta.stoch(data, k=14, k_smooth=1, d=1)["stoch_k"])
+    assert np.allclose(willr_values[13:], raw_k[13:] - 100.0, atol=1e-9)
+
     stddev_values = np.array(pyta.stddev(data, period=20, k=2.0)["stddev"])
     assert stddev_values.dtype == np.float64
     assert stddev_values.shape == (length,), "STDDEV output length mismatch"

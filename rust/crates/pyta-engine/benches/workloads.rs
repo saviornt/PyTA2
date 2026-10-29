@@ -92,6 +92,7 @@ fn params(kind: IndicatorKind) -> Params {
             k_smooth: 3,
             d: 3,
         },
+        IndicatorKind::Willr => Params::Willr { period: 14 },
         IndicatorKind::Donchian => Params::Donchian { period: 20 },
         IndicatorKind::Ema => Params::Ema { period: 20 },
         IndicatorKind::Ichimoku => Params::Ichimoku {
@@ -137,7 +138,8 @@ fn request(kind: IndicatorKind, close: Series) -> IndicatorRequest {
         | IndicatorKind::Cci
         | IndicatorKind::Ichimoku
         | IndicatorKind::Keltner
-        | IndicatorKind::Stoch => {
+        | IndicatorKind::Stoch
+        | IndicatorKind::Willr => {
             let columns = Columns::new(vec![offset(0.5), offset(-0.5), close])
                 .expect("columns have equal lengths");
             IndicatorRequest::with_columns(columns, params(kind))
@@ -297,6 +299,7 @@ fn many_datasets(c: &mut Criterion) {
         (IndicatorKind::Rsi, "rsi"),
         (IndicatorKind::Cci, "cci"),
         (IndicatorKind::Stoch, "stoch"),
+        (IndicatorKind::Willr, "willr"),
         (IndicatorKind::Ema, "ema"),
         (IndicatorKind::Wma, "wma"),
         (IndicatorKind::Dema, "dema"),

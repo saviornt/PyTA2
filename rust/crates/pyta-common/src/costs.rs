@@ -201,6 +201,18 @@ pub const ICHIMOKU_NS_PER_ELEMENT: f64 = 32.1;
 /// `--single --rust --indicator stoch`.
 pub const STOCH_NS_PER_ELEMENT: f64 = 14.6;
 
+/// Williams %R, in nanoseconds per input row; independent of `period` (two
+/// van Herk/Gil-Werman rolling-extreme walks, O(n) whatever the window).
+///
+/// Provisional, from a quick run on 2026-10-29
+/// (`benches/results/benchmark_2026-10-29_16-14-56.txt`, `--single --rust
+/// --quick`, governor `performance`): kernels at 1,000,000 rows took
+/// 9.083 ms for Williams %R-14 and 2.509 ms for RSI-14, scaled here by
+/// `RSI_NS_PER_ELEMENT` (3.0 * 3.62). Donchian-20 (the same two walks) took
+/// 9.502 ms in the same run. Confirm with a full
+/// `--single --rust --indicator willr`.
+pub const WILLR_NS_PER_ELEMENT: f64 = 10.9;
+
 /// Parabolic SAR, in nanoseconds per input row; independent of
 /// `acceleration` and `maximum` (one pass).
 ///
