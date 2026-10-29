@@ -2,6 +2,7 @@
 
 import subprocess
 import sys
+import typing
 
 import pyta
 import pytest
@@ -30,6 +31,7 @@ def test_import_works_when_pandas_is_missing() -> None:
 
 def test_top_level_exports() -> None:
     assert sorted(pyta.__all__) == [
+        "Output",
         "batch",
         "cci",
         "ema",
@@ -73,3 +75,7 @@ def test_short_names_are_the_indicator_functions() -> None:
 def test_batch_names_are_the_batch_functions() -> None:
     assert pyta.batch.sma is sma_batch
     assert pyta.batch.rsi is rsi_batch
+
+
+def test_output_type_lists_every_target() -> None:
+    assert typing.get_args(pyta.Output.__value__) == pyta._export.TARGETS  # pyright: ignore[reportPrivateUsage]

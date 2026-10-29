@@ -179,6 +179,8 @@ pyta.macd(csv_text, output="pandas")        # CSV in, a DataFrame of three colum
 pyta.cci(ohlcv_dict, period=20, output="numpy")
 ```
 
+The valid names are the type `pyta.Output` (a `Literal`), for annotating your own code: `fmt: pyta.Output = "csv"`.
+
 Each target has one fixed shape, whatever the input was, so asking for the input's own kind still gives the target's shape (`output="dict"` always holds NumPy arrays, even for a dict of lists; `output="json"` is always an object of arrays, even for JSON records):
 
 | `output=` | One output | Several outputs | Input's pandas index |
