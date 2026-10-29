@@ -418,8 +418,8 @@ def from_pandas_series(pd: Any, data: Any, column: str | None) -> Prepared:
             pd.Series(out, index=index, name=name) for name, out in zip(names, results, strict=True)
         )
 
-    name = data.name
-    return Prepared(to_float64(values), restore, () if name is None else (name,))
+    label = data.name
+    return Prepared(to_float64(values), restore, () if label is None else (label,))
 
 
 def _from_pandas_frame(pd: Any, data: Any, column: str | None, default_column: str) -> Prepared:
