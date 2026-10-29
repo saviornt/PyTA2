@@ -374,17 +374,17 @@ Scripts, CI and docs:
 
 ### Tasks
 
-- [ ] Add the MACD indicator.
-- [ ] Add the EMA indicator (its kernel also serves MACD).
-- [ ] Give each indicator its own parameters (`period=` for SMA, RSI, CCI and EMA; `fast=`, `slow=`, `signal=` for MACD).
-- [ ] Extend the output contract to carry several named series.
-- [ ] Return outputs in the input's container type: extra columns for DataFrames, extra keys for dicts and JSON objects, a tuple of outputs for a single series.
-- [ ] Name outputs after the indicator, without parameters (`sma`, `rsi`, `cci`; `macd`, `macd_signal`, `macd_hist`), for every indicator.
-- [ ] Match output casing to the input's columns (lower, upper, or title case with abbreviations upper), for every indicator.
-- [ ] Validate the design with MACD.
-- [ ] Add tests for naming, casing, container types, and warm-up per output.
-- [ ] Benchmark multi-output indicators and optimize while ensuring calculation accuracy.
-- [ ] Update documentation (`API.md`, `README.md`, indicator's wiki-doc, `DEVELOPMENT.md`)
+- [x] Add the MACD indicator.
+- [x] Add the EMA indicator (its kernel also serves MACD).
+- [x] Give each indicator its own parameters (`period=` for SMA, RSI, CCI and EMA; `fast=`, `slow=`, `signal=` for MACD).
+- [x] Extend the output contract to carry several named series.
+- [x] Return outputs in the input's container type: extra columns for DataFrames, extra keys for dicts and JSON objects, a tuple of outputs for a single series.
+- [x] Name outputs after the indicator, without parameters (`sma`, `rsi`, `cci`; `macd`, `macd_signal`, `macd_hist`), for every indicator.
+- [x] Match output casing to the input's columns (lower, upper, or title case with abbreviations upper), for every indicator.
+- [x] Validate the design with MACD.
+- [x] Add tests for naming, casing, container types, and warm-up per output.
+- [x] Benchmark multi-output indicators and optimize while ensuring calculation accuracy.
+- [x] Update documentation (`API.md`, `README.md`, indicator's wiki-doc, `DEVELOPMENT.md`)
 
 ### Acceptance criteria
 
@@ -393,8 +393,8 @@ Scripts, CI and docs:
 - Output names and casing follow the new rules for every indicator.
 - Single-output indicators are otherwise unchanged (values, containers, errors, and single-call cost within ~5%).
 
-**Retrospective:**  
-**Sprint completion:** ☐
+**Retrospective:** *Worked:* settling every design question (per-indicator `Params`, bare names, casing, one-series tuples, TA-Lib-generated references) before code, then building Rust and Python in two separate, reviewed halves; TA-Lib's own output compared at 1e-9 made EMA and MACD exact rather than approximately right, and a bit-for-bit proptest let the MACD kernel be fused into one pass (2.1-2.3x) without risk; reviews caught EMA(1) not being an exact copy and a casing-cache collision. *Didn't:* the first same-session A/B showed single calls 8-16% slower at 100 rows (Pydantic per call, per-call closures and casing work), which took a second optimization pass to bring back to 0.87-0.95x of `main`; the Python benchmark now passes parameters as `**params`, a small bias, and covers only NumPy input for single-column indicators; EMA and MACD cost constants are still from quick runs. *Next:* Sprint 11 CSV input; confirm the two in-sprint calls (all-capitals words as title case, the Pydantic fast path) and the provisional cost constants with full runs.  
+**Sprint completion:** ✓
 
 ---
 
