@@ -375,9 +375,12 @@ Scripts, CI and docs:
 ### Tasks
 
 - [ ] Add the MACD indicator.
+- [ ] Add the EMA indicator (its kernel also serves MACD).
+- [ ] Give each indicator its own parameters (`period=` for SMA, RSI, CCI and EMA; `fast=`, `slow=`, `signal=` for MACD).
 - [ ] Extend the output contract to carry several named series.
-- [ ] Return outputs in the input's container type: extra columns for DataFrames, extra keys for dicts and JSON objects.
-- [ ] Define output naming (for example `macd`, `macd_signal`, `macd_hist`) and match the casing of the input's columns.
+- [ ] Return outputs in the input's container type: extra columns for DataFrames, extra keys for dicts and JSON objects, a tuple of outputs for a single series.
+- [ ] Name outputs after the indicator, without parameters (`sma`, `rsi`, `cci`; `macd`, `macd_signal`, `macd_hist`), for every indicator.
+- [ ] Match output casing to the input's columns (lower, upper, or title case with abbreviations upper), for every indicator.
 - [ ] Validate the design with MACD.
 - [ ] Add tests for naming, casing, container types, and warm-up per output.
 - [ ] Benchmark multi-output indicators and optimize while ensuring calculation accuracy.
@@ -386,8 +389,9 @@ Scripts, CI and docs:
 ### Acceptance criteria
 
 - MACD returns three named outputs in every supported container.
-- Output casing matches the input's columns.
-- Single-output indicators are unchanged.
+- EMA and MACD match TA-Lib-generated reference values.
+- Output names and casing follow the new rules for every indicator.
+- Single-output indicators are otherwise unchanged (values, containers, errors, and single-call cost within ~5%).
 
 **Retrospective:**  
 **Sprint completion:** ☐
