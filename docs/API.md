@@ -116,7 +116,7 @@ Text (`str`, `bytes`, `bytearray`) is JSON when its first non-whitespace charact
 
 **Limitations** (each raises, never guesses):
 
-- A `(rows, 1)` array or a one-item tuple is not taken as one series; pass the column itself.
+- A `(rows, 1)` array or a one-item tuple is not taken as one series; pass the column itself. A table (2-D array, list of lists, JSON array of arrays) or a one-item list or tuple given to a one-column indicator raises `ValueError` saying what it got and to pass that column alone, or a DataFrame or dict with `column=`: `expected one series of numbers, got a 2-D array of shape (40, 3); this indicator takes one column: ...`.
 - A 2-D table (array, list of lists, JSON array of arrays) with as many rows as columns is read as `(rows, columns)`; neither axis matching the column count raises `ValueError`. A tuple is always a tuple of columns, never of rows.
 - DataFrames with MultiIndex columns are not supported; select a single column level first.
 - Only leading gaps are skipped: a gap (`None`, `null`, `NaN`, `pd.NA`) after the first value raises `ValueError` ([§6](#6-missing-and-non-finite-values)).
@@ -241,6 +241,9 @@ ValueError: no 'close' column found; available columns: 'px', 'vol'. Pass column
 
 >>> pyta.cci(df, period=20)   # df has date, open, high, close, volume
 ValueError: cci needs the columns high, low and close (close or adj_close); missing: low. Available columns: 'date', 'open', 'high', 'close', 'volume'. Rename the input's columns, or pass columns=[...] to choose them
+
+>>> pyta.sma(table, period=20)   # a NumPy array of shape (300, 5)
+ValueError: expected one series of numbers, got a 2-D array of shape (300, 5); this indicator takes one column: pass that column alone (for example data[:, 0]), or a DataFrame or dict with column= to pick it by name
 
 >>> pyta.sma([1.0, 2.0, 3.0], period=0)
 ValueError: period must be between 1 and 2147483647, got 0

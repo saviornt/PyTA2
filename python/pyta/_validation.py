@@ -295,7 +295,9 @@ def to_float64(values: NDArray[Any], name: object = None) -> Float64Array:
     the values came from, for error messages (None when there is none).
     """
     if values.ndim != 1:
-        raise ValueError(f"expected a 1-D series, got an array with shape {values.shape}")
+        raise ValueError(
+            f"{_where(name)}expected a 1-D series, got an array with shape {values.shape}"
+        )
 
     kind = values.dtype.kind
 
@@ -570,20 +572,64 @@ def _from_array(data: NDArray[Any], column: str | None, name: object = None) -> 
     if isinstance(data, np.ma.MaskedArray):
         data = np.ma.filled(data.astype(np.float64), np.nan)
 
-    return Prepared(to_float64(data, name), RESTORE_ARRAY)
+    try:
+        values = to_float64(data, name)
+    except ValueError:  # not 1-D
+        if name is not None:  # a dict's column: `to_float64` names it
+            raise
+        shape = data.shape
+        example = "(for example data[:, 0])" if len(shape) == 2 else ""
+        raise _not_one_series(f"a {len(shape)}-D array of shape {shape}", example) from None
+
+    return Prepared(values, RESTORE_ARRAY)
 
 
-def _from_sequence(data: Sequence[object], column: str | None, name: object = None) -> Prepared:
+def _from_sequence(
+    data: Sequence[object], column: str | None, name: object = None, kind: str | None = None
+) -> Prepared:
+    """A list or tuple of numbers; `kind` names it in errors when it is not one ("JSON array")."""
     _reject_column(column, "list/tuple")
 
     try:
         array = np.asarray(data)
     except ValueError:  # ragged nested sequences
-        raise ValueError("expected a flat sequence of numbers, got nested sequences") from None
+        if name is not None:
+            raise ValueError(
+                f"{_where(name)}expected a flat sequence of numbers, got nested sequences"
+            ) from None
+        what, items = _sequence_kind(data, kind)
+        raise _not_one_series(f"{what} of nested {items}") from None
 
-    values = to_float64(array, name)
+    try:
+        values = to_float64(array, name)
+    except ValueError:  # nested sequences of one length: a table
+        if name is not None:
+            raise
+        what, items = _sequence_kind(data, kind)
+        if len(data) == 1:
+            one = "an array" if kind is not None else "a sequence"
+            raise _not_one_series(f"a one-item {what[2:]} holding {one}", "(data[0])") from None
+        raise _not_one_series(
+            f"{what} of {len(data)} {items} (a table of shape {array.shape})"
+        ) from None
 
     return Prepared(values, RESTORE_TUPLE if isinstance(data, tuple) else RESTORE_LIST)
+
+
+def _sequence_kind(data: Sequence[object], kind: str | None) -> tuple[str, str]:
+    """How an error names a list or tuple ("a list", "a JSON array") and its nested items."""
+    if kind is not None:
+        return f"a {kind}", "arrays"
+    return ("a tuple" if isinstance(data, tuple) else "a list"), "sequences"
+
+
+def _not_one_series(what: str, example: str = "") -> ValueError:
+    """The error for a table, or a container of one, given to a one-column indicator."""
+    hint = f" {example}" if example else ""
+    return ValueError(
+        f"expected one series of numbers, got {what}; this indicator takes one column: pass "
+        f"that column alone{hint}, or a DataFrame or dict with column= to pick it by name"
+    )
 
 
 def from_pandas_series(pd: Any, data: Any, column: str | None) -> Prepared:
@@ -697,7 +743,7 @@ def _from_json(data: str | bytes | bytearray, column: str | None, default_column
             return Prepared(values, restore_records(dump), (key,))
 
         _reject_column(column, "JSON array")
-        values = _from_sequence(parsed, None).values
+        values = _from_sequence(parsed, None, kind="JSON array").values
 
         return Prepared(values, restore_json_array(dump))
 

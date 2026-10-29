@@ -318,8 +318,62 @@ def test_errors_never_leak_library_internals() -> None:
     with pytest.raises(TypeError, match="mixes records and numbers"):
         pyta.sma('[{"close": 1.0}, 2.0]', period=1)
 
-    with pytest.raises(ValueError, match=r"nested sequences$"):
+    with pytest.raises(ValueError, match=r"got a list of nested sequences; .* column="):
         pyta.sma([1.0, [2.0, 3.0]], period=1)
+
+
+ONE_COLUMN = r"; this indicator takes one column: pass that column alone"
+PICK = r", or a DataFrame or dict with column= to pick it by name$"
+
+
+@pytest.mark.parametrize(
+    ("data", "message"),
+    [
+        (np.ones((40, 3)), r"got a 2-D array of shape \(40, 3\)" + ONE_COLUMN + r" \(for example"),
+        (np.ones((40, 1)), r"got a 2-D array of shape \(40, 1\)" + ONE_COLUMN),
+        (np.ones(()), r"got a 0-D array of shape \(\)" + ONE_COLUMN + PICK),
+        (
+            (np.ones(5),),
+            r"got a one-item tuple holding a sequence" + ONE_COLUMN + r" \(data\[0\]\)",
+        ),
+        ([[1.0, 2.0, 3.0]], r"got a one-item list holding a sequence" + ONE_COLUMN),
+        ([[1.0, 2.0], [3.0, 4.0]], r"got a list of 2 sequences \(a table of shape \(2, 2\)\)"),
+        (([1.0, 2.0], [3.0, 4.0], [5.0, 6.0]), r"got a tuple of 3 sequences"),
+        ([1.0, [2.0, 3.0]], r"got a list of nested sequences" + ONE_COLUMN + PICK),
+        ("[[1, 2], [3, 4]]", r"got a JSON array of 2 arrays \(a table of shape \(2, 2\)\)"),
+        ("[[1, 2, 3]]", r"got a one-item JSON array holding an array" + ONE_COLUMN),
+        ("[1, [2, 3]]", r"got a JSON array of nested arrays" + ONE_COLUMN),
+    ],
+)
+def test_a_table_or_one_item_container_says_to_pass_one_column(data: object, message: str) -> None:
+    with pytest.raises(ValueError, match=r"^expected one series of numbers, " + message):
+        pyta.sma(data, period=1)
+
+
+@pytest.mark.pandas
+def test_a_list_of_one_series_says_to_pass_the_series() -> None:
+    pd = pytest.importorskip("pandas")
+
+    with pytest.raises(ValueError, match=r"one-item list holding a sequence" + ONE_COLUMN):
+        pyta.sma([pd.Series([1.0, 2.0, 3.0])], period=1)
+
+
+@pytest.mark.pandas
+def test_a_dataframe_with_multiindex_columns_is_rejected() -> None:
+    pd = pytest.importorskip("pandas")
+    frame = pd.DataFrame(
+        [[1.0, 2.0]], columns=pd.MultiIndex.from_tuples([("SPY", "close"), ("QQQ", "close")])
+    )
+
+    with pytest.raises(TypeError, match="MultiIndex columns are not supported; select a column"):
+        pyta.sma(frame, period=1)
+
+
+def test_a_nested_dict_column_is_named() -> None:
+    with pytest.raises(ValueError, match=r"^column 'close' expected a 1-D series, got .* \(4, 2\)"):
+        pyta.sma({"close": np.ones((4, 2))}, period=1)
+    with pytest.raises(ValueError, match=r"^column 'close' expected a flat sequence"):
+        pyta.sma({"close": [1.0, [2.0, 3.0]]}, period=1)
 
 
 def test_column_is_rejected_for_inputs_without_columns() -> None:
