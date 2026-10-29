@@ -164,7 +164,7 @@ Each crate owns the formulas for one technical-analysis category. One indicator 
 | Crate | Indicators |
 |---|---|
 | `pyta-trend` | SMA |
-| `pyta-momentum` | RSI (Wilder's smoothing), CCI (high, low, close; O(rows × period)) |
+| `pyta-momentum` | RSI (Wilder's smoothing), CCI (high, low, close; compensated running mean, O(rows × period) for the mean deviation) |
 
 New categories (volatility, volume, valuation) are added as new `pyta-<category>` crates when there is a concrete indicator to implement.
 

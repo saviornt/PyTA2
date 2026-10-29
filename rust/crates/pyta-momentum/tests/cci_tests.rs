@@ -126,3 +126,72 @@ fn cci_is_finite_at_the_magnitude_limit() {
 
     assert!(result[1..].iter().all(|value| value.is_finite()));
 }
+
+/// CCI of `close` as high, low and close, with each window summed afresh,
+/// and how far a correct result may be from it.
+///
+/// The window is summed relative to its first price, which is exact for
+/// nearby prices. Even so, the mean is a float, rounded to about `1e-16` of
+/// the window's size; that rounding, divided by `0.015` times the mean
+/// deviation, bounds how closely any method can agree.
+fn fresh_sum_cci(close: &[f64], period: usize) -> Vec<(f64, f64)> {
+    let typical: Vec<f64> = close.iter().map(|x| (x + x + x) / 3.0).collect();
+
+    typical
+        .windows(period)
+        .map(|window| {
+            let pivot = window[0];
+            let mean = pivot + window.iter().map(|x| x - pivot).sum::<f64>() / period as f64;
+            let deviation = window.iter().map(|x| (x - mean).abs()).sum::<f64>() / period as f64;
+            let size = window.iter().fold(0.0_f64, |size, x| size.max(x.abs()));
+            let cci = (window[period - 1] - mean) / (0.015 * deviation);
+            (cci, 1e-12 * size / (0.015 * deviation) + 1e-9 * cci.abs())
+        })
+        .collect()
+}
+
+#[test]
+fn a_flat_window_after_a_large_price_leaves_is_exactly_zero() {
+    // A plain running sum keeps the rounding error of the large prices after
+    // they leave the window, and reads it as movement (CCI about -66.7).
+    let mut close: Vec<f64> = (0..50).map(|i| 1.0e9 + f64::from(i) * 0.1).collect();
+    close.extend([5.0; 30]);
+
+    let result = cci_of_close(&close, 14);
+
+    assert!(
+        result[50 + 13..].iter().all(|value| *value == 0.0),
+        "{result:?}"
+    );
+}
+
+#[test]
+fn the_running_mean_does_not_drift_over_a_long_series() {
+    // Blocks of prices near 1e9 and near 1, so every switch leaves a large
+    // rounding error in a plain running sum.
+    let close: Vec<f64> = (0..200_000_u32)
+        .map(|i| {
+            let wave = (f64::from(i) * 0.37).sin();
+            if (i / 1_000) % 2 == 0 {
+                1.0e9 + 100.0 * wave
+            } else {
+                1.0 + 0.01 * wave
+            }
+        })
+        .collect();
+
+    for period in [3, 14, 20, 50] {
+        let result = cci_of_close(&close, period);
+        let expected = fresh_sum_cci(&close, period);
+
+        for (index, (got, (want, tolerance))) in
+            result[period - 1..].iter().zip(&expected).enumerate()
+        {
+            assert!(
+                (got - want).abs() <= *tolerance,
+                "period {period}, row {}: got {got}, fresh sum gives {want} (±{tolerance})",
+                index + period - 1
+            );
+        }
+    }
+}

@@ -7,11 +7,11 @@ license.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+pyta-common = { path = "../pyta-common" }
 pyta-core = { path = "../pyta-core" }
 
 [dev-dependencies]
 proptest = { workspace = true }
-pyta-common = { path = "../pyta-common" }
 
 [lints]
 workspace = true

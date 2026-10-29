@@ -10,10 +10,12 @@
 
 pub mod benchmarks;
 pub mod costs;
+pub mod kernels;
 pub mod limits;
 pub mod scheduling;
 
 pub use benchmarks::*;
 pub use costs::*;
+pub use kernels::*;
 pub use limits::*;
 pub use scheduling::*;

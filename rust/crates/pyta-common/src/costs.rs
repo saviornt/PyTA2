@@ -12,14 +12,17 @@ pub const SMA_NS_PER_ELEMENT: f64 = 1.8;
 pub const RSI_NS_PER_ELEMENT: f64 = 3.0;
 
 /// Commodity Channel Index, in nanoseconds per input row, excluding the
-/// window passes (see [`CCI_NS_PER_WINDOW_VALUE`]).
+/// mean-deviation pass (see [`CCI_NS_PER_WINDOW_VALUE`]): typical price and
+/// the compensated running mean.
 ///
-/// Provisional (2026-10-28, quick run): the kernel at 1,000,000 rows and
-/// periods 1 to 100, fitted as `3.3 + 1.28 * period` ns and scaled by
-/// `RSI_NS_PER_ELEMENT` / RSI's kernel time in the same session.
-pub const CCI_NS_PER_ELEMENT: f64 = 3.8;
+/// Measured 2026-10-28 (full runs `benches/results/benchmark_2026-10-28_17-25-51.txt`
+/// for CCI and `_17-31-04` for RSI: kernels at 1,000,000 rows took 9.63 ms
+/// at period 14 and 2.50 ms). The kernel at periods 1 to 200 (the native
+/// call less its 3.7 ns/row of copying) fits `6.0 + 0.20 * period` ns per
+/// row, scaled here by `RSI_NS_PER_ELEMENT` / RSI's kernel time (1.2).
+pub const CCI_NS_PER_ELEMENT: f64 = 7.2;
 
 /// Commodity Channel Index, in nanoseconds per row and per unit of
-/// `period`: every row sums its window and takes its mean deviation, so
-/// the cost is O(rows * period). Provisional, as [`CCI_NS_PER_ELEMENT`].
-pub const CCI_NS_PER_WINDOW_VALUE: f64 = 1.5;
+/// `period`: each row's mean deviation is a pass over its window, so the
+/// cost is O(rows * period). Measured as [`CCI_NS_PER_ELEMENT`].
+pub const CCI_NS_PER_WINDOW_VALUE: f64 = 0.24;

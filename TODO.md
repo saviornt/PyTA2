@@ -90,9 +90,6 @@ Out of scope: multi-output indicators (Sprint 10), CSV input (Sprint 11), parame
 
 ## Parking lot
 
-- CCI cost constants are provisional (quick run plus native timings): confirm with a full `./scripts/benchmark.sh --single --rust --indicator cci` on a quiet machine.
-- CCI kernel speed: each window's sum and mean deviation are latency-bound serial adds (~1.3 ns per row per period); several accumulators would let them vectorize. Needs a benchmark.
 - Multi-column Python layer costs ~12 µs per call on 100 rows (dict of three arrays) against ~3.8 µs for SMA; the rest is per-column conversion and leading-NaN checks.
-
 - RSI reference tolerance (0.1) comes from StockCharts' rounded image; the unrounded `cs-rsi.xls` would allow a tight check (needs a download).
 - `tests/fixtures/ohlcv_daily.csv` is Yahoo data (personal use); revisit before a public release.

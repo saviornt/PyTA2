@@ -120,7 +120,7 @@ With no `columns=`, the close input takes the close column if there is one, and 
 
 PyTA follows TA-Lib's `TA_CCI`: the same formula, warm-up (`period − 1`), default period (14) and zero rule. It differs from TA-Lib in one place: TA-Lib rejects `period < 2`, while PyTA accepts `1` and returns `0`. Lambert's original definition is the same calculation.
 
-The Rust kernel (`pyta-momentum`) sums each window afresh rather than keeping a running sum, because the mean deviation needs a pass over the window anyway; the cost is proportional to `rows × period`. Reference values are checked against StockCharts ChartSchool's 20-day example.
+The Rust kernel (`pyta-momentum`) works in two passes. The first keeps each window's sum as a running total with exact error compensation, so it never drifts: a flat stretch right after a large price leaves the window still reads exactly `0`, which a plain running sum gets wrong. The second takes each window's mean deviation, which needs a pass over the window because the mean moves every row; the windows are independent there, so the CPU works on several at once. The cost is proportional to `rows × period`, at about a third of a nanosecond per row and period on the development machine. Results agree with summing every window afresh to within the rounding of the mean itself. Reference values are checked against StockCharts ChartSchool's 20-day example.
 
 ## See also
 
