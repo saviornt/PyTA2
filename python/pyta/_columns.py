@@ -355,13 +355,11 @@ def _from_mapping(
     chosen = _match(list(data), columns, label, slots)
     prepared = [_column(data[key], key) for key, _ in chosen]
     # Each output keeps the container type of the first input column.
-    inner = prepared[0].restore
-
     return _prepared(
         [column.values for column in prepared],
         [key for key, _ in chosen],
         [role for _, role in chosen],
-        restore_columns(lambda out, name: inner(((name, out),))),
+        restore_columns(prepared[0].restore),
     )
 
 

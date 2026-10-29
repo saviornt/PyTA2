@@ -19,7 +19,7 @@ import numpy as np
 from numpy.typing import NDArray
 from pydantic import Field, TypeAdapter, ValidationError
 
-from ._types import Float64Array, Outputs, Prepared, Restore
+from ._types import Float64Array, Prepared, Restore
 
 _log = logging.getLogger("pyta.validation")
 
@@ -292,11 +292,10 @@ def one_series(single: Callable[[Float64Array, str], Any]) -> Restore:
     indicator's documented order.
     """
 
-    def restore(outputs: Outputs) -> Any:
-        if len(outputs) == 1:
-            name, values = outputs[0]
-            return single(values, name)
-        return tuple(single(values, name) for name, values in outputs)
+    def restore(names: Sequence[str], results: Sequence[Float64Array]) -> Any:
+        if len(results) == 1:
+            return single(results[0], names[0])
+        return tuple(map(single, results, names, strict=True))
 
     return restore
 
@@ -319,14 +318,24 @@ RESTORE_LIST = one_series(_as_list)
 RESTORE_TUPLE = one_series(_as_tuple)
 
 
-def restore_columns(single: Callable[[Float64Array, str], Any]) -> Restore:
-    """A `Restore` for a dict: one key per output, each value in `single`'s form."""
-    return lambda outputs: {name: single(values, name) for name, values in outputs}
+def restore_columns(inner: Restore) -> Restore:
+    """A `Restore` for a dict: one key per output, each value restored by `inner`.
+
+    `inner` is the restore of the input column's own container, so each output
+    keeps that container type.
+    """
+
+    def restore(names: Sequence[str], results: Sequence[Float64Array]) -> dict[str, Any]:
+        if len(results) == 1:
+            return {names[0]: inner(names, results)}
+        return {name: inner((name,), (out,)) for name, out in zip(names, results, strict=True)}
+
+    return restore
 
 
 def restore_frame(pd: Any, index: Any) -> Restore:
     """A `Restore` for a DataFrame: one column per output, keeping `index`."""
-    return lambda outputs: pd.DataFrame(dict(outputs), index=index)
+    return lambda names, results: pd.DataFrame(dict(zip(names, results, strict=True)), index=index)
 
 
 def json_dump(as_bytes: bool) -> Callable[[Any], str | bytes]:
@@ -342,9 +351,8 @@ def json_dump(as_bytes: bool) -> Callable[[Any], str | bytes]:
 def restore_records(dump: Callable[[Any], str | bytes]) -> Restore:
     """A `Restore` for a JSON array of records: each record keyed by every output name."""
 
-    def restore(outputs: Outputs) -> str | bytes:
-        names = [name for name, _ in outputs]
-        columns = [nulls(values) for _, values in outputs]
+    def restore(names: Sequence[str], results: Sequence[Float64Array]) -> str | bytes:
+        columns = [nulls(values) for values in results]
         return dump([dict(zip(names, row, strict=True)) for row in zip(*columns, strict=True)])
 
     return restore
@@ -352,7 +360,9 @@ def restore_records(dump: Callable[[Any], str | bytes]) -> Restore:
 
 def restore_json_object(dump: Callable[[Any], str | bytes]) -> Restore:
     """A `Restore` for a JSON object of arrays: one key per output."""
-    return lambda outputs: dump({name: nulls(values) for name, values in outputs})
+    return lambda names, results: dump(
+        {name: nulls(values) for name, values in zip(names, results, strict=True)}
+    )
 
 
 # --- containers -----------------------------------------------------------------------------
@@ -398,11 +408,18 @@ def from_pandas_series(pd: Any, data: Any, column: str | None) -> Prepared:
     else:  # nullable extension dtypes: pd.NA becomes NaN
         values = data.to_numpy(dtype=np.float64, na_value=np.nan)
 
-    return Prepared(
-        to_float64(values),
-        one_series(lambda out, name: pd.Series(out, index=data.index, name=name)),
-        () if data.name is None else (data.name,),
-    )
+    index = data.index
+
+    # One closure per call: a single output is the common case.
+    def restore(names: Sequence[str], results: Sequence[Float64Array]) -> Any:
+        if len(results) == 1:
+            return pd.Series(results[0], index=index, name=names[0])
+        return tuple(
+            pd.Series(out, index=index, name=name) for name, out in zip(names, results, strict=True)
+        )
+
+    label = data.name
+    return Prepared(to_float64(values), restore, () if label is None else (label,))
 
 
 def _from_pandas_frame(pd: Any, data: Any, column: str | None, default_column: str) -> Prepared:
@@ -439,12 +456,7 @@ def _from_mapping(
     inner = from_column(data[key], key)
 
     # Each output keeps the input column's container type.
-    single = inner.restore
-    return Prepared(
-        inner.values,
-        restore_columns(lambda out, name: single(((name, out),))),
-        (key,),
-    )
+    return Prepared(inner.values, restore_columns(inner.restore), (key,))
 
 
 def nulls(values: Float64Array) -> list[float | None]:
@@ -485,10 +497,10 @@ def _from_json(data: str | bytes | bytearray, column: str | None, default_column
         values = _from_sequence(parsed, None).values
 
         # One output is an array like the input; several are an object keyed by name.
-        def restore(outputs: Outputs) -> str | bytes:
-            if len(outputs) == 1:
-                return dump(nulls(outputs[0][1]))
-            return dump({name: nulls(out) for name, out in outputs})
+        def restore(names: Sequence[str], results: Sequence[Float64Array]) -> str | bytes:
+            if len(results) == 1:
+                return dump(nulls(results[0]))
+            return dump({name: nulls(out) for name, out in zip(names, results, strict=True)})
 
         return Prepared(values, restore)
 
