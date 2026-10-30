@@ -194,6 +194,14 @@ def test_smoke() -> None:
     assert np.isfinite(roc_values[10:]).all()
     assert roc_values[-1] == (close[-1] / close[-11] - 1.0) * 100.0
 
+    trix_values = np.array(pyta.trix(data, period=15)["trix"])
+    assert trix_values.dtype == np.float64
+    assert trix_values.shape == (length,), "TRIX output length mismatch"
+    assert np.isnan(trix_values[:43]).all(), "TRIX warm-up alignment is incorrect"
+    assert np.isfinite(trix_values[43:]).all()
+    ema3 = pyta.ema(pyta.ema(pyta.ema(close.tolist(), 15), 15), 15)
+    assert np.array_equal(trix_values[43:], np.array(pyta.roc(ema3, 1))[43:])
+
     dema_values = np.array(pyta.dema(data, period=30)["dema"])
     assert dema_values.dtype == np.float64
     assert dema_values.shape == (length,), "DEMA output length mismatch"

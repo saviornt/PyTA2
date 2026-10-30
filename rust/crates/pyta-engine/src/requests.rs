@@ -50,6 +50,8 @@ pub enum IndicatorKind {
     Stoch,
     /// Triple Exponential Moving Average (`pyta-trend`).
     Tema,
+    /// TRIX, the rate of change of a triple EMA (`pyta-momentum`).
+    Trix,
     /// Williams %R (`pyta-momentum`; high, low, close).
     Willr,
     /// Weighted Moving Average (`pyta-trend`).
@@ -206,6 +208,12 @@ pub enum Params {
         /// Period of all three EMAs; sets their weight `2 / (period + 1)`.
         period: usize,
     },
+    /// TRIX: the one-row rate of change, in percent, of a triple EMA, each
+    /// EMA of the one before.
+    Trix {
+        /// Period of all three EMAs, at least 1.
+        period: usize,
+    },
     /// Williams %R: where close lies between the highest high and lowest
     /// low of the last `period` rows, from -100 to 0.
     Willr {
@@ -243,6 +251,7 @@ impl Params {
             Self::Stddev { .. } => IndicatorKind::Stddev,
             Self::Stoch { .. } => IndicatorKind::Stoch,
             Self::Tema { .. } => IndicatorKind::Tema,
+            Self::Trix { .. } => IndicatorKind::Trix,
             Self::Willr { .. } => IndicatorKind::Willr,
             Self::Wma { .. } => IndicatorKind::Wma,
         }

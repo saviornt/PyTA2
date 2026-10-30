@@ -1,4 +1,4 @@
-//! RSI, CCI, Stochastic, Williams %R, ROC and MFI invariants that must hold for any valid input.
+//! RSI, CCI, Stochastic, Williams %R, ROC, MFI and TRIX invariants that must hold for any valid input.
 
 use proptest::prelude::*;
 use pyta_core::Series;
@@ -544,6 +544,60 @@ proptest! {
         let expected = reference_mfi(&columns, period);
 
         for (index, (a, e)) in actual.iter().zip(&expected).enumerate() {
+            prop_assert!(
+                (a.is_nan() && e.is_nan()) || a.to_bits() == e.to_bits(),
+                "index {}: {:e} != {:e}", index, a, e
+            );
+        }
+    }
+}
+
+/// A series of 2 to 300 prices (some flat stretches) and a TRIX period that
+/// leaves at least one value (`3 * period - 1` rows).
+fn series_and_trix_period() -> impl Strategy<Value = (Vec<f64>, usize)> {
+    let value = prop_oneof![4 => 1.0..1.0e4_f64, 1 => Just(100.0), 1 => -1.0e6..1.0e6_f64];
+    prop::collection::vec(value, 2..300).prop_flat_map(|values| {
+        let longest = (values.len() + 1) / 3;
+        (Just(values), 1..=longest)
+    })
+}
+
+/// TRIX from the shared kernels: three cascaded `kernels::ema` passes and
+/// `kernels::rate_of_change` of the third.
+fn cascaded_trix(values: &[f64], period: usize) -> Vec<f64> {
+    use pyta_core::kernels::{ema, rate_of_change};
+
+    let offset = period - 1;
+    let ema1 = ema(values, period);
+    let ema2 = ema(&ema1[offset..], period);
+    let ema3 = ema(&ema2[offset..], period);
+
+    let mut output = vec![f64::NAN; 3 * offset];
+    output.extend(rate_of_change(&ema3[offset..], 1));
+    output
+}
+
+proptest! {
+    #[test]
+    fn trix_output_length_and_warm_up_are_exact((values, period) in series_and_trix_period()) {
+        let output = pyta_momentum::trix(&Series::new(values.clone()).unwrap(), period).unwrap();
+        let output = output.values();
+        let first = 3 * (period - 1) + 1;
+
+        prop_assert_eq!(output.len(), values.len());
+        prop_assert!(output[..first].iter().all(|value| value.is_nan()));
+        // A ratio to a tiny non-zero EMA may overflow, as TA-Lib's does.
+        prop_assert!(output[first..].iter().all(|value| !value.is_nan()));
+    }
+
+    #[test]
+    fn trix_fused_pass_matches_the_cascaded_kernels_bit_for_bit(
+        (values, period) in series_and_trix_period()
+    ) {
+        let output = pyta_momentum::trix(&Series::new(values.clone()).unwrap(), period).unwrap();
+        let expected = cascaded_trix(&values, period);
+
+        for (index, (a, e)) in output.values().iter().zip(&expected).enumerate() {
             prop_assert!(
                 (a.is_nan() && e.is_nan()) || a.to_bits() == e.to_bits(),
                 "index {}: {:e} != {:e}", index, a, e

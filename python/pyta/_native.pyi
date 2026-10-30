@@ -45,6 +45,8 @@ __all__ = [
     "stoch_batch",
     "tema",
     "tema_batch",
+    "trix",
+    "trix_batch",
     "willr",
     "willr_batch",
     "wma",
@@ -62,6 +64,10 @@ def tema(values: NDArray[np.float64], period: int) -> NDArray[np.float64]: ...
 def kama(values: NDArray[np.float64], period: int) -> NDArray[np.float64]: ...
 def roc(values: NDArray[np.float64], period: int) -> NDArray[np.float64]: ...
 def roc_batch(
+    datasets: list[NDArray[np.float64]], period: int
+) -> list[NDArray[np.float64] | Exception]: ...
+def trix(values: NDArray[np.float64], period: int) -> NDArray[np.float64]: ...
+def trix_batch(
     datasets: list[NDArray[np.float64]], period: int
 ) -> list[NDArray[np.float64] | Exception]: ...
 def sma_batch(

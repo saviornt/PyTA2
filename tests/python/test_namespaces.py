@@ -38,6 +38,7 @@ INDICATORS = {
     "roc": "momentum",
     "willr": "momentum",
     "mfi": "momentum",
+    "trix": "momentum",
     "atr": "volatility",
     "stddev": "volatility",
     "bbands": "volatility",
@@ -202,6 +203,12 @@ DOCUMENTED_PATHS = [
     "pyta.indicators.momentum.mfi",
     "pyta.batch.mfi",
     "pyta.batch.momentum.mfi",
+    "pyta.trix",
+    "pyta.momentum.trix",
+    "pyta.indicators.trix",
+    "pyta.indicators.momentum.trix",
+    "pyta.batch.trix",
+    "pyta.batch.momentum.trix",
 ]
 
 

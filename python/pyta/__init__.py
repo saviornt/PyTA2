@@ -29,6 +29,7 @@ from .indicators import (
     stddev,
     stoch,
     tema,
+    trix,
     willr,
     wma,
 )
@@ -63,6 +64,7 @@ __all__ = [
     "stoch",
     "tema",
     "trend",
+    "trix",
     "volatility",
     "volume",
     "willr",

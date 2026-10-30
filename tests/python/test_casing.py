@@ -34,6 +34,7 @@ LOWER = {
     "willr": ["willr"],
     "roc": ["roc"],
     "mfi": ["mfi"],
+    "trix": ["trix"],
 }
 UPPER = {name: [n.upper() for n in names] for name, names in LOWER.items()}
 TITLE = {
@@ -60,6 +61,7 @@ TITLE = {
     "willr": ["WILLR"],
     "roc": ["ROC"],
     "mfi": ["MFI"],
+    "trix": ["TRIX"],
 }
 
 #: Indicators on high, low and close (and MFI's volume), cased by all the columns used.

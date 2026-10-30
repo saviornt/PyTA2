@@ -29,6 +29,7 @@ mod sma;
 mod stddev;
 mod stoch;
 mod tema;
+mod trix;
 mod willr;
 mod wma;
 
@@ -54,6 +55,8 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(rsi::rsi_batch, m)?)?;
     m.add_function(wrap_pyfunction!(roc::roc, m)?)?;
     m.add_function(wrap_pyfunction!(roc::roc_batch, m)?)?;
+    m.add_function(wrap_pyfunction!(trix::trix, m)?)?;
+    m.add_function(wrap_pyfunction!(trix::trix_batch, m)?)?;
     m.add_function(wrap_pyfunction!(ema::ema, m)?)?;
     m.add_function(wrap_pyfunction!(ema::ema_batch, m)?)?;
     m.add_function(wrap_pyfunction!(wma::wma, m)?)?;

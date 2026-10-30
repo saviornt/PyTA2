@@ -1,12 +1,12 @@
 //! RSI and CCI against the published StockCharts ChartSchool examples, and
-//! Stochastic, Williams %R, ROC and MFI against TA-Lib's own output
+//! Stochastic, Williams %R, ROC, MFI and TRIX against TA-Lib's own output
 //! (generated fixtures, see their comments).
 
 #[path = "../../../test-support/reference.rs"]
 mod reference;
 
 use pyta_core::Series;
-use pyta_momentum::{cci, mfi, roc, rsi, stoch, willr};
+use pyta_momentum::{cci, mfi, roc, rsi, stoch, trix, willr};
 use reference::{assert_matches, assert_output_matches, load};
 
 #[test]
@@ -167,4 +167,42 @@ fn mfi_14_matches_talib() {
 #[test]
 fn mfi_14_matches_talib_on_the_edge_series() {
     check_mfi("mfi_14_edge_talib.csv");
+}
+
+fn check_trix(name: &str) {
+    let reference = load(name);
+    let input = Series::new(reference.input.clone()).unwrap();
+
+    let output = trix(&input, reference.period()).unwrap();
+
+    assert_matches(output.values(), &reference);
+    // TA-Lib 0.8.3 writes its EMA update as `fma(beta, previous, k * value)`
+    // where PyTA uses `(value - previous) * k + previous`, so a few values
+    // differ in their last bits (measured at most 3.7e-13 relative).
+    for (index, (a, e)) in output
+        .values()
+        .iter()
+        .zip(&reference.outputs[0])
+        .enumerate()
+    {
+        assert!(
+            (a.is_nan() && e.is_nan()) || (a - e).abs() <= 1e-12 * e.abs().max(1e-3),
+            "{name}, index {index}: {a:e} != {e:e}"
+        );
+    }
+}
+
+#[test]
+fn trix_30_matches_talib() {
+    check_trix("trix_30_talib.csv");
+}
+
+#[test]
+fn trix_15_matches_talib() {
+    check_trix("trix_15_talib.csv");
+}
+
+#[test]
+fn trix_30_matches_talib_on_the_edge_series() {
+    check_trix("trix_30_edge_talib.csv");
 }

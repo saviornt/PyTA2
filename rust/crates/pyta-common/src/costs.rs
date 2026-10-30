@@ -235,6 +235,18 @@ pub const ROC_NS_PER_ELEMENT: f64 = 1.5;
 /// `--single --rust --indicator mfi`.
 pub const MFI_NS_PER_ELEMENT: f64 = 10.0;
 
+/// TRIX, in nanoseconds per input row; independent of `period` (one fused
+/// pass for the three EMAs and the rate of change).
+///
+/// Provisional, from a quick run on 2026-10-29
+/// (`benches/results/benchmark_2026-10-29_17-02-23.txt`, `--single --rust
+/// --quick`, governor `performance`): kernels at 1,000,000 rows took
+/// 3.286 ms for TRIX-30 and 2.508 ms for RSI-14, scaled here by
+/// `RSI_NS_PER_ELEMENT` (3.0 * 1.31). TEMA-30 (the same three EMAs) took
+/// 3.342 ms in the same run. Confirm with a full
+/// `--single --rust --indicator trix`.
+pub const TRIX_NS_PER_ELEMENT: f64 = 3.9;
+
 /// Parabolic SAR, in nanoseconds per input row; independent of
 /// `acceleration` and `maximum` (one pass).
 ///

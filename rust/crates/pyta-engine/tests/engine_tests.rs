@@ -29,6 +29,7 @@ fn params(kind: IndicatorKind, period: usize) -> Params {
         IndicatorKind::Wma => Params::Wma { period },
         IndicatorKind::Dema => Params::Dema { period },
         IndicatorKind::Tema => Params::Tema { period },
+        IndicatorKind::Trix => Params::Trix { period },
         IndicatorKind::Kama => Params::Kama { period },
         IndicatorKind::Bbands => Params::Bbands { period, k: 2.0 },
         IndicatorKind::Stddev => Params::Stddev { period, k: 1.0 },
@@ -310,6 +311,7 @@ fn the_kind_comes_from_the_params() {
         (Params::Ema { period: 2 }, IndicatorKind::Ema),
         (Params::Willr { period: 2 }, IndicatorKind::Willr),
         (Params::Mfi { period: 2 }, IndicatorKind::Mfi),
+        (Params::Trix { period: 2 }, IndicatorKind::Trix),
         (Params::Roc { period: 1 }, IndicatorKind::Roc),
         (
             Params::Ichimoku {
@@ -834,6 +836,54 @@ async fn aroon_runs_through_the_engine_with_three_outputs_and_reports_its_errors
         PytaError::ColumnCount {
             expected: 2,
             actual: 1,
+        }
+    );
+}
+
+#[tokio::test]
+async fn trix_runs_through_the_engine_and_reports_its_errors() {
+    // Period 1: every EMA is a copy, so TRIX is the one-row ROC:
+    // (0 / 10 - 1) * 100, (12 / 0 -> 0), (11 / 12 - 1) * 100,
+    // (15 / 11 - 1) * 100.
+    let values = vec![10.0, 0.0, 12.0, 11.0, 15.0];
+    let requests = vec![
+        request(IndicatorKind::Trix, values.clone(), 1),
+        request(IndicatorKind::Trix, values.clone(), 0),
+        request(IndicatorKind::Trix, values.clone(), 3),
+        columns_request(IndicatorKind::Trix, &[&values, &values], 1),
+    ];
+
+    let direct = execute_direct(&requests[0]).unwrap();
+    assert_values(
+        direct.values(),
+        &[
+            NAN,
+            -100.0,
+            0.0,
+            (11.0 / 12.0 - 1.0) * 100.0,
+            (15.0 / 11.0 - 1.0) * 100.0,
+        ],
+    );
+
+    let results = execute_batch(requests).await;
+
+    match &results[0].status {
+        IndicatorStatus::Success(output) => assert_values(output.values(), direct.values()),
+        IndicatorStatus::Error(error) => panic!("expected TRIX success, got {error:?}"),
+    }
+    assert_eq!(*error_of(&results[1]), PytaError::InvalidPeriod);
+    assert_eq!(
+        *error_of(&results[2]),
+        PytaError::InsufficientData {
+            required: 8,
+            length: 5,
+        }
+    );
+    assert_eq!(
+        *error_of(&results[3]),
+        PytaError::ColumnCount {
+            expected: 1,
+            actual: 2,
         }
     );
 }
