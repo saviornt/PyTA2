@@ -34,6 +34,7 @@ mod stoch;
 mod tema;
 mod trix;
 mod ultosc;
+mod vwap;
 mod willr;
 mod wma;
 
@@ -87,6 +88,8 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(ad::ad_batch, m)?)?;
     m.add_function(wrap_pyfunction!(cmf::cmf, m)?)?;
     m.add_function(wrap_pyfunction!(cmf::cmf_batch, m)?)?;
+    m.add_function(wrap_pyfunction!(vwap::vwap, m)?)?;
+    m.add_function(wrap_pyfunction!(vwap::vwap_batch, m)?)?;
     m.add_function(wrap_pyfunction!(macd::macd, m)?)?;
     m.add_function(wrap_pyfunction!(macd::macd_batch, m)?)?;
     m.add_function(wrap_pyfunction!(stddev::stddev, m)?)?;

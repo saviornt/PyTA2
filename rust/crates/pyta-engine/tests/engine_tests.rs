@@ -50,7 +50,7 @@ fn params(kind: IndicatorKind, period: usize) -> Params {
             k: 2.0,
         },
         IndicatorKind::Macd => panic!("MACD takes three periods"),
-        IndicatorKind::Ad | IndicatorKind::Obv | IndicatorKind::Sar => {
+        IndicatorKind::Ad | IndicatorKind::Obv | IndicatorKind::Sar | IndicatorKind::Vwap => {
             panic!("{kind:?} takes no period")
         }
     }
@@ -322,6 +322,7 @@ fn the_kind_comes_from_the_params() {
         (Params::Obv, IndicatorKind::Obv),
         (Params::Ad, IndicatorKind::Ad),
         (Params::Cmf { period: 2 }, IndicatorKind::Cmf),
+        (Params::Vwap, IndicatorKind::Vwap),
         (Params::Trix { period: 2 }, IndicatorKind::Trix),
         (
             Params::Ultosc {
@@ -1493,6 +1494,36 @@ async fn cmf_runs_through_the_engine_and_reports_its_errors() {
     );
     assert_eq!(
         *error_of(&results[3]),
+        PytaError::ColumnCount {
+            expected: 4,
+            actual: 3,
+        }
+    );
+}
+
+#[tokio::test]
+async fn vwap_runs_through_the_engine_and_reports_its_errors() {
+    // Typical prices 10, 12, 14; volumes 0, 100, 300: NaN, 12, 13.5.
+    let high: &[f64] = &[11.0, 13.0, 15.0];
+    let low: &[f64] = &[9.0, 11.0, 13.0];
+    let close: &[f64] = &[10.0, 12.0, 14.0];
+    let volume: &[f64] = &[0.0, 100.0, 300.0];
+    let requests = vec![
+        IndicatorRequest::with_columns(columns_of(&[high, low, close, volume]), Params::Vwap),
+        IndicatorRequest::with_columns(columns_of(&[high, low, close]), Params::Vwap),
+    ];
+
+    let direct = execute_direct(&requests[0]).unwrap();
+    assert_values(direct.values(), &[NAN, 12.0, 13.5]);
+
+    let results = execute_batch(requests).await;
+
+    match &results[0].status {
+        IndicatorStatus::Success(output) => assert_values(output.values(), direct.values()),
+        IndicatorStatus::Error(error) => panic!("expected VWAP success, got {error:?}"),
+    }
+    assert_eq!(
+        *error_of(&results[1]),
         PytaError::ColumnCount {
             expected: 4,
             actual: 3,

@@ -126,4 +126,4 @@ The Rust kernel (`pyta-volume`) keeps the window's money-flow volumes in a ring 
 
 ## See also
 
-[Accumulation/Distribution](ad.md) · [MFI](../momentum/mfi.md) · [OBV](obv.md) · [Volume indicators](README.md) · [API reference](../../API.md) · [Multi-column indicators](../../API.md#10-multi-column-indicators)
+[Accumulation/Distribution](ad.md) · [MFI](../momentum/mfi.md) · [OBV](obv.md) · [VWAP](vwap.md) · [Volume indicators](README.md) · [API reference](../../API.md) · [Multi-column indicators](../../API.md#10-multi-column-indicators)

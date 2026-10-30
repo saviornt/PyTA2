@@ -58,6 +58,7 @@ INDICATORS: dict[str, tuple[dict[str, int | float], int | tuple[str, ...]]] = {
     "obv": ({}, ("close", "volume")),
     "ad": ({}, 4),
     "cmf": ({"period": 20}, 4),
+    "vwap": ({}, 4),
 }
 
 COUNTS = (10, 100, 1_000)

@@ -190,6 +190,13 @@ def test_smoke() -> None:
     assert np.isfinite(cmf_values[19:]).all()
     assert (np.abs(cmf_values[19:]) <= 1.0).all()
 
+    vwap_values = np.array(pyta.vwap(data)["vwap"])
+    assert vwap_values.dtype == np.float64
+    assert vwap_values.shape == (length,), "VWAP output length mismatch"
+    assert np.isfinite(vwap_values).all(), "VWAP has a value from the first row with volume"
+    assert (vwap_values >= np.minimum.accumulate(np.array(data["low"]))).all()
+    assert (vwap_values <= np.maximum.accumulate(np.array(data["high"]))).all()
+
     ultosc_values = np.array(pyta.ultosc(data)["ultosc"])
     assert ultosc_values.dtype == np.float64
     assert ultosc_values.shape == (length,), "Ultimate Oscillator output length mismatch"

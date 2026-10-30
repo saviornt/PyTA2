@@ -11,10 +11,10 @@ Available:
 | [OBV (On-Balance Volume)](obv.md) | close, volume | `obv` |
 | [Accumulation/Distribution](ad.md) | high, low, close, volume | `ad` |
 | [Chaikin Money Flow](cmf.md) | high, low, close, volume | `cmf` |
+| [VWAP (Volume-Weighted Average Price)](vwap.md) | high, low, close, volume | `vwap` |
 
 One page per indicator is added here as each ships. Planned for Sprint 11.5:
 
 | Indicator | Inputs | Outputs |
 |---|---|---|
-| VWAP (Volume-Weighted Average Price) | high, low, close, volume | `vwap` |
 | Volume ROC | volume | `vroc` |

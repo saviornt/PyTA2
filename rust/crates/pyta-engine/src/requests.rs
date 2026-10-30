@@ -61,6 +61,9 @@ pub enum IndicatorKind {
     Trix,
     /// Ultimate Oscillator (`pyta-momentum`; high, low, close).
     Ultosc,
+    /// Volume-Weighted Average Price, cumulative (`pyta-volume`; high, low,
+    /// close, volume).
+    Vwap,
     /// Williams %R (`pyta-momentum`; high, low, close).
     Willr,
     /// Weighted Moving Average (`pyta-trend`).
@@ -245,6 +248,9 @@ pub enum Params {
         /// Rows in the longest window.
         long: usize,
     },
+    /// Volume-Weighted Average Price: typical price weighted by volume,
+    /// cumulative from the first row. No parameters.
+    Vwap,
     /// Williams %R: where close lies between the highest high and lowest
     /// low of the last `period` rows, from -100 to 0.
     Willr {
@@ -287,6 +293,7 @@ impl Params {
             Self::Tema { .. } => IndicatorKind::Tema,
             Self::Trix { .. } => IndicatorKind::Trix,
             Self::Ultosc { .. } => IndicatorKind::Ultosc,
+            Self::Vwap => IndicatorKind::Vwap,
             Self::Willr { .. } => IndicatorKind::Willr,
             Self::Wma { .. } => IndicatorKind::Wma,
         }

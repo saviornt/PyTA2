@@ -48,6 +48,7 @@ INDICATORS = {
     "obv": "volume",
     "ad": "volume",
     "cmf": "volume",
+    "vwap": "volume",
 }
 
 # Every category subpackage, including those without indicators yet.
@@ -69,12 +70,13 @@ MULTI_COLUMN = {
     "sar",
     "stoch",
     "ultosc",
+    "vwap",
     "willr",
 }
 
 # Positional arguments after the data for the calls below: a period of 10
 # (MACD's `fast`), except for indicators without a period.
-ARGS: dict[str, tuple[float, ...]] = {"sar": (0.02, 0.2), "obv": (), "ad": ()}
+ARGS: dict[str, tuple[float, ...]] = {"sar": (0.02, 0.2), "obv": (), "ad": (), "vwap": ()}
 
 # Documented function paths (README, docs/API.md, docs/indicators/). These must
 # keep resolving: never remove an entry, only add.
@@ -241,6 +243,12 @@ DOCUMENTED_PATHS = [
     "pyta.indicators.volume.cmf",
     "pyta.batch.cmf",
     "pyta.batch.volume.cmf",
+    "pyta.vwap",
+    "pyta.volume.vwap",
+    "pyta.indicators.vwap",
+    "pyta.indicators.volume.vwap",
+    "pyta.batch.vwap",
+    "pyta.batch.volume.vwap",
 ]
 
 

@@ -6,13 +6,13 @@ use pyta_common::{
     MFI_NS_PER_ELEMENT, OBV_NS_PER_ELEMENT, ROC_NS_PER_ELEMENT, RSI_NS_PER_ELEMENT,
     SAR_NS_PER_ELEMENT, SMA_NS_PER_ELEMENT, STDDEV_NS_PER_ELEMENT, STDDEV_NS_PER_WINDOW_VALUE,
     STOCH_NS_PER_ELEMENT, TEMA_NS_PER_ELEMENT, TRIX_NS_PER_ELEMENT, ULTOSC_NS_PER_ELEMENT,
-    WILLR_NS_PER_ELEMENT, WMA_NS_PER_ELEMENT,
+    VWAP_NS_PER_ELEMENT, WILLR_NS_PER_ELEMENT, WMA_NS_PER_ELEMENT,
 };
 use pyta_core::{IndicatorOutput, PytaResult};
 use pyta_momentum::{cci, mfi, roc, rsi, stoch, trix, ultosc, willr};
 use pyta_trend::{adx, aroon, dema, ema, ichimoku, kama, macd, sar, sma, tema, wma};
 use pyta_volatility::{atr, bbands, donchian, keltner, stddev};
-use pyta_volume::{ad, cmf, obv};
+use pyta_volume::{ad, cmf, obv, vwap};
 
 use crate::requests::{IndicatorRequest, Params};
 
@@ -108,6 +108,10 @@ pub(crate) fn dispatch(request: &IndicatorRequest) -> PytaResult<IndicatorOutput
             let [high, low, close] = input.columns()?;
             ultosc(high, low, close, short, medium, long)
         }
+        Params::Vwap => {
+            let [high, low, close, volume] = input.columns()?;
+            vwap(high, low, close, volume)
+        }
         Params::Willr { period } => {
             let [high, low, close] = input.columns()?;
             willr(high, low, close, period)
@@ -160,6 +164,7 @@ pub(crate) fn estimated_cost_ns(request: &IndicatorRequest) -> f64 {
         Params::Tema { .. } => TEMA_NS_PER_ELEMENT,
         Params::Trix { .. } => TRIX_NS_PER_ELEMENT,
         Params::Ultosc { .. } => ULTOSC_NS_PER_ELEMENT,
+        Params::Vwap => VWAP_NS_PER_ELEMENT,
         Params::Willr { .. } => WILLR_NS_PER_ELEMENT,
         Params::Wma { .. } => WMA_NS_PER_ELEMENT,
     };

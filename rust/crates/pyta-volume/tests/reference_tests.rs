@@ -1,12 +1,12 @@
 //! Volume indicators against TA-Lib's own output (generated fixtures, see
-//! their comments), and Chaikin Money Flow against a hand calculation and
-//! fresh window sums (TA-Lib has none).
+//! their comments), and Chaikin Money Flow and VWAP against hand
+//! calculations and fresh sums (TA-Lib has neither).
 
 #[path = "../../../test-support/reference.rs"]
 mod reference;
 
 use pyta_core::Series;
-use pyta_volume::{ad, cmf, obv};
+use pyta_volume::{ad, cmf, obv, vwap};
 use reference::{Reference, assert_matches, load};
 
 /// Asserts every value is the wheel's own, bit for bit (the fixtures print
@@ -81,6 +81,39 @@ fn cmf_matches_the_hand_calculation() {
     // Warm-up and row 7's window without volume are NaN on both sides.
     assert_matches(output.values(), &reference);
     assert!(output.values()[7].is_nan());
+}
+
+#[test]
+fn vwap_matches_the_hand_calculation() {
+    let reference = load("vwap_hand.csv");
+    let [high, low, close, volume] =
+        [0, 1, 2, 3].map(|i| Series::new(reference.columns[i].clone()).unwrap());
+
+    let output = vwap(&high, &low, &close, &volume).unwrap();
+
+    // Rows 0 and 1 have no volume yet: NaN on both sides.
+    assert_matches(output.values(), &reference);
+}
+
+#[test]
+fn vwap_matches_a_cumulative_sum_on_spy() {
+    let reference = load("ad_talib.csv");
+    let [high, low, close, volume] = [0, 1, 2, 3].map(|i| reference.columns[i].clone());
+    let columns = [&high, &low, &close, &volume].map(|values| Series::new(values.clone()).unwrap());
+
+    let output = vwap(&columns[0], &columns[1], &columns[2], &columns[3]).unwrap();
+
+    let (mut value, mut traded) = (0.0, 0.0);
+    for row in 0..close.len() {
+        value += (high[row] + low[row] + close[row]) / 3.0 * volume[row];
+        traded += volume[row];
+        let expected = value / traded;
+        let actual = output.values()[row];
+        assert!(
+            (actual - expected).abs() <= 1e-12 * expected.abs(),
+            "row {row}: {actual} != {expected}"
+        );
+    }
 }
 
 #[test]

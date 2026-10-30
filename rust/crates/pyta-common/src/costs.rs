@@ -331,3 +331,15 @@ pub const AD_NS_PER_ELEMENT: f64 = 2.1;
 /// `RSI_NS_PER_ELEMENT` (3.0 * 2.81). Confirm with a full
 /// `--single --rust --indicator cmf`.
 pub const CMF_NS_PER_ELEMENT: f64 = 8.4;
+
+/// Volume-Weighted Average Price, in nanoseconds per input row (one
+/// typical price, two compensated adds and one division per row; no
+/// parameters).
+///
+/// Provisional, from a quick run on 2026-10-29
+/// (`benches/results/benchmark_2026-10-29_21-12-14.txt`, `--single --rust
+/// --quick`, governor `performance`): kernels at 1,000,000 rows took
+/// 4.223 ms for VWAP and 2.517 ms for RSI-14, scaled here by
+/// `RSI_NS_PER_ELEMENT` (3.0 * 1.68). Confirm with a full
+/// `--single --rust --indicator vwap`.
+pub const VWAP_NS_PER_ELEMENT: f64 = 5.0;

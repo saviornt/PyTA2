@@ -1,0 +1,23 @@
+# VWAP, cumulative from the first row: a hand-computed table (TA-Lib has no VWAP).
+# source: hand calculation with exact fractions (Python fractions.Fraction), each value printed as the nearest double
+# retrieved: 2026-10-29
+# Definition (typical-price VWAP, no session reset): typical price TP = (high + low + close) / 3;
+#   VWAP = sum(TP * volume) / sum(volume) over every row so far; NaN until the first row with volume.
+# TP by row: 10, 11, 12, 12, 14, 14, 25/2, 13, 10.2 (51/5 exactly, not a double), 12 (a one-price bar).
+# Cumulative TP * volume: 0, 0, 1200, 4800, 4800 (no volume), 7600, 12600, 25600, 26110, 27910;
+#   cumulative volume: 0, 0, 100, 400, 400, 600, 1000, 2000, 2050, 2200.
+# VWAP rows 2-9: 12, 12, 12, 38/3, 63/5, 64/5, 2611/205, 2791/220; rows 0-1 have no volume yet (NaN).
+# Compared to 1e-12 (10.3, 10.1 and 10.2 are not exact doubles).
+# tolerance: 1e-12
+# Empty expected values are NaN (no volume so far).
+label,high,low,close,volume,expected
+0,11,9,10,0,
+1,12,10,11,0,
+2,13,11,12,100,12.0
+3,14,11,11,300,12.0
+4,15,12,15,0,12.0
+5,16,13,13,200,12.666666666666666
+6,13,12,12.5,400,12.6
+7,14,12,13,1000,12.8
+8,10.3,10.1,10.2,50,12.736585365853658
+9,12,12,12,150,12.686363636363636

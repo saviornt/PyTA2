@@ -34,6 +34,7 @@ from .indicators import (
     tema,
     trix,
     ultosc,
+    vwap,
     willr,
     wma,
 )
@@ -75,6 +76,7 @@ __all__ = [
     "ultosc",
     "volatility",
     "volume",
+    "vwap",
     "willr",
     "wma",
 ]

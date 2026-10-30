@@ -112,13 +112,14 @@ PyTA logs through Python's standard `logging` (Rust messages included) under the
 | Volume | [On-Balance Volume](docs/indicators/volume/obv.md) (`obv`, close and volume; Granville's running total of signed volume) |
 | Volume | [Accumulation/Distribution](docs/indicators/volume/ad.md) (`ad`, high, low, close and volume; Chaikin's running total of volume weighted by the close's place in the bar) |
 | Volume | [Chaikin Money Flow](docs/indicators/volume/cmf.md) (`cmf`, high, low, close and volume; A/D's money-flow volume over volume in a window, from -1 to 1) |
+| Volume | [Volume-Weighted Average Price](docs/indicators/volume/vwap.md) (`vwap`, high, low, close and volume; typical price weighted by volume, cumulative from the first row) |
 
 ### Planned
 
 The catalog below is the planned scope and is subject to change.
 
 **Volume Indicators**
-VWAP, Volume Rate of Change
+Volume Rate of Change
 
 **Valuation Indicators**
 Mayer Multiple, Z-Score, P/E(TTM), Earnings Yield, P/B, P/S, Dividend Yield, EV/EBITDA, PEG
