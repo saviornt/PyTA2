@@ -386,6 +386,21 @@ pyta.sma(df, period=20, column="adjusted close") # the "Adj Close" column
 - A pandas result keeps the input's index; positions are never reordered.
 - Outputs are named after the indicator, without parameters (`sma`, not `sma_20`); a multi-output indicator names each output `<indicator>_<part>` after the main one (`macd`, `macd_signal`, `macd_hist`). The casing follows the input's columns ([§11](#11-multi-output-indicators)).
 
+### Undefined ratios
+
+Where a formula divides by zero, PyTA returns what TA-Lib 0.8.3 returns, so results match it row for row; the indicators TA-Lib lacks return `NaN`. "Flat" means zero within TA-Lib's tolerance (`1e-14` of the values' scale). Each indicator's section in [§3](#3-indicators) gives the details.
+
+| Case | Result |
+|---|---|
+| Stochastic, Williams %R: flat window | raw %K `0`; %R `0` |
+| CCI, STDDEV, Bollinger Bands: flat window | `0`; three equal bands |
+| MFI: no money flow in the window | `0` |
+| Ultimate Oscillator: a window with no true range | that window's term is dropped (the divisor stays 7) |
+| ROC, Volume ROC, TRIX: earlier value exactly `0` | `0` (a tiny nonzero earlier value can give `±inf`, as in TA-Lib) |
+| A/D, CMF: high equal to low | the row adds `0` |
+| ADX: no true range | both DIs `0`, ADX keeps its value |
+| CMF: no volume in the window; VWAP: no volume yet | `NaN` |
+
 ### Output conversion (`output=`)
 
 By default (`output=None`) the result comes back in the input's own container ([§4](#4-input-containers)). `output=` converts it to another one, from any supported input, for every indicator, single and batch:
@@ -557,6 +572,13 @@ Indicators that produce several series return them all, in a documented order, i
 | Indicator | Outputs, in order | Parameters |
 |---|---|---|
 | MACD | `macd`, `macd_signal`, `macd_hist` | `fast=12`, `slow=26`, `signal=9` |
+| ADX | `adx`, `adx_plus_di`, `adx_minus_di` | `period=14` |
+| Aroon | `aroon_up`, `aroon_down`, `aroon_osc` | `period=14` |
+| Ichimoku Cloud | `ichimoku_tenkan`, `ichimoku_kijun`, `ichimoku_senkou_a`, `ichimoku_senkou_b`, `ichimoku_chikou` | `tenkan=9`, `kijun=26`, `senkou=52` |
+| Stochastic | `stoch_k`, `stoch_d` | `k=14`, `k_smooth=3`, `d=3` |
+| Bollinger Bands | `bbands_upper`, `bbands_middle`, `bbands_lower` | `period=20`, `k=2.0` |
+| Keltner Channels | `keltner_upper`, `keltner_middle`, `keltner_lower` | `period=20`, `atr_period=10`, `k=2.0` |
+| Donchian Channels | `donchian_upper`, `donchian_middle`, `donchian_lower` | `period=20` |
 
 ```python
 out = pyta.macd(df)                      # DataFrame with columns macd, macd_signal, macd_hist
