@@ -183,6 +183,13 @@ def test_smoke() -> None:
     steps = np.abs(np.diff(ad_values))
     assert (steps <= np.array(data["volume"][1:]) * (1.0 + 1e-9)).all()
 
+    cmf_values = np.array(pyta.cmf(data, period=20)["cmf"])
+    assert cmf_values.dtype == np.float64
+    assert cmf_values.shape == (length,), "CMF output length mismatch"
+    assert np.isnan(cmf_values[:19]).all(), "CMF warm-up alignment is incorrect"
+    assert np.isfinite(cmf_values[19:]).all()
+    assert (np.abs(cmf_values[19:]) <= 1.0).all()
+
     ultosc_values = np.array(pyta.ultosc(data)["ultosc"])
     assert ultosc_values.dtype == np.float64
     assert ultosc_values.shape == (length,), "Ultimate Oscillator output length mismatch"

@@ -47,6 +47,7 @@ INDICATORS = {
     "keltner": "volatility",
     "obv": "volume",
     "ad": "volume",
+    "cmf": "volume",
 }
 
 # Every category subpackage, including those without indicators yet.
@@ -59,6 +60,7 @@ MULTI_COLUMN = {
     "aroon",
     "atr",
     "cci",
+    "cmf",
     "donchian",
     "ichimoku",
     "keltner",
@@ -233,6 +235,12 @@ DOCUMENTED_PATHS = [
     "pyta.indicators.volume.ad",
     "pyta.batch.ad",
     "pyta.batch.volume.ad",
+    "pyta.cmf",
+    "pyta.volume.cmf",
+    "pyta.indicators.cmf",
+    "pyta.indicators.volume.cmf",
+    "pyta.batch.cmf",
+    "pyta.batch.volume.cmf",
 ]
 
 

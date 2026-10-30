@@ -64,6 +64,7 @@ INDICATORS: dict[str, tuple[dict[str, int | float], int | tuple[str, ...]]] = {
     "keltner": ({"period": 20, "atr_period": 10, "k": 2.0}, 3),
     "obv": ({}, ("close", "volume")),
     "ad": ({}, 4),
+    "cmf": ({"period": 20}, 4),
 }
 
 SIZES = (100, 10_000, 1_000_000)

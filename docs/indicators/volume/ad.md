@@ -116,8 +116,8 @@ A close outside its bar is not checked (TA-Lib does not either): its multiplier 
 
 PyTA follows TA-Lib 0.8.3's `TA_AD` exactly: `((close − low) − (high − close)) / (high − low) × volume` in that order of operations, added to a running total that starts at 0, and nothing added when `high − low` is not above 0. Both TA-Lib fixtures (SPY, with totals near `1e10`, and the edge series with its one-price bar, flat stretch and zero volumes) match bit for bit. Chaikin's definition is the same; StockCharts writes the multiplier as `((close − low) − (high − close)) / (high − low)` too.
 
-The Rust kernel (`pyta-volume`) is one pass; the multiplier is a crate-private helper, for Chaikin Money Flow to share.
+The Rust kernel (`pyta-volume`) is one pass; the multiplier is a crate-private helper that [Chaikin Money Flow](cmf.md) shares.
 
 ## See also
 
-[OBV](obv.md) · [Volume indicators](README.md) · [MFI](../momentum/mfi.md) · [API reference](../../API.md) · [Multi-column indicators](../../API.md#10-multi-column-indicators)
+[Chaikin Money Flow](cmf.md) · [OBV](obv.md) · [Volume indicators](README.md) · [MFI](../momentum/mfi.md) · [API reference](../../API.md) · [Multi-column indicators](../../API.md#10-multi-column-indicators)

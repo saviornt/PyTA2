@@ -17,6 +17,8 @@ __all__ = [
     "bbands_batch",
     "cci",
     "cci_batch",
+    "cmf",
+    "cmf_batch",
     "dema",
     "dema_batch",
     "donchian",
@@ -165,6 +167,10 @@ def donchian_batch(
 ) -> list[list[NDArray[np.float64]] | Exception]: ...
 def obv(columns: list[NDArray[np.float64]]) -> NDArray[np.float64]: ...
 def ad(columns: list[NDArray[np.float64]]) -> NDArray[np.float64]: ...
+def cmf(columns: list[NDArray[np.float64]], period: int) -> NDArray[np.float64]: ...
+def cmf_batch(
+    datasets: list[list[NDArray[np.float64]]], period: int
+) -> list[NDArray[np.float64] | Exception]: ...
 def ad_batch(
     datasets: list[list[NDArray[np.float64]]],
 ) -> list[NDArray[np.float64] | Exception]: ...

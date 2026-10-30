@@ -12,6 +12,7 @@ mod atr;
 mod batch;
 mod bbands;
 mod cci;
+mod cmf;
 mod dema;
 mod donchian;
 mod ema;
@@ -84,6 +85,8 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(obv::obv_batch, m)?)?;
     m.add_function(wrap_pyfunction!(ad::ad, m)?)?;
     m.add_function(wrap_pyfunction!(ad::ad_batch, m)?)?;
+    m.add_function(wrap_pyfunction!(cmf::cmf, m)?)?;
+    m.add_function(wrap_pyfunction!(cmf::cmf_batch, m)?)?;
     m.add_function(wrap_pyfunction!(macd::macd, m)?)?;
     m.add_function(wrap_pyfunction!(macd::macd_batch, m)?)?;
     m.add_function(wrap_pyfunction!(stddev::stddev, m)?)?;

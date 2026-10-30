@@ -319,3 +319,15 @@ pub const OBV_NS_PER_ELEMENT: f64 = 2.6;
 /// `RSI_NS_PER_ELEMENT` (3.0 * 0.709). Confirm with a full
 /// `--single --rust --indicator ad`.
 pub const AD_NS_PER_ELEMENT: f64 = 2.1;
+
+/// Chaikin Money Flow, in nanoseconds per input row; independent of
+/// `period` (two compensated running sums over a ring of the last `period`
+/// money-flow volumes).
+///
+/// Provisional, from a quick run on 2026-10-29
+/// (`benches/results/benchmark_2026-10-29_17-46-00.txt`, `--single --rust
+/// --quick`, governor `performance`): kernels at 1,000,000 rows took
+/// 7.207 ms for CMF-20 and 2.565 ms for RSI-14, scaled here by
+/// `RSI_NS_PER_ELEMENT` (3.0 * 2.81). Confirm with a full
+/// `--single --rust --indicator cmf`.
+pub const CMF_NS_PER_ELEMENT: f64 = 8.4;

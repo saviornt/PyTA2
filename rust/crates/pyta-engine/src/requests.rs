@@ -21,6 +21,8 @@ pub enum IndicatorKind {
     Bbands,
     /// Commodity Channel Index (`pyta-momentum`; high, low, close).
     Cci,
+    /// Chaikin Money Flow (`pyta-volume`; high, low, close, volume).
+    Cmf,
     /// Double Exponential Moving Average (`pyta-trend`).
     Dema,
     /// Donchian Channels (`pyta-volatility`; high, low; three outputs).
@@ -109,6 +111,12 @@ pub enum Params {
     /// Commodity Channel Index.
     Cci {
         /// Rows in each window.
+        period: usize,
+    },
+    /// Chaikin Money Flow: money-flow volume over volume in the last
+    /// `period` rows, from -1 to 1.
+    Cmf {
+        /// Rows in each sum, the current row included, at least 1.
         period: usize,
     },
     /// Double Exponential Moving Average: `2 * EMA - EMA of that EMA`.
@@ -260,6 +268,7 @@ impl Params {
             Self::Atr { .. } => IndicatorKind::Atr,
             Self::Bbands { .. } => IndicatorKind::Bbands,
             Self::Cci { .. } => IndicatorKind::Cci,
+            Self::Cmf { .. } => IndicatorKind::Cmf,
             Self::Dema { .. } => IndicatorKind::Dema,
             Self::Donchian { .. } => IndicatorKind::Donchian,
             Self::Ema { .. } => IndicatorKind::Ema,

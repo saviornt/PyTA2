@@ -1,8 +1,8 @@
-//! OBV and A/D invariants that must hold for any valid input.
+//! OBV, A/D and CMF invariants that must hold for any valid input.
 
 use proptest::prelude::*;
 use pyta_core::Series;
-use pyta_volume::{ad, obv};
+use pyta_volume::{ad, cmf, obv};
 
 /// Close and whole-number volume columns of 1 to 300 rows, some closes
 /// repeating the previous one and some volumes zero.
@@ -119,6 +119,91 @@ proptest! {
             let step = (output[row] - output[row - 1]).abs();
             let slack = 1e-9 * (output[row].abs() + output[row - 1].abs());
             prop_assert!(step <= volume[row] * (1.0 + 1e-12) + slack, "row {}", row);
+        }
+    }
+}
+
+/// A long random walk of high, low, close and volume (1,000 to 4,000 rows,
+/// the close inside its bar, runs of zero volume and volumes spanning nine
+/// orders of magnitude) and a period from 1 to 200.
+fn long_walk_and_period() -> impl Strategy<Value = ([Vec<f64>; 4], usize)> {
+    let row = (
+        -1.0..1.0_f64,
+        0.0..5.0_f64,
+        0.0..=1.0_f64,
+        prop_oneof![6 => 0.0..9.0_f64, 1 => Just(f64::NEG_INFINITY)],
+    );
+    (prop::collection::vec(row, 1_000..4_000), 1..=200_usize).prop_map(|(rows, period)| {
+        let mut price = 1_000.0;
+        let (mut high, mut low, mut close, mut volume) = (vec![], vec![], vec![], vec![]);
+        for (step, range, at, magnitude) in rows {
+            price += step;
+            low.push(price);
+            high.push(price + range);
+            close.push(price + range * at);
+            // A run of zero volume where the magnitude is -inf, else 10^m.
+            volume.push(if magnitude.is_finite() {
+                10.0_f64.powf(magnitude)
+            } else {
+                0.0
+            });
+        }
+        // Make some windows empty: a zero run of `period` rows in the middle.
+        let start = high.len() / 2;
+        for value in &mut volume[start..(start + period).min(high.len())] {
+            *value = 0.0;
+        }
+        ([high, low, close, volume], period)
+    })
+}
+
+fn cmf_of(columns: &[Vec<f64>; 4], period: usize) -> Vec<f64> {
+    let [high, low, close, volume] = columns.clone().map(|values| Series::new(values).unwrap());
+    cmf(&high, &low, &close, &volume, period)
+        .unwrap()
+        .into_values()
+}
+
+/// CMF from fresh sums over every window (no running sums).
+fn direct_cmf([high, low, close, volume]: &[Vec<f64>; 4], period: usize) -> Vec<f64> {
+    let flow: Vec<f64> = (0..close.len())
+        .map(|row| {
+            let range = high[row] - low[row];
+            let multiplier = if range > 0.0 {
+                (close[row] - low[row] - (high[row] - close[row])) / range
+            } else {
+                0.0
+            };
+            multiplier * volume[row]
+        })
+        .collect();
+    let mut output = vec![f64::NAN; close.len()];
+    for end in period..=close.len() {
+        let total: f64 = volume[end - period..end].iter().sum();
+        if volume[end - period..end].iter().any(|value| *value != 0.0) {
+            output[end - 1] = flow[end - period..end].iter().sum::<f64>() / total;
+        }
+    }
+    output
+}
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(48))]
+
+    #[test]
+    fn cmf_matches_fresh_window_sums_on_long_walks((columns, period) in long_walk_and_period()) {
+        let actual = cmf_of(&columns, period);
+        let expected = direct_cmf(&columns, period);
+
+        prop_assert_eq!(actual.len(), columns[0].len());
+        prop_assert!(actual[..period - 1].iter().all(|value| value.is_nan()));
+        for (index, (a, e)) in actual.iter().zip(&expected).enumerate() {
+            prop_assert_eq!(a.is_nan(), e.is_nan(), "index {}: {} vs {}", index, a, e);
+            if !e.is_nan() {
+                // CMF is within [-1, 1]; both sides round each window sum.
+                prop_assert!((a - e).abs() <= 1e-12, "index {}: {:e} != {:e}", index, a, e);
+                prop_assert!(a.abs() <= 1.0 + 1e-12, "index {}: {}", index, a);
+            }
         }
     }
 }

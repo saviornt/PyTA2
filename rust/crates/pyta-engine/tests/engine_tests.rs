@@ -14,6 +14,7 @@ fn params(kind: IndicatorKind, period: usize) -> Params {
         IndicatorKind::Aroon => Params::Aroon { period },
         IndicatorKind::Atr => Params::Atr { period },
         IndicatorKind::Cci => Params::Cci { period },
+        IndicatorKind::Cmf => Params::Cmf { period },
         IndicatorKind::Donchian => Params::Donchian { period },
         IndicatorKind::Ema => Params::Ema { period },
         IndicatorKind::Ichimoku => Params::Ichimoku {
@@ -320,6 +321,7 @@ fn the_kind_comes_from_the_params() {
         (Params::Mfi { period: 2 }, IndicatorKind::Mfi),
         (Params::Obv, IndicatorKind::Obv),
         (Params::Ad, IndicatorKind::Ad),
+        (Params::Cmf { period: 2 }, IndicatorKind::Cmf),
         (Params::Trix { period: 2 }, IndicatorKind::Trix),
         (
             Params::Ultosc {
@@ -1450,6 +1452,47 @@ async fn ad_runs_through_the_engine_and_reports_its_errors() {
     }
     assert_eq!(
         *error_of(&results[1]),
+        PytaError::ColumnCount {
+            expected: 4,
+            actual: 3,
+        }
+    );
+}
+
+#[tokio::test]
+async fn cmf_runs_through_the_engine_and_reports_its_errors() {
+    // Money-flow volumes 50, 0, 300 over volumes 100, 200, 300; period 2:
+    // 50 / 300, then 300 / 500.
+    let high: &[f64] = &[10.0, 11.0, 12.0];
+    let low: &[f64] = &[8.0, 9.0, 10.0];
+    let close: &[f64] = &[9.5, 10.0, 12.0];
+    let volume: &[f64] = &[100.0, 200.0, 300.0];
+    let requests = vec![
+        columns_request(IndicatorKind::Cmf, &[high, low, close, volume], 2),
+        columns_request(IndicatorKind::Cmf, &[high, low, close, volume], 0),
+        columns_request(IndicatorKind::Cmf, &[high, low, close, volume], 4),
+        columns_request(IndicatorKind::Cmf, &[high, low, close], 2),
+    ];
+
+    let direct = execute_direct(&requests[0]).unwrap();
+    assert_values(direct.values(), &[NAN, 50.0 / 300.0, 300.0 / 500.0]);
+
+    let results = execute_batch(requests).await;
+
+    match &results[0].status {
+        IndicatorStatus::Success(output) => assert_values(output.values(), direct.values()),
+        IndicatorStatus::Error(error) => panic!("expected CMF success, got {error:?}"),
+    }
+    assert_eq!(*error_of(&results[1]), PytaError::InvalidPeriod);
+    assert_eq!(
+        *error_of(&results[2]),
+        PytaError::PeriodExceedsLength {
+            period: 4,
+            length: 3,
+        }
+    );
+    assert_eq!(
+        *error_of(&results[3]),
         PytaError::ColumnCount {
             expected: 4,
             actual: 3,

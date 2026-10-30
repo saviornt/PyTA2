@@ -19,6 +19,7 @@ fn params(kind: IndicatorKind, period: usize) -> Params {
         IndicatorKind::Aroon => Params::Aroon { period },
         IndicatorKind::Atr => Params::Atr { period },
         IndicatorKind::Cci => Params::Cci { period },
+        IndicatorKind::Cmf => Params::Cmf { period },
         IndicatorKind::Donchian => Params::Donchian { period },
         IndicatorKind::Ema => Params::Ema { period },
         IndicatorKind::Ichimoku => Params::Ichimoku {
