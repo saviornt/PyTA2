@@ -5,6 +5,7 @@
 //! `log_bridge` (Rust `log` records to Python `logging`); each
 //! indicator's bindings live in a file named after it.
 
+mod ad;
 mod adx;
 mod aroon;
 mod atr;
@@ -81,6 +82,8 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(sar::sar_batch, m)?)?;
     m.add_function(wrap_pyfunction!(obv::obv, m)?)?;
     m.add_function(wrap_pyfunction!(obv::obv_batch, m)?)?;
+    m.add_function(wrap_pyfunction!(ad::ad, m)?)?;
+    m.add_function(wrap_pyfunction!(ad::ad_batch, m)?)?;
     m.add_function(wrap_pyfunction!(macd::macd, m)?)?;
     m.add_function(wrap_pyfunction!(macd::macd_batch, m)?)?;
     m.add_function(wrap_pyfunction!(stddev::stddev, m)?)?;

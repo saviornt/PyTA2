@@ -5,6 +5,8 @@ from numpy.typing import NDArray
 
 __all__ = [
     "MAX_ABS_INPUT",
+    "ad",
+    "ad_batch",
     "adx",
     "adx_batch",
     "aroon",
@@ -162,6 +164,10 @@ def donchian_batch(
     datasets: list[list[NDArray[np.float64]]], period: int
 ) -> list[list[NDArray[np.float64]] | Exception]: ...
 def obv(columns: list[NDArray[np.float64]]) -> NDArray[np.float64]: ...
+def ad(columns: list[NDArray[np.float64]]) -> NDArray[np.float64]: ...
+def ad_batch(
+    datasets: list[list[NDArray[np.float64]]],
+) -> list[NDArray[np.float64] | Exception]: ...
 def obv_batch(
     datasets: list[list[NDArray[np.float64]]],
 ) -> list[NDArray[np.float64] | Exception]: ...

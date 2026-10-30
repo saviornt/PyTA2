@@ -32,6 +32,7 @@ def test_import_works_when_pandas_is_missing() -> None:
 def test_top_level_exports() -> None:
     assert sorted(pyta.__all__) == [
         "Output",
+        "ad",
         "adx",
         "aroon",
         "atr",
@@ -89,6 +90,7 @@ def test_every_exported_name_exists(module: object) -> None:
 
 def test_indicator_and_batch_namespaces_list_the_same_indicators() -> None:
     expected = [
+        "ad",
         "adx",
         "aroon",
         "atr",

@@ -82,6 +82,7 @@ const WORKLOADS: &[Workload] = &[
 /// The parameters each indicator is benchmarked with.
 fn params(kind: IndicatorKind) -> Params {
     match kind {
+        IndicatorKind::Ad => Params::Ad,
         IndicatorKind::Adx => Params::Adx { period: 14 },
         IndicatorKind::Aroon => Params::Aroon { period: 14 },
         IndicatorKind::Atr => Params::Atr { period: 14 },
@@ -154,7 +155,7 @@ fn request(kind: IndicatorKind, close: Series) -> IndicatorRequest {
                 .expect("columns have equal lengths");
             IndicatorRequest::with_columns(columns, params(kind))
         }
-        IndicatorKind::Mfi => {
+        IndicatorKind::Ad | IndicatorKind::Mfi => {
             // Volume: a positive column of the same shape.
             let volume = offset(1_000.0);
             let columns = Columns::new(vec![offset(0.5), offset(-0.5), close, volume])
@@ -328,6 +329,7 @@ fn many_datasets(c: &mut Criterion) {
         (IndicatorKind::Roc, "roc"),
         (IndicatorKind::Mfi, "mfi"),
         (IndicatorKind::Obv, "obv"),
+        (IndicatorKind::Ad, "ad"),
         (IndicatorKind::Trix, "trix"),
         (IndicatorKind::Ultosc, "ultosc"),
         (IndicatorKind::Ema, "ema"),

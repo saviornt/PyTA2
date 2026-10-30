@@ -175,6 +175,14 @@ def test_smoke() -> None:
     assert np.isfinite(obv_values).all(), "OBV has no warm-up"
     assert obv_values[0] == data["volume"][0]
 
+    ad_values = np.array(pyta.ad(data)["ad"])
+    assert ad_values.dtype == np.float64
+    assert ad_values.shape == (length,), "A/D output length mismatch"
+    assert np.isfinite(ad_values).all(), "A/D has no warm-up"
+    # Each step is at most the row's volume (the close lies inside its bar).
+    steps = np.abs(np.diff(ad_values))
+    assert (steps <= np.array(data["volume"][1:]) * (1.0 + 1e-9)).all()
+
     ultosc_values = np.array(pyta.ultosc(data)["ultosc"])
     assert ultosc_values.dtype == np.float64
     assert ultosc_values.shape == (length,), "Ultimate Oscillator output length mismatch"

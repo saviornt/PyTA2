@@ -10,9 +10,10 @@ from pyta.batch import momentum, trend, volatility, volume
 from pyta.batch.momentum import cci, mfi, roc, rsi, stoch, trix, ultosc, willr
 from pyta.batch.trend import adx, aroon, dema, ema, ichimoku, kama, macd, sar, sma, tema, wma
 from pyta.batch.volatility import atr, bbands, donchian, keltner, stddev
-from pyta.batch.volume import obv
+from pyta.batch.volume import ad, obv
 
 __all__ = [
+    "ad",
     "adx",
     "aroon",
     "atr",

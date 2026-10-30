@@ -12,6 +12,9 @@ pub enum IndicatorKind {
     /// Aroon Up, Aroon Down and Aroon Oscillator (`pyta-trend`; high, low;
     /// three outputs).
     Aroon,
+    /// Accumulation/Distribution line (`pyta-volume`; high, low, close,
+    /// volume).
+    Ad,
     /// Average True Range (`pyta-volatility`; high, low, close).
     Atr,
     /// Bollinger Bands (`pyta-volatility`; three outputs).
@@ -75,6 +78,9 @@ pub enum IndicatorKind {
 /// variant (`Obv`).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Params {
+    /// Accumulation/Distribution line: a running total of each row's volume
+    /// times Chaikin's money-flow multiplier. No parameters.
+    Ad,
     /// Average Directional Index, with +DI and -DI.
     Adx {
         /// Wilder's smoothing period of the directional movement, true range
@@ -248,6 +254,7 @@ impl Params {
     /// The indicator these parameters belong to.
     pub fn kind(&self) -> IndicatorKind {
         match self {
+            Self::Ad => IndicatorKind::Ad,
             Self::Adx { .. } => IndicatorKind::Adx,
             Self::Aroon { .. } => IndicatorKind::Aroon,
             Self::Atr { .. } => IndicatorKind::Atr,

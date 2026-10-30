@@ -9,6 +9,7 @@ import logging
 from . import batch, indicators, momentum, trend, volatility, volume
 from ._export import Output
 from .indicators import (
+    ad,
     adx,
     aroon,
     atr,
@@ -42,6 +43,7 @@ logging.getLogger(__name__).addHandler(logging.NullHandler())
 
 __all__ = [
     "Output",
+    "ad",
     "adx",
     "aroon",
     "atr",

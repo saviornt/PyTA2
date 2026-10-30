@@ -49,7 +49,9 @@ fn params(kind: IndicatorKind, period: usize) -> Params {
             k: 2.0,
         },
         IndicatorKind::Macd => panic!("MACD takes three periods"),
-        IndicatorKind::Obv | IndicatorKind::Sar => panic!("{kind:?} takes no period"),
+        IndicatorKind::Ad | IndicatorKind::Obv | IndicatorKind::Sar => {
+            panic!("{kind:?} takes no period")
+        }
     }
 }
 
@@ -317,6 +319,7 @@ fn the_kind_comes_from_the_params() {
         (Params::Willr { period: 2 }, IndicatorKind::Willr),
         (Params::Mfi { period: 2 }, IndicatorKind::Mfi),
         (Params::Obv, IndicatorKind::Obv),
+        (Params::Ad, IndicatorKind::Ad),
         (Params::Trix { period: 2 }, IndicatorKind::Trix),
         (
             Params::Ultosc {
@@ -1420,6 +1423,36 @@ async fn obv_runs_through_the_engine_and_reports_its_errors() {
         PytaError::ColumnCount {
             expected: 2,
             actual: 1,
+        }
+    );
+}
+
+#[tokio::test]
+async fn ad_runs_through_the_engine_and_reports_its_errors() {
+    // Multipliers 1, -1, -0.5: 100, 60, -40.
+    let high: &[f64] = &[12.0, 12.0, 14.0];
+    let low: &[f64] = &[10.0, 10.0, 10.0];
+    let close: &[f64] = &[12.0, 10.0, 11.0];
+    let volume: &[f64] = &[100.0, 40.0, 200.0];
+    let requests = vec![
+        IndicatorRequest::with_columns(columns_of(&[high, low, close, volume]), Params::Ad),
+        IndicatorRequest::with_columns(columns_of(&[high, low, close]), Params::Ad),
+    ];
+
+    let direct = execute_direct(&requests[0]).unwrap();
+    assert_values(direct.values(), &[100.0, 60.0, -40.0]);
+
+    let results = execute_batch(requests).await;
+
+    match &results[0].status {
+        IndicatorStatus::Success(output) => assert_values(output.values(), direct.values()),
+        IndicatorStatus::Error(error) => panic!("expected A/D success, got {error:?}"),
+    }
+    assert_eq!(
+        *error_of(&results[1]),
+        PytaError::ColumnCount {
+            expected: 4,
+            actual: 3,
         }
     );
 }

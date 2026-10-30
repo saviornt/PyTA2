@@ -1,17 +1,18 @@
 use pyta_common::{
-    ADX_NS_PER_ELEMENT, AROON_NS_PER_ELEMENT, ATR_NS_PER_ELEMENT, BBANDS_NS_PER_ELEMENT,
-    BBANDS_NS_PER_WINDOW_VALUE, CCI_NS_PER_ELEMENT, CCI_NS_PER_WINDOW_VALUE, DEMA_NS_PER_ELEMENT,
-    DONCHIAN_NS_PER_ELEMENT, EMA_NS_PER_ELEMENT, ICHIMOKU_NS_PER_ELEMENT, KAMA_NS_PER_ELEMENT,
-    KELTNER_NS_PER_ELEMENT, MACD_NS_PER_ELEMENT, MFI_NS_PER_ELEMENT, OBV_NS_PER_ELEMENT,
-    ROC_NS_PER_ELEMENT, RSI_NS_PER_ELEMENT, SAR_NS_PER_ELEMENT, SMA_NS_PER_ELEMENT,
-    STDDEV_NS_PER_ELEMENT, STDDEV_NS_PER_WINDOW_VALUE, STOCH_NS_PER_ELEMENT, TEMA_NS_PER_ELEMENT,
-    TRIX_NS_PER_ELEMENT, ULTOSC_NS_PER_ELEMENT, WILLR_NS_PER_ELEMENT, WMA_NS_PER_ELEMENT,
+    AD_NS_PER_ELEMENT, ADX_NS_PER_ELEMENT, AROON_NS_PER_ELEMENT, ATR_NS_PER_ELEMENT,
+    BBANDS_NS_PER_ELEMENT, BBANDS_NS_PER_WINDOW_VALUE, CCI_NS_PER_ELEMENT, CCI_NS_PER_WINDOW_VALUE,
+    DEMA_NS_PER_ELEMENT, DONCHIAN_NS_PER_ELEMENT, EMA_NS_PER_ELEMENT, ICHIMOKU_NS_PER_ELEMENT,
+    KAMA_NS_PER_ELEMENT, KELTNER_NS_PER_ELEMENT, MACD_NS_PER_ELEMENT, MFI_NS_PER_ELEMENT,
+    OBV_NS_PER_ELEMENT, ROC_NS_PER_ELEMENT, RSI_NS_PER_ELEMENT, SAR_NS_PER_ELEMENT,
+    SMA_NS_PER_ELEMENT, STDDEV_NS_PER_ELEMENT, STDDEV_NS_PER_WINDOW_VALUE, STOCH_NS_PER_ELEMENT,
+    TEMA_NS_PER_ELEMENT, TRIX_NS_PER_ELEMENT, ULTOSC_NS_PER_ELEMENT, WILLR_NS_PER_ELEMENT,
+    WMA_NS_PER_ELEMENT,
 };
 use pyta_core::{IndicatorOutput, PytaResult};
 use pyta_momentum::{cci, mfi, roc, rsi, stoch, trix, ultosc, willr};
 use pyta_trend::{adx, aroon, dema, ema, ichimoku, kama, macd, sar, sma, tema, wma};
 use pyta_volatility::{atr, bbands, donchian, keltner, stddev};
-use pyta_volume::obv;
+use pyta_volume::{ad, obv};
 
 use crate::requests::{IndicatorRequest, Params};
 
@@ -25,6 +26,10 @@ pub(crate) fn dispatch(request: &IndicatorRequest) -> PytaResult<IndicatorOutput
     let input = &request.input;
 
     match request.params {
+        Params::Ad => {
+            let [high, low, close, volume] = input.columns()?;
+            ad(high, low, close, volume)
+        }
         Params::Adx { period } => {
             let [high, low, close] = input.columns()?;
             adx(high, low, close, period)
@@ -122,6 +127,7 @@ pub(crate) fn dispatch(request: &IndicatorRequest) -> PytaResult<IndicatorOutput
 /// measured per row.
 pub(crate) fn estimated_cost_ns(request: &IndicatorRequest) -> f64 {
     let ns_per_element = match request.params {
+        Params::Ad => AD_NS_PER_ELEMENT,
         Params::Adx { .. } => ADX_NS_PER_ELEMENT,
         Params::Aroon { .. } => AROON_NS_PER_ELEMENT,
         Params::Atr { .. } => ATR_NS_PER_ELEMENT,

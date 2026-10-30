@@ -46,6 +46,7 @@ INDICATORS = {
     "donchian": "volatility",
     "keltner": "volatility",
     "obv": "volume",
+    "ad": "volume",
 }
 
 # Every category subpackage, including those without indicators yet.
@@ -53,6 +54,7 @@ CATEGORIES = {"momentum", "trend", "volatility", "volume"}
 
 # Multi-column indicators, which take full OHLCV data rather than one series.
 MULTI_COLUMN = {
+    "ad",
     "adx",
     "aroon",
     "atr",
@@ -70,7 +72,7 @@ MULTI_COLUMN = {
 
 # Positional arguments after the data for the calls below: a period of 10
 # (MACD's `fast`), except for indicators without a period.
-ARGS: dict[str, tuple[float, ...]] = {"sar": (0.02, 0.2), "obv": ()}
+ARGS: dict[str, tuple[float, ...]] = {"sar": (0.02, 0.2), "obv": (), "ad": ()}
 
 # Documented function paths (README, docs/API.md, docs/indicators/). These must
 # keep resolving: never remove an entry, only add.
@@ -225,6 +227,12 @@ DOCUMENTED_PATHS = [
     "pyta.indicators.volume.obv",
     "pyta.batch.obv",
     "pyta.batch.volume.obv",
+    "pyta.ad",
+    "pyta.volume.ad",
+    "pyta.indicators.ad",
+    "pyta.indicators.volume.ad",
+    "pyta.batch.ad",
+    "pyta.batch.volume.ad",
 ]
 
 

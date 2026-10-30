@@ -1,9 +1,10 @@
 """Volume indicators, one module per indicator.
 
-Available: OBV. Planned (Sprint 11.5): Accumulation/Distribution, Chaikin Money Flow,
+Available: Accumulation/Distribution, OBV. Planned (Sprint 11.5): Chaikin Money Flow,
 VWAP, Volume ROC (see the README catalog).
 """
 
+from pyta.indicators.volume.ad import ad
 from pyta.indicators.volume.obv import obv
 
-__all__ = ["obv"]
+__all__ = ["ad", "obv"]

@@ -308,3 +308,14 @@ pub const MACD_NS_PER_ELEMENT: f64 = 6.7;
 /// `RSI_NS_PER_ELEMENT` (3.0 * 0.870). Confirm with a full
 /// `--single --rust --indicator obv`.
 pub const OBV_NS_PER_ELEMENT: f64 = 2.6;
+
+/// Accumulation/Distribution line, in nanoseconds per input row (one
+/// division and one add per row; no parameters).
+///
+/// Provisional, from a quick run on 2026-10-29
+/// (`benches/results/benchmark_2026-10-29_17-39-01.txt`, `--single --rust
+/// --quick`, governor `performance`): kernels at 1,000,000 rows took
+/// 1.780 ms for A/D and 2.510 ms for RSI-14, scaled here by
+/// `RSI_NS_PER_ELEMENT` (3.0 * 0.709). Confirm with a full
+/// `--single --rust --indicator ad`.
+pub const AD_NS_PER_ELEMENT: f64 = 2.1;
