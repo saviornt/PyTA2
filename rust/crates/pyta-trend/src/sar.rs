@@ -61,6 +61,7 @@ pub fn sar(
             lower_value: acceleration,
             upper: "maximum",
             upper_value: maximum,
+            strict: false,
         });
     }
 

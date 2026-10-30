@@ -170,6 +170,7 @@ fn sar_rejects_an_acceleration_above_its_maximum() {
             lower_value: 0.3,
             upper: "maximum",
             upper_value: 0.2,
+            strict: false,
         })
     );
 }

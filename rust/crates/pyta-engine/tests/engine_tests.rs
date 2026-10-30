@@ -30,6 +30,11 @@ fn params(kind: IndicatorKind, period: usize) -> Params {
         IndicatorKind::Dema => Params::Dema { period },
         IndicatorKind::Tema => Params::Tema { period },
         IndicatorKind::Trix => Params::Trix { period },
+        IndicatorKind::Ultosc => Params::Ultosc {
+            short: period,
+            medium: period + 1,
+            long: period + 2,
+        },
         IndicatorKind::Kama => Params::Kama { period },
         IndicatorKind::Bbands => Params::Bbands { period, k: 2.0 },
         IndicatorKind::Stddev => Params::Stddev { period, k: 1.0 },
@@ -312,6 +317,14 @@ fn the_kind_comes_from_the_params() {
         (Params::Willr { period: 2 }, IndicatorKind::Willr),
         (Params::Mfi { period: 2 }, IndicatorKind::Mfi),
         (Params::Trix { period: 2 }, IndicatorKind::Trix),
+        (
+            Params::Ultosc {
+                short: 1,
+                medium: 2,
+                long: 3,
+            },
+            IndicatorKind::Ultosc,
+        ),
         (Params::Roc { period: 1 }, IndicatorKind::Roc),
         (
             Params::Ichimoku {
@@ -840,6 +853,90 @@ async fn aroon_runs_through_the_engine_with_three_outputs_and_reports_its_errors
     );
 }
 
+/// An Ultimate Oscillator request on `columns` with its three windows.
+fn ultosc_request(columns: &[&[f64]], [short, medium, long]: [usize; 3]) -> IndicatorRequest {
+    let columns = columns
+        .iter()
+        .map(|values| Series::new(values.to_vec()).unwrap())
+        .collect();
+
+    IndicatorRequest::with_columns(
+        Columns::new(columns).unwrap(),
+        Params::Ultosc {
+            short,
+            medium,
+            long,
+        },
+    )
+}
+
+#[tokio::test]
+async fn ultosc_runs_through_the_engine_and_reports_its_errors() {
+    // Rows 1-4: buying pressure 2, 1, 1, 1 and true range 3, 2, 3, 2.
+    // Windows 1, 2, 3: row 3 averages 1/3, 2/5, 4/8; row 4 1/2, 2/5, 3/7.
+    let high: &[f64] = &[10.0, 12.0, 13.0, 11.0, 12.0];
+    let low: &[f64] = &[8.0, 9.0, 11.0, 9.0, 10.0];
+    let close: &[f64] = &[9.0, 11.0, 12.0, 10.0, 11.0];
+    let requests = vec![
+        ultosc_request(&[high, low, close], [1, 2, 3]),
+        ultosc_request(&[high, low, close], [0, 2, 3]),
+        ultosc_request(&[high, low, close], [2, 2, 3]),
+        ultosc_request(&[high, low, close], [1, 2, 5]),
+        ultosc_request(&[high, low], [1, 2, 3]),
+    ];
+
+    let direct = execute_direct(&requests[0]).unwrap();
+    assert_values(
+        direct.values(),
+        &[
+            NAN,
+            NAN,
+            NAN,
+            100.0 * ((4.0 * (1.0 / 3.0) + 2.0 * (2.0 / 5.0) + 4.0 / 8.0) / 7.0),
+            100.0 * ((4.0 * (1.0 / 2.0) + 2.0 * (2.0 / 5.0) + 3.0 / 7.0) / 7.0),
+        ],
+    );
+
+    let results = execute_batch(requests).await;
+
+    match &results[0].status {
+        IndicatorStatus::Success(output) => assert_values(output.values(), direct.values()),
+        IndicatorStatus::Error(error) => panic!("expected ULTOSC success, got {error:?}"),
+    }
+    assert_eq!(
+        *error_of(&results[1]),
+        PytaError::InvalidParameter {
+            name: "short",
+            minimum: 1,
+            value: 0,
+        }
+    );
+    assert_eq!(
+        *error_of(&results[2]),
+        PytaError::ParametersOutOfOrder {
+            lower: "short",
+            lower_value: 2.0,
+            upper: "medium",
+            upper_value: 2.0,
+            strict: true,
+        }
+    );
+    assert_eq!(
+        *error_of(&results[3]),
+        PytaError::InsufficientData {
+            required: 6,
+            length: 5,
+        }
+    );
+    assert_eq!(
+        *error_of(&results[4]),
+        PytaError::ColumnCount {
+            expected: 3,
+            actual: 2,
+        }
+    );
+}
+
 #[tokio::test]
 async fn trix_runs_through_the_engine_and_reports_its_errors() {
     // Period 1: every EMA is a copy, so TRIX is the one-row ROC:
@@ -1088,6 +1185,7 @@ async fn sar_runs_through_the_engine_and_reports_its_errors() {
             lower_value: 0.3,
             upper: "maximum",
             upper_value: 0.2,
+            strict: false,
         }
     );
     assert_eq!(

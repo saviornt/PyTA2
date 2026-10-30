@@ -77,19 +77,28 @@ pub enum PytaError {
         value: f64,
     },
 
-    /// Two floating-point parameters that must be in order are not: `lower`
-    /// is above `upper` (SAR's `acceleration` above its `maximum`). PyTA
-    /// rejects them rather than clamping as TA-Lib does.
-    #[error("{lower} must be at most {upper}, got {lower}={lower_value} and {upper}={upper_value}")]
+    /// Two parameters that must be in order are not: `lower` is above
+    /// `upper` (SAR's `acceleration` above its `maximum`), or, when
+    /// `strict`, not below it (ULTOSC's `short` not below `medium`). PyTA
+    /// rejects them rather than clamping or sorting them as TA-Lib does.
+    /// Integer parameters are carried as `f64` (exact up to 2^53), which
+    /// prints without a fraction (`7`), as Python prints the int.
+    #[error(
+        "{lower} must be {relation} {upper}, got {lower}={lower_value} and {upper}={upper_value}",
+        relation = order_relation(*.strict)
+    )]
     ParametersOutOfOrder {
-        /// The parameter that must be the smaller (`acceleration`).
+        /// The parameter that must be the smaller (`acceleration`, `short`).
         lower: &'static str,
         /// Its value.
         lower_value: f64,
-        /// The parameter that must be the larger (`maximum`).
+        /// The parameter that must be the larger (`maximum`, `medium`).
         upper: &'static str,
         /// Its value.
         upper_value: f64,
+        /// Whether `lower` must be below `upper` ("less than") rather than
+        /// at most equal to it ("at most").
+        strict: bool,
     },
 
     /// A request has the wrong number of input columns for its indicator.
@@ -104,6 +113,12 @@ pub enum PytaError {
     /// The calculation panicked; this is a bug in PyTA.
     #[error("indicator execution failed before returning a result")]
     ExecutionFailed,
+}
+
+/// The relation `ParametersOutOfOrder` names: the same words as Python's
+/// `validate_ascending`.
+fn order_relation(strict: bool) -> &'static str {
+    if strict { "less than" } else { "at most" }
 }
 
 /// Convenience alias for fallible PyTA operations.

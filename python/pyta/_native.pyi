@@ -47,6 +47,8 @@ __all__ = [
     "tema_batch",
     "trix",
     "trix_batch",
+    "ultosc",
+    "ultosc_batch",
     "willr",
     "willr_batch",
     "wma",
@@ -108,6 +110,12 @@ def stoch_batch(
 def willr(columns: list[NDArray[np.float64]], period: int) -> NDArray[np.float64]: ...
 def willr_batch(
     datasets: list[list[NDArray[np.float64]]], period: int
+) -> list[NDArray[np.float64] | Exception]: ...
+def ultosc(
+    columns: list[NDArray[np.float64]], short: int, medium: int, long: int
+) -> NDArray[np.float64]: ...
+def ultosc_batch(
+    datasets: list[list[NDArray[np.float64]]], short: int, medium: int, long: int
 ) -> list[NDArray[np.float64] | Exception]: ...
 def mfi(columns: list[NDArray[np.float64]], period: int) -> NDArray[np.float64]: ...
 def mfi_batch(

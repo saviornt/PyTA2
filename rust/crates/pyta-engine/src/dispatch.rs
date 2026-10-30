@@ -5,10 +5,10 @@ use pyta_common::{
     KELTNER_NS_PER_ELEMENT, MACD_NS_PER_ELEMENT, MFI_NS_PER_ELEMENT, ROC_NS_PER_ELEMENT,
     RSI_NS_PER_ELEMENT, SAR_NS_PER_ELEMENT, SMA_NS_PER_ELEMENT, STDDEV_NS_PER_ELEMENT,
     STDDEV_NS_PER_WINDOW_VALUE, STOCH_NS_PER_ELEMENT, TEMA_NS_PER_ELEMENT, TRIX_NS_PER_ELEMENT,
-    WILLR_NS_PER_ELEMENT, WMA_NS_PER_ELEMENT,
+    ULTOSC_NS_PER_ELEMENT, WILLR_NS_PER_ELEMENT, WMA_NS_PER_ELEMENT,
 };
 use pyta_core::{IndicatorOutput, PytaResult};
-use pyta_momentum::{cci, mfi, roc, rsi, stoch, trix, willr};
+use pyta_momentum::{cci, mfi, roc, rsi, stoch, trix, ultosc, willr};
 use pyta_trend::{adx, aroon, dema, ema, ichimoku, kama, macd, sar, sma, tema, wma};
 use pyta_volatility::{atr, bbands, donchian, keltner, stddev};
 
@@ -86,6 +86,14 @@ pub(crate) fn dispatch(request: &IndicatorRequest) -> PytaResult<IndicatorOutput
         }
         Params::Tema { period } => tema(input.series()?, period),
         Params::Trix { period } => trix(input.series()?, period),
+        Params::Ultosc {
+            short,
+            medium,
+            long,
+        } => {
+            let [high, low, close] = input.columns()?;
+            ultosc(high, low, close, short, medium, long)
+        }
         Params::Willr { period } => {
             let [high, low, close] = input.columns()?;
             willr(high, low, close, period)
@@ -134,6 +142,7 @@ pub(crate) fn estimated_cost_ns(request: &IndicatorRequest) -> f64 {
         Params::Stoch { .. } => STOCH_NS_PER_ELEMENT,
         Params::Tema { .. } => TEMA_NS_PER_ELEMENT,
         Params::Trix { .. } => TRIX_NS_PER_ELEMENT,
+        Params::Ultosc { .. } => ULTOSC_NS_PER_ELEMENT,
         Params::Willr { .. } => WILLR_NS_PER_ELEMENT,
         Params::Wma { .. } => WMA_NS_PER_ELEMENT,
     };
@@ -288,6 +297,19 @@ mod tests {
             cost(Params::Roc { period: 1 }),
             cost(Params::Roc { period: 200 })
         );
+    }
+
+    #[test]
+    fn ultosc_cost_does_not_depend_on_its_periods() {
+        // Running sums over the three windows: O(n) whatever their lengths.
+        let ultosc = |short, medium, long| {
+            cost(Params::Ultosc {
+                short,
+                medium,
+                long,
+            })
+        };
+        assert_eq!(ultosc(7, 14, 28), ultosc(50, 100, 200));
     }
 
     #[test]

@@ -35,6 +35,11 @@ fn params(kind: IndicatorKind, period: usize) -> Params {
         IndicatorKind::Dema => Params::Dema { period },
         IndicatorKind::Tema => Params::Tema { period },
         IndicatorKind::Trix => Params::Trix { period },
+        IndicatorKind::Ultosc => Params::Ultosc {
+            short: period,
+            medium: period + 1,
+            long: period + 2,
+        },
         IndicatorKind::Kama => Params::Kama { period },
         IndicatorKind::Bbands => Params::Bbands { period, k: 2.0 },
         IndicatorKind::Stddev => Params::Stddev { period, k: 1.0 },

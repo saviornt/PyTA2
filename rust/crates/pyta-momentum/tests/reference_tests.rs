@@ -1,12 +1,12 @@
 //! RSI and CCI against the published StockCharts ChartSchool examples, and
-//! Stochastic, Williams %R, ROC, MFI and TRIX against TA-Lib's own output
-//! (generated fixtures, see their comments).
+//! Stochastic, Williams %R, ROC, MFI, TRIX and the Ultimate Oscillator against
+//! TA-Lib's own output (generated fixtures, see their comments).
 
 #[path = "../../../test-support/reference.rs"]
 mod reference;
 
 use pyta_core::Series;
-use pyta_momentum::{cci, mfi, roc, rsi, stoch, trix, willr};
+use pyta_momentum::{cci, mfi, roc, rsi, stoch, trix, ultosc, willr};
 use reference::{assert_matches, assert_output_matches, load};
 
 #[test]
@@ -205,4 +205,26 @@ fn trix_15_matches_talib() {
 #[test]
 fn trix_30_matches_talib_on_the_edge_series() {
     check_trix("trix_30_edge_talib.csv");
+}
+
+fn check_ultosc(name: &str) {
+    let reference = load(name);
+    let [high, low, close] = [0, 1, 2].map(|i| Series::new(reference.columns[i].clone()).unwrap());
+    let [short, medium, long] = ["short", "medium", "long"].map(|name| reference.parameter(name));
+
+    let output = ultosc(&high, &low, &close, short, medium, long).unwrap();
+
+    assert_matches(output.values(), &reference);
+    // TA-Lib's own running sums, resets and weighting, in its order.
+    assert_same_bits(name, output.values(), &reference.outputs[0]);
+}
+
+#[test]
+fn ultosc_7_14_28_matches_talib() {
+    check_ultosc("ultosc_7_14_28_talib.csv");
+}
+
+#[test]
+fn ultosc_7_14_28_matches_talib_on_the_edge_series() {
+    check_ultosc("ultosc_7_14_28_edge_talib.csv");
 }

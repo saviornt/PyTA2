@@ -30,6 +30,7 @@ mod stddev;
 mod stoch;
 mod tema;
 mod trix;
+mod ultosc;
 mod willr;
 mod wma;
 
@@ -47,6 +48,8 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(stoch::stoch_batch, m)?)?;
     m.add_function(wrap_pyfunction!(willr::willr, m)?)?;
     m.add_function(wrap_pyfunction!(willr::willr_batch, m)?)?;
+    m.add_function(wrap_pyfunction!(ultosc::ultosc, m)?)?;
+    m.add_function(wrap_pyfunction!(ultosc::ultosc_batch, m)?)?;
     m.add_function(wrap_pyfunction!(mfi::mfi, m)?)?;
     m.add_function(wrap_pyfunction!(mfi::mfi_batch, m)?)?;
     m.add_function(wrap_pyfunction!(sma::sma, m)?)?;

@@ -52,6 +52,8 @@ pub enum IndicatorKind {
     Tema,
     /// TRIX, the rate of change of a triple EMA (`pyta-momentum`).
     Trix,
+    /// Ultimate Oscillator (`pyta-momentum`; high, low, close).
+    Ultosc,
     /// Williams %R (`pyta-momentum`; high, low, close).
     Willr,
     /// Weighted Moving Average (`pyta-trend`).
@@ -214,6 +216,16 @@ pub enum Params {
         /// Period of all three EMAs, at least 1.
         period: usize,
     },
+    /// Ultimate Oscillator: buying pressure over true range in three
+    /// windows, weighted 4, 2 and 1, from 0 to 100.
+    Ultosc {
+        /// Rows in the shortest window, at least 1 and below `medium`.
+        short: usize,
+        /// Rows in the middle window, below `long`.
+        medium: usize,
+        /// Rows in the longest window.
+        long: usize,
+    },
     /// Williams %R: where close lies between the highest high and lowest
     /// low of the last `period` rows, from -100 to 0.
     Willr {
@@ -252,6 +264,7 @@ impl Params {
             Self::Stoch { .. } => IndicatorKind::Stoch,
             Self::Tema { .. } => IndicatorKind::Tema,
             Self::Trix { .. } => IndicatorKind::Trix,
+            Self::Ultosc { .. } => IndicatorKind::Ultosc,
             Self::Willr { .. } => IndicatorKind::Willr,
             Self::Wma { .. } => IndicatorKind::Wma,
         }

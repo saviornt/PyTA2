@@ -39,6 +39,7 @@ INDICATORS = {
     "willr": "momentum",
     "mfi": "momentum",
     "trix": "momentum",
+    "ultosc": "momentum",
     "atr": "volatility",
     "stddev": "volatility",
     "bbands": "volatility",
@@ -61,6 +62,7 @@ MULTI_COLUMN = {
     "mfi",
     "sar",
     "stoch",
+    "ultosc",
     "willr",
 }
 
@@ -209,6 +211,12 @@ DOCUMENTED_PATHS = [
     "pyta.indicators.momentum.trix",
     "pyta.batch.trix",
     "pyta.batch.momentum.trix",
+    "pyta.ultosc",
+    "pyta.momentum.ultosc",
+    "pyta.indicators.ultosc",
+    "pyta.indicators.momentum.ultosc",
+    "pyta.batch.ultosc",
+    "pyta.batch.momentum.ultosc",
 ]
 
 

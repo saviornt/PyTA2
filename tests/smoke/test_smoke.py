@@ -169,6 +169,13 @@ def test_smoke() -> None:
     assert np.isfinite(mfi_values[14:]).all()
     assert ((mfi_values[14:] >= 0.0) & (mfi_values[14:] <= 100.0)).all()
 
+    ultosc_values = np.array(pyta.ultosc(data)["ultosc"])
+    assert ultosc_values.dtype == np.float64
+    assert ultosc_values.shape == (length,), "Ultimate Oscillator output length mismatch"
+    assert np.isnan(ultosc_values[:28]).all(), "Ultimate Oscillator warm-up alignment is incorrect"
+    assert np.isfinite(ultosc_values[28:]).all()
+    assert ((ultosc_values[28:] >= 0.0) & (ultosc_values[28:] <= 100.0)).all()
+
     stddev_values = np.array(pyta.stddev(data, period=20, k=2.0)["stddev"])
     assert stddev_values.dtype == np.float64
     assert stddev_values.shape == (length,), "STDDEV output length mismatch"

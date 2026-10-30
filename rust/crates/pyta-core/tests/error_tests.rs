@@ -57,8 +57,20 @@ fn messages_name_the_problem_and_the_values_involved() {
                 lower_value: 0.3,
                 upper: "maximum",
                 upper_value: 0.2,
+                strict: false,
             },
             "acceleration must be at most maximum, got acceleration=0.3 and maximum=0.2",
+        ),
+        (
+            // Integer parameters print without a fraction, as Python's ints.
+            PytaError::ParametersOutOfOrder {
+                lower: "short",
+                lower_value: 14.0,
+                upper: "medium",
+                upper_value: 14.0,
+                strict: true,
+            },
+            "short must be less than medium, got short=14 and medium=14",
         ),
         (
             PytaError::ColumnCount {

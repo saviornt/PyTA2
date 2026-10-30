@@ -1,4 +1,5 @@
-//! RSI, CCI, Stochastic, Williams %R, ROC, MFI and TRIX invariants that must hold for any valid input.
+//! RSI, CCI, Stochastic, Williams %R, ROC, MFI, TRIX and Ultimate Oscillator
+//! invariants that must hold for any valid input.
 
 use proptest::prelude::*;
 use pyta_core::Series;
@@ -598,6 +599,174 @@ proptest! {
         let expected = cascaded_trix(&values, period);
 
         for (index, (a, e)) in output.values().iter().zip(&expected).enumerate() {
+            prop_assert!(
+                (a.is_nan() && e.is_nan()) || a.to_bits() == e.to_bits(),
+                "index {}: {:e} != {:e}", index, a, e
+            );
+        }
+    }
+}
+/// High, low and close of 4 to 300 rows (high at or above low, close
+/// inside its row, some rows flat at the previous close so the windows can
+/// empty) and three windows `short < medium < long < rows`.
+fn columns_and_ultosc_windows() -> impl Strategy<Value = ([Vec<f64>; 3], [usize; 3])> {
+    let row = (
+        prop_oneof![4 => 1.0..1.0e4_f64, 1 => Just(f64::NAN)],
+        0.0..10.0_f64,
+        0.0..=1.0_f64,
+    );
+    prop::collection::vec(row, 4..300).prop_flat_map(|rows| {
+        let length = rows.len();
+        let (mut high, mut low, mut close) = (vec![], vec![], vec![]);
+        for (index, &(base, range, at)) in rows.iter().enumerate() {
+            // NaN means "a flat row at the previous close".
+            if base.is_nan() && index > 0 {
+                let previous = close[index - 1];
+                high.push(previous);
+                low.push(previous);
+                close.push(previous);
+            } else {
+                let base = if base.is_nan() { 100.0 } else { base };
+                high.push(base + range);
+                low.push(base);
+                close.push(base + range * at);
+            }
+        }
+        let columns = [high, low, close];
+        (3..length).prop_flat_map(move |long| {
+            let columns = columns.clone();
+            (2..long).prop_flat_map(move |medium| {
+                let columns = columns.clone();
+                (1..medium).prop_map(move |short| (columns.clone(), [short, medium, long]))
+            })
+        })
+    })
+}
+
+fn ultosc_of(columns: &[Vec<f64>; 3], [short, medium, long]: [usize; 3]) -> Vec<f64> {
+    let [high, low, close] = columns.clone().map(|values| Series::new(values).unwrap());
+    pyta_momentum::ultosc(&high, &low, &close, short, medium, long)
+        .unwrap()
+        .values()
+        .to_vec()
+}
+
+/// TA-Lib 0.8.3's `TA_ULTOSC` loop written out: a ring of the last `long`
+/// rows' terms, three running totals, the null-run resets and the weighting.
+fn reference_ultosc([high, low, close]: &[Vec<f64>; 3], [p1, p2, p3]: [usize; 3]) -> Vec<f64> {
+    let terms = |i: usize| {
+        let (lt, ht, cy) = (low[i], high[i], close[i - 1]);
+        let true_low = if lt < cy { lt } else { cy };
+        let mut true_range = ht - lt;
+        if (cy - ht).abs() > true_range {
+            true_range = (cy - ht).abs();
+        }
+        if (cy - lt).abs() > true_range {
+            true_range = (cy - lt).abs();
+        }
+        (close[i] - true_low, true_range)
+    };
+    let mut output = vec![f64::NAN; close.len()];
+    let (mut ring_a, mut ring_b) = (vec![0.0; p3], vec![0.0; p3]);
+    let mut slot = 0;
+    let [mut a1, mut b1, mut a2, mut b2, mut a3, mut b3] = [0.0_f64; 6];
+    let mut null_run = 0;
+    let start = p3;
+
+    for i in 1..start {
+        let (a, b) = terms(i);
+        ring_a[slot] = a;
+        ring_b[slot] = b;
+        slot = (slot + 1) % p3;
+        null_run = if b + a.abs() <= 0.0 { null_run + 1 } else { 0 };
+        if i + p1 > start {
+            a1 += a;
+            b1 += b;
+        }
+        if i + p2 > start {
+            a2 += a;
+            b2 += b;
+        }
+        a3 += a;
+        b3 += b;
+    }
+    let mut trailing1 = (slot + p3 - p1 + 1) % p3;
+    let mut trailing2 = (slot + p3 - p2 + 1) % p3;
+    for (today, out) in output.iter_mut().enumerate().skip(start) {
+        let (a, b) = terms(today);
+        ring_a[slot] = a;
+        ring_b[slot] = b;
+        a1 += a;
+        a2 += a;
+        a3 += a;
+        b1 += b;
+        b2 += b;
+        b3 += b;
+        null_run = if b + a.abs() <= 0.0 { null_run + 1 } else { 0 };
+        if null_run >= p1 {
+            a1 = 0.0;
+            b1 = 0.0;
+            if null_run >= p2 {
+                a2 = 0.0;
+                b2 = 0.0;
+                if null_run >= p3 {
+                    null_run = p3;
+                    a3 = 0.0;
+                    b3 = 0.0;
+                }
+            }
+        }
+        let mut value = 0.0;
+        if b1 > 0.0 {
+            value += 4.0 * (a1 / b1);
+        }
+        if b2 > 0.0 {
+            value += 2.0 * (a2 / b2);
+        }
+        if b3 > 0.0 {
+            value += a3 / b3;
+        }
+        a1 -= ring_a[trailing1];
+        b1 -= ring_b[trailing1];
+        trailing1 = (trailing1 + 1) % p3;
+        a2 -= ring_a[trailing2];
+        b2 -= ring_b[trailing2];
+        trailing2 = (trailing2 + 1) % p3;
+        slot = (slot + 1) % p3;
+        a3 -= ring_a[slot];
+        b3 -= ring_b[slot];
+        *out = 100.0 * (value / 7.0);
+    }
+    output
+}
+
+proptest! {
+    #[test]
+    fn ultosc_output_length_and_warm_up_are_exact((columns, windows) in columns_and_ultosc_windows()) {
+        let output = ultosc_of(&columns, windows);
+        let long = windows[2];
+
+        prop_assert_eq!(output.len(), columns[0].len());
+        prop_assert!(output[..long].iter().all(|value| value.is_nan()));
+        prop_assert!(output[long..].iter().all(|value| value.is_finite()));
+    }
+
+    #[test]
+    fn ultosc_stays_between_0_and_100((columns, windows) in columns_and_ultosc_windows()) {
+        for value in &ultosc_of(&columns, windows)[windows[2]..] {
+            // Running sums may leave a residue of a few ulps at the bounds.
+            prop_assert!((-1e-9..=100.0 + 1e-9).contains(value), "{} outside [0, 100]", value);
+        }
+    }
+
+    #[test]
+    fn ultosc_matches_talibs_ring_buffer_loop_bit_for_bit(
+        (columns, windows) in columns_and_ultosc_windows()
+    ) {
+        let actual = ultosc_of(&columns, windows);
+        let expected = reference_ultosc(&columns, windows);
+
+        for (index, (a, e)) in actual.iter().zip(&expected).enumerate() {
             prop_assert!(
                 (a.is_nan() && e.is_nan()) || a.to_bits() == e.to_bits(),
                 "index {}: {:e} != {:e}", index, a, e

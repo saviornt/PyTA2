@@ -35,6 +35,7 @@ LOWER = {
     "roc": ["roc"],
     "mfi": ["mfi"],
     "trix": ["trix"],
+    "ultosc": ["ultosc"],
 }
 UPPER = {name: [n.upper() for n in names] for name, names in LOWER.items()}
 TITLE = {
@@ -62,10 +63,11 @@ TITLE = {
     "roc": ["ROC"],
     "mfi": ["MFI"],
     "trix": ["TRIX"],
+    "ultosc": ["ULTOSC"],
 }
 
 #: Indicators on high, low and close (and MFI's volume), cased by all the columns used.
-MULTI_COLUMN = {"cci", "adx", "ichimoku", "stoch", "willr", "mfi"}
+MULTI_COLUMN = {"cci", "adx", "ichimoku", "stoch", "willr", "mfi", "ultosc"}
 
 #: Indicators on high and low only, cased by those two columns.
 HIGH_LOW = {"sar", "aroon"}

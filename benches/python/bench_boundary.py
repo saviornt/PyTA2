@@ -44,6 +44,7 @@ INDICATORS: dict[str, tuple[dict[str, int | float], int]] = {
     "roc": ({"period": 10}, 1),
     "mfi": ({"period": 14}, 4),
     "trix": ({"period": 30}, 1),
+    "ultosc": ({"short": 7, "medium": 14, "long": 28}, 3),
     "ema": ({"period": 30}, 1),
     "wma": ({"period": 30}, 1),
     "dema": ({"period": 30}, 1),

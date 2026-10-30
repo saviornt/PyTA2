@@ -96,6 +96,11 @@ fn params(kind: IndicatorKind) -> Params {
         IndicatorKind::Roc => Params::Roc { period: 10 },
         IndicatorKind::Mfi => Params::Mfi { period: 14 },
         IndicatorKind::Trix => Params::Trix { period: 30 },
+        IndicatorKind::Ultosc => Params::Ultosc {
+            short: 7,
+            medium: 14,
+            long: 28,
+        },
         IndicatorKind::Donchian => Params::Donchian { period: 20 },
         IndicatorKind::Ema => Params::Ema { period: 20 },
         IndicatorKind::Ichimoku => Params::Ichimoku {
@@ -142,6 +147,7 @@ fn request(kind: IndicatorKind, close: Series) -> IndicatorRequest {
         | IndicatorKind::Ichimoku
         | IndicatorKind::Keltner
         | IndicatorKind::Stoch
+        | IndicatorKind::Ultosc
         | IndicatorKind::Willr => {
             let columns = Columns::new(vec![offset(0.5), offset(-0.5), close])
                 .expect("columns have equal lengths");
@@ -315,6 +321,7 @@ fn many_datasets(c: &mut Criterion) {
         (IndicatorKind::Roc, "roc"),
         (IndicatorKind::Mfi, "mfi"),
         (IndicatorKind::Trix, "trix"),
+        (IndicatorKind::Ultosc, "ultosc"),
         (IndicatorKind::Ema, "ema"),
         (IndicatorKind::Wma, "wma"),
         (IndicatorKind::Dema, "dema"),

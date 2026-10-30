@@ -6,6 +6,7 @@ from pyta.indicators.momentum.roc import roc_batch as roc
 from pyta.indicators.momentum.rsi import rsi_batch as rsi
 from pyta.indicators.momentum.stoch import stoch_batch as stoch
 from pyta.indicators.momentum.trix import trix_batch as trix
+from pyta.indicators.momentum.ultosc import ultosc_batch as ultosc
 from pyta.indicators.momentum.willr import willr_batch as willr
 
-__all__ = ["cci", "mfi", "roc", "rsi", "stoch", "trix", "willr"]
+__all__ = ["cci", "mfi", "roc", "rsi", "stoch", "trix", "ultosc", "willr"]

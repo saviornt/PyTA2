@@ -247,6 +247,19 @@ pub const MFI_NS_PER_ELEMENT: f64 = 10.0;
 /// `--single --rust --indicator trix`.
 pub const TRIX_NS_PER_ELEMENT: f64 = 3.9;
 
+/// Ultimate Oscillator, in nanoseconds per input row; independent of
+/// `short`, `medium` and `long` (running sums over a ring of the last
+/// `long` rows' terms).
+///
+/// Provisional, from a quick run on 2026-10-29
+/// (`benches/results/benchmark_2026-10-29_17-15-34.txt`, `--single --rust
+/// --quick`, governor `performance`): kernels at 1,000,000 rows took
+/// 9.352 ms for ULTOSC-7/14/28 and 2.742 ms for RSI-14, scaled here by
+/// `RSI_NS_PER_ELEMENT` (3.0 * 3.41). Recomputing the leaving rows' terms
+/// instead of keeping the ring took 13.1 ms in an earlier run. Confirm with
+/// a full `--single --rust --indicator ultosc`.
+pub const ULTOSC_NS_PER_ELEMENT: f64 = 10.2;
+
 /// Parabolic SAR, in nanoseconds per input row; independent of
 /// `acceleration` and `maximum` (one pass).
 ///
