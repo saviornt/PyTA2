@@ -109,13 +109,14 @@ PyTA logs through Python's standard `logging` (Rust messages included) under the
 | Volatility | [Bollinger Bands](docs/indicators/volatility/bbands.md) (`bbands`, SMA ± `k` population standard deviations; three outputs) |
 | Volatility | [Donchian Channels](docs/indicators/volatility/donchian.md) (`donchian`, high and low; highest high and lowest low, current row included; three outputs) |
 | Volatility | [Keltner Channels](docs/indicators/volatility/keltner.md) (`keltner`, high, low and close; EMA ± `k` Wilder ATRs; three outputs) |
+| Volume | [On-Balance Volume](docs/indicators/volume/obv.md) (`obv`, close and volume; Granville's running total of signed volume) |
 
 ### Planned
 
 The catalog below is the planned scope and is subject to change.
 
 **Volume Indicators**
-OBV, VWAP, Accumulation/Distribution, Chaikin Money Flow, Volume Rate of Change
+VWAP, Accumulation/Distribution, Chaikin Money Flow, Volume Rate of Change
 
 **Valuation Indicators**
 Mayer Multiple, Z-Score, P/E(TTM), Earnings Yield, P/B, P/S, Dividend Yield, EV/EBITDA, PEG

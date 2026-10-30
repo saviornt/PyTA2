@@ -10,6 +10,7 @@ use pyta_engine::{IndicatorRequest, Params, execute_batch, execute_direct};
 use pyta_momentum::{cci, mfi, roc, rsi, stoch, trix, ultosc, willr};
 use pyta_trend::{adx, aroon, dema, ema, ichimoku, kama, macd, sar, sma, tema, wma};
 use pyta_volatility::{atr, bbands, donchian, keltner, stddev};
+use pyta_volume::obv;
 use tokio::runtime::Builder;
 
 /// A kernel called on its input columns, in slot order, with the same
@@ -19,7 +20,7 @@ type Kernel = fn(&[Series]) -> PytaResult<IndicatorOutput>;
 /// Every indicator measured here: its label, engine parameters, kernel (with
 /// the same parameters), and number of input columns. To benchmark a new
 /// indicator, add one line.
-const INDICATORS: [(&str, Params, Kernel, usize); 24] = [
+const INDICATORS: [(&str, Params, Kernel, usize); 25] = [
     ("sma", Params::Sma { period: 20 }, |c| sma(&c[0], 20), 1),
     ("rsi", Params::Rsi { period: 14 }, |c| rsi(&c[0], 14), 1),
     (
@@ -142,6 +143,7 @@ const INDICATORS: [(&str, Params, Kernel, usize); 24] = [
         |c| keltner(&c[0], &c[1], &c[2], 20, 10, 2.0),
         3,
     ),
+    ("obv", Params::Obv, |c| obv(&c[0], &c[1]), 2),
 ];
 
 /// The input columns: a sine wave, offset upwards for each extra column, so

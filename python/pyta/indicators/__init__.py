@@ -9,6 +9,7 @@ from pyta.indicators import momentum, trend, volatility, volume
 from pyta.indicators.momentum import cci, mfi, roc, rsi, stoch, trix, ultosc, willr
 from pyta.indicators.trend import adx, aroon, dema, ema, ichimoku, kama, macd, sar, sma, tema, wma
 from pyta.indicators.volatility import atr, bbands, donchian, keltner, stddev
+from pyta.indicators.volume import obv
 
 __all__ = [
     "adx",
@@ -25,6 +26,7 @@ __all__ = [
     "macd",
     "mfi",
     "momentum",
+    "obv",
     "roc",
     "rsi",
     "sar",

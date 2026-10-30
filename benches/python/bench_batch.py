@@ -28,8 +28,9 @@ import numpy as np
 import pyta
 
 # indicator name -> (keyword parameters for the benchmark, TA-Lib's defaults where it has
-# them; number of input columns).
-INDICATORS: dict[str, tuple[dict[str, int | float], int]] = {
+# them; number of input columns, taken in the order high, low, close, volume, or the
+# input roles when they are not a prefix of that order).
+INDICATORS: dict[str, tuple[dict[str, int | float], int | tuple[str, ...]]] = {
     "sma": ({"period": 20}, 1),
     "rsi": ({"period": 14}, 1),
     "cci": ({"period": 14}, 3),
@@ -54,6 +55,7 @@ INDICATORS: dict[str, tuple[dict[str, int | float], int]] = {
     "bbands": ({"period": 20, "k": 2.0}, 1),
     "donchian": ({"period": 20}, 2),
     "keltner": ({"period": 20, "atr_period": 10, "k": 2.0}, 3),
+    "obv": ({}, ("close", "volume")),
 }
 
 COUNTS = (10, 100, 1_000)
@@ -76,9 +78,10 @@ def best_time(fn: Callable[[], object], repeats: int) -> float:
     return min(timeit.Timer(fn).repeat(repeats, number)) / number
 
 
-def datasets(count: int, size: int, width: int) -> list[object]:
+def datasets(count: int, size: int, width: int | tuple[str, ...]) -> list[object]:
     """Distinct, deterministic random walks; a dict of high, low and close (and
-    volume for four columns) for a multi-column indicator."""
+    volume for four columns, or exactly the roles given) for a multi-column
+    indicator."""
     walks = [
         1_000.0 + np.cumsum(np.random.default_rng(seed).uniform(-1.0, 1.0, size))
         for seed in range(count)
@@ -86,6 +89,13 @@ def datasets(count: int, size: int, width: int) -> list[object]:
 
     if width == 1:
         return list(walks)
+
+    if isinstance(width, tuple):
+        every = [
+            {"high": walk + 0.5, "low": walk - 0.5, "close": walk, "volume": 1_000.0 * walk}
+            for walk in walks
+        ]
+        return [{role: columns[role] for role in width} for columns in every]
 
     if width == 4:
         return [

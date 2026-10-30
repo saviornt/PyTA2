@@ -34,8 +34,10 @@ import pyta
 from pyta import _native
 
 # indicator name -> (keyword parameters for the benchmark, TA-Lib's defaults where it has
-# them; number of input columns). The native call takes the same values positionally.
-INDICATORS: dict[str, tuple[dict[str, int | float], int]] = {
+# them; number of input columns, taken in the order high, low, close, volume, or the
+# input roles in slot order when they are not a prefix of that order). The native call
+# takes the same values positionally.
+INDICATORS: dict[str, tuple[dict[str, int | float], int | tuple[str, ...]]] = {
     "sma": ({"period": 20}, 1),
     "rsi": ({"period": 14}, 1),
     "cci": ({"period": 14}, 3),
@@ -60,6 +62,7 @@ INDICATORS: dict[str, tuple[dict[str, int | float], int]] = {
     "bbands": ({"period": 20, "k": 2.0}, 1),
     "donchian": ({"period": 20}, 2),
     "keltner": ({"period": 20, "atr_period": 10, "k": 2.0}, 3),
+    "obv": ({}, ("close", "volume")),
 }
 
 SIZES = (100, 10_000, 1_000_000)
@@ -86,18 +89,27 @@ def random_walk(size: int) -> np.ndarray:
     return 1_000.0 + np.cumsum(rng.uniform(-1.0, 1.0, size))
 
 
-def inputs(size: int, width: int) -> tuple[object, object, Callable[[], object]]:
+def inputs(size: int, width: int | tuple[str, ...]) -> tuple[object, object, Callable[[], object]]:
     """Public input, native input, and a copy of the same data."""
     close = random_walk(size)
 
     if width == 1:
         return close, close, close.copy
 
-    columns = {"high": close + 0.5, "low": close - 0.5, "close": close}
-    if width == 4:
-        columns["volume"] = 1_000_000.0 + 1_000.0 * close
+    every = {
+        "high": close + 0.5,
+        "low": close - 0.5,
+        "close": close,
+        "volume": 1_000_000.0 + 1_000.0 * close,
+    }
+    if isinstance(width, tuple):
+        columns = {role: every[role] for role in width}
+    else:
+        columns = {
+            role: every[role] for role in ("high", "low", "close", "volume")[: max(width, 3)]
+        }
     # The native function takes exactly its own columns, in slot order.
-    arrays = list(columns.values())[:width]
+    arrays = list(columns.values())[: len(columns) if isinstance(width, tuple) else width]
     return columns, arrays, lambda: [array.copy() for array in arrays]
 
 

@@ -31,6 +31,8 @@ __all__ = [
     "macd_batch",
     "mfi",
     "mfi_batch",
+    "obv",
+    "obv_batch",
     "roc",
     "roc_batch",
     "rsi",
@@ -159,6 +161,10 @@ def donchian(columns: list[NDArray[np.float64]], period: int) -> list[NDArray[np
 def donchian_batch(
     datasets: list[list[NDArray[np.float64]]], period: int
 ) -> list[list[NDArray[np.float64]] | Exception]: ...
+def obv(columns: list[NDArray[np.float64]]) -> NDArray[np.float64]: ...
+def obv_batch(
+    datasets: list[list[NDArray[np.float64]]],
+) -> list[NDArray[np.float64] | Exception]: ...
 def keltner(
     columns: list[NDArray[np.float64]], period: int, atr_period: int, k: float
 ) -> list[NDArray[np.float64]]: ...

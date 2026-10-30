@@ -1,5 +1,8 @@
-//! Volume indicators, one per file.
+//! Volume indicators (OBV), one per file.
 //!
-//! Planned for Sprint 11.5: OBV, Accumulation/Distribution, Chaikin Money
-//! Flow, VWAP and Volume ROC. Shared kernels live in `pyta-core`, since
-//! category crates do not depend on each other.
+//! Shared kernels (typical price, rate of change, compensated sums) live in
+//! `pyta-core`, since category crates do not depend on each other.
+
+mod obv;
+
+pub use obv::obv;

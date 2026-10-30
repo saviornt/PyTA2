@@ -35,6 +35,8 @@ pub enum IndicatorKind {
     Macd,
     /// Money Flow Index (`pyta-momentum`; high, low, close, volume).
     Mfi,
+    /// On-Balance Volume (`pyta-volume`; close, volume).
+    Obv,
     /// Rate of Change (`pyta-momentum`).
     Roc,
     /// Relative Strength Index (`pyta-momentum`).
@@ -162,6 +164,9 @@ pub enum Params {
         /// Rows of money flow in each sum, at least 2.
         period: usize,
     },
+    /// On-Balance Volume: a running total of volume, added on a rising
+    /// close and subtracted on a falling one. No parameters.
+    Obv,
     /// Rate of Change: the percentage change from the value `period` rows
     /// earlier.
     Roc {
@@ -256,6 +261,7 @@ impl Params {
             Self::Keltner { .. } => IndicatorKind::Keltner,
             Self::Macd { .. } => IndicatorKind::Macd,
             Self::Mfi { .. } => IndicatorKind::Mfi,
+            Self::Obv => IndicatorKind::Obv,
             Self::Roc { .. } => IndicatorKind::Roc,
             Self::Rsi { .. } => IndicatorKind::Rsi,
             Self::Sar { .. } => IndicatorKind::Sar,

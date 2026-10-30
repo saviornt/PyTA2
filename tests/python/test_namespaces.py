@@ -45,6 +45,7 @@ INDICATORS = {
     "bbands": "volatility",
     "donchian": "volatility",
     "keltner": "volatility",
+    "obv": "volume",
 }
 
 # Every category subpackage, including those without indicators yet.
@@ -60,6 +61,7 @@ MULTI_COLUMN = {
     "ichimoku",
     "keltner",
     "mfi",
+    "obv",
     "sar",
     "stoch",
     "ultosc",
@@ -68,7 +70,7 @@ MULTI_COLUMN = {
 
 # Positional arguments after the data for the calls below: a period of 10
 # (MACD's `fast`), except for indicators without a period.
-ARGS: dict[str, tuple[float, ...]] = {"sar": (0.02, 0.2)}
+ARGS: dict[str, tuple[float, ...]] = {"sar": (0.02, 0.2), "obv": ()}
 
 # Documented function paths (README, docs/API.md, docs/indicators/). These must
 # keep resolving: never remove an entry, only add.
@@ -217,6 +219,12 @@ DOCUMENTED_PATHS = [
     "pyta.indicators.momentum.ultosc",
     "pyta.batch.ultosc",
     "pyta.batch.momentum.ultosc",
+    "pyta.obv",
+    "pyta.volume.obv",
+    "pyta.indicators.obv",
+    "pyta.indicators.volume.obv",
+    "pyta.batch.obv",
+    "pyta.batch.volume.obv",
 ]
 
 

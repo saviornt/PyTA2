@@ -54,7 +54,7 @@ fn params(kind: IndicatorKind, period: usize) -> Params {
             k: 2.0,
         },
         IndicatorKind::Macd => panic!("MACD takes three periods"),
-        IndicatorKind::Sar => panic!("SAR takes no period"),
+        IndicatorKind::Obv | IndicatorKind::Sar => panic!("{kind:?} takes no period"),
     }
 }
 

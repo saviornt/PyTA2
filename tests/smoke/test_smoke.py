@@ -169,6 +169,12 @@ def test_smoke() -> None:
     assert np.isfinite(mfi_values[14:]).all()
     assert ((mfi_values[14:] >= 0.0) & (mfi_values[14:] <= 100.0)).all()
 
+    obv_values = np.array(pyta.obv(data)["obv"])
+    assert obv_values.dtype == np.float64
+    assert obv_values.shape == (length,), "OBV output length mismatch"
+    assert np.isfinite(obv_values).all(), "OBV has no warm-up"
+    assert obv_values[0] == data["volume"][0]
+
     ultosc_values = np.array(pyta.ultosc(data)["ultosc"])
     assert ultosc_values.dtype == np.float64
     assert ultosc_values.shape == (length,), "Ultimate Oscillator output length mismatch"

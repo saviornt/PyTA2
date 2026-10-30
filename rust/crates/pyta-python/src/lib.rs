@@ -21,6 +21,7 @@ mod keltner;
 mod log_bridge;
 mod macd;
 mod mfi;
+mod obv;
 mod roc;
 mod rsi;
 mod sar;
@@ -78,6 +79,8 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(ichimoku::ichimoku_batch, m)?)?;
     m.add_function(wrap_pyfunction!(sar::sar, m)?)?;
     m.add_function(wrap_pyfunction!(sar::sar_batch, m)?)?;
+    m.add_function(wrap_pyfunction!(obv::obv, m)?)?;
+    m.add_function(wrap_pyfunction!(obv::obv_batch, m)?)?;
     m.add_function(wrap_pyfunction!(macd::macd, m)?)?;
     m.add_function(wrap_pyfunction!(macd::macd_batch, m)?)?;
     m.add_function(wrap_pyfunction!(stddev::stddev, m)?)?;

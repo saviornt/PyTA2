@@ -1,3 +1,5 @@
 """Volume batch namespace: `pyta.batch.volume.<indicator>`."""
 
-__all__: list[str] = []
+from pyta.indicators.volume.obv import obv_batch as obv
+
+__all__ = ["obv"]

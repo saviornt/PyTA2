@@ -95,6 +95,7 @@ fn params(kind: IndicatorKind) -> Params {
         IndicatorKind::Willr => Params::Willr { period: 14 },
         IndicatorKind::Roc => Params::Roc { period: 10 },
         IndicatorKind::Mfi => Params::Mfi { period: 14 },
+        IndicatorKind::Obv => Params::Obv,
         IndicatorKind::Trix => Params::Trix { period: 30 },
         IndicatorKind::Ultosc => Params::Ultosc {
             short: 7,
@@ -158,6 +159,12 @@ fn request(kind: IndicatorKind, close: Series) -> IndicatorRequest {
             let volume = offset(1_000.0);
             let columns = Columns::new(vec![offset(0.5), offset(-0.5), close, volume])
                 .expect("columns have equal lengths");
+            IndicatorRequest::with_columns(columns, params(kind))
+        }
+        IndicatorKind::Obv => {
+            // Volume: a positive column of the same shape.
+            let volume = offset(1_000.0);
+            let columns = Columns::new(vec![close, volume]).expect("columns have equal lengths");
             IndicatorRequest::with_columns(columns, params(kind))
         }
         IndicatorKind::Aroon | IndicatorKind::Donchian | IndicatorKind::Sar => {
@@ -320,6 +327,7 @@ fn many_datasets(c: &mut Criterion) {
         (IndicatorKind::Willr, "willr"),
         (IndicatorKind::Roc, "roc"),
         (IndicatorKind::Mfi, "mfi"),
+        (IndicatorKind::Obv, "obv"),
         (IndicatorKind::Trix, "trix"),
         (IndicatorKind::Ultosc, "ultosc"),
         (IndicatorKind::Ema, "ema"),

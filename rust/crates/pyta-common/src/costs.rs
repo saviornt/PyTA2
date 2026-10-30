@@ -296,3 +296,15 @@ pub const KELTNER_NS_PER_ELEMENT: f64 = 11.3;
 /// scaled here by `RSI_NS_PER_ELEMENT` (3.0 * 2.24). Confirm with a full
 /// `--single --rust --indicator macd`.
 pub const MACD_NS_PER_ELEMENT: f64 = 6.7;
+
+/// On-Balance Volume, in nanoseconds per input row (one compare and add per
+/// row; no parameters). The compare is a branch that rising and falling
+/// closes mispredict, which dominates the cost.
+///
+/// Provisional, from a quick run on 2026-10-29
+/// (`benches/results/benchmark_2026-10-29_17-28-52.txt`, `--single --rust
+/// --quick`, governor `performance`): kernels at 1,000,000 rows took
+/// 2.367 ms for OBV and 2.721 ms for RSI-14, scaled here by
+/// `RSI_NS_PER_ELEMENT` (3.0 * 0.870). Confirm with a full
+/// `--single --rust --indicator obv`.
+pub const OBV_NS_PER_ELEMENT: f64 = 2.6;

@@ -49,7 +49,7 @@ fn params(kind: IndicatorKind, period: usize) -> Params {
             k: 2.0,
         },
         IndicatorKind::Macd => panic!("MACD takes three periods"),
-        IndicatorKind::Sar => panic!("SAR takes no period"),
+        IndicatorKind::Obv | IndicatorKind::Sar => panic!("{kind:?} takes no period"),
     }
 }
 
@@ -316,6 +316,7 @@ fn the_kind_comes_from_the_params() {
         (Params::Ema { period: 2 }, IndicatorKind::Ema),
         (Params::Willr { period: 2 }, IndicatorKind::Willr),
         (Params::Mfi { period: 2 }, IndicatorKind::Mfi),
+        (Params::Obv, IndicatorKind::Obv),
         (Params::Trix { period: 2 }, IndicatorKind::Trix),
         (
             Params::Ultosc {
@@ -1387,6 +1388,42 @@ async fn ichimoku_runs_through_the_engine_with_five_outputs_and_reports_its_erro
 }
 
 /// Validated columns from slices, in the given order.
+#[tokio::test]
+async fn obv_runs_through_the_engine_and_reports_its_errors() {
+    // Up, down, equal: 100, 300, 0, 0.
+    let close: &[f64] = &[10.0, 11.0, 10.5, 10.5];
+    let volume: &[f64] = &[100.0, 200.0, 300.0, 400.0];
+    let requests = vec![
+        IndicatorRequest::with_columns(columns_of(&[close, volume]), Params::Obv),
+        IndicatorRequest::with_columns(columns_of(&[close, volume, volume]), Params::Obv),
+        IndicatorRequest::new(Series::new(close.to_vec()).unwrap(), Params::Obv),
+    ];
+
+    let direct = execute_direct(&requests[0]).unwrap();
+    assert_values(direct.values(), &[100.0, 300.0, 0.0, 0.0]);
+
+    let results = execute_batch(requests).await;
+
+    match &results[0].status {
+        IndicatorStatus::Success(output) => assert_values(output.values(), direct.values()),
+        IndicatorStatus::Error(error) => panic!("expected OBV success, got {error:?}"),
+    }
+    assert_eq!(
+        *error_of(&results[1]),
+        PytaError::ColumnCount {
+            expected: 2,
+            actual: 3,
+        }
+    );
+    assert_eq!(
+        *error_of(&results[2]),
+        PytaError::ColumnCount {
+            expected: 2,
+            actual: 1,
+        }
+    );
+}
+
 fn columns_of(values: &[&[f64]]) -> Columns {
     Columns::new(
         values
