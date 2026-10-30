@@ -84,6 +84,7 @@ Then measure: run `./scripts/benchmark.sh --single --rust --quick` (all indicato
 
 ## Step 8: Docs
 
+- `docs/indicators/<category>/README.md`: a row in the category's index table (indicator linked to its page, inputs, outputs).
 - `docs/indicators/<category>/<name>.md`: user-facing, with the same headings as `docs/indicators/momentum/rsi.md` (What it is, What it is for, Usage, Parameters (with its `output` row), Output, Edge cases, Missing and invalid data, Implementation notes, See also), plus "Required columns" for a multi-column indicator (as `momentum/cci.md`). Implementation notes state the TA-Lib convention followed and any difference from the original definition.
 - `docs/API.md` section 3 ("Indicators"): a row in the table (the signature ends `*, column=None, output=None`, or `columns=None` for several columns), the sentence that links the wiki pages, and a short `### <NAME> (<Full name>)` section with the formula. Update section 7's `ValueError` row if the error conditions are new.
 - `README.md`: move the indicator from "Planned" to the "Available" table with its wiki link.
