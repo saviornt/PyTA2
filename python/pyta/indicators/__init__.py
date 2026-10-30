@@ -9,7 +9,7 @@ from pyta.indicators import momentum, trend, volatility, volume
 from pyta.indicators.momentum import cci, mfi, roc, rsi, stoch, trix, ultosc, willr
 from pyta.indicators.trend import adx, aroon, dema, ema, ichimoku, kama, macd, sar, sma, tema, wma
 from pyta.indicators.volatility import atr, bbands, donchian, keltner, stddev
-from pyta.indicators.volume import ad, cmf, obv, vwap
+from pyta.indicators.volume import ad, cmf, obv, vroc, vwap
 
 __all__ = [
     "ad",
@@ -41,6 +41,7 @@ __all__ = [
     "ultosc",
     "volatility",
     "volume",
+    "vroc",
     "vwap",
     "willr",
     "wma",

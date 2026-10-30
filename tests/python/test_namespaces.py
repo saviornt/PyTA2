@@ -49,6 +49,7 @@ INDICATORS = {
     "ad": "volume",
     "cmf": "volume",
     "vwap": "volume",
+    "vroc": "volume",
 }
 
 # Every category subpackage, including those without indicators yet.
@@ -249,6 +250,12 @@ DOCUMENTED_PATHS = [
     "pyta.indicators.volume.vwap",
     "pyta.batch.vwap",
     "pyta.batch.volume.vwap",
+    "pyta.vroc",
+    "pyta.volume.vroc",
+    "pyta.indicators.vroc",
+    "pyta.indicators.volume.vroc",
+    "pyta.batch.vroc",
+    "pyta.batch.volume.vroc",
 ]
 
 

@@ -6,7 +6,7 @@
 mod reference;
 
 use pyta_core::Series;
-use pyta_volume::{ad, cmf, obv, vwap};
+use pyta_volume::{ad, cmf, obv, vroc, vwap};
 use reference::{Reference, assert_matches, load};
 
 /// Asserts every value is the wheel's own, bit for bit (the fixtures print
@@ -46,6 +46,38 @@ fn obv_matches_talib() {
 #[test]
 fn obv_matches_talib_on_the_edge_series() {
     check_obv("obv_edge_talib.csv");
+}
+
+fn check_vroc(name: &str) {
+    let reference = load(name);
+    let volume = Series::new(reference.input.clone()).unwrap();
+
+    let output = vroc(&volume, reference.period()).unwrap();
+
+    assert_matches(output.values(), &reference);
+    // TA-Lib's `ROC` expression in its order: its own doubles, NaN warm-up.
+    for (index, (a, e)) in output
+        .values()
+        .iter()
+        .zip(&reference.outputs[0])
+        .enumerate()
+    {
+        assert!(
+            (a.is_nan() && e.is_nan()) || a.to_bits() == e.to_bits(),
+            "{name}, index {index}: {a:e} != {e:e}"
+        );
+    }
+}
+
+#[test]
+fn vroc_10_matches_talib() {
+    check_vroc("vroc_10_talib.csv");
+}
+
+#[test]
+fn vroc_10_matches_talib_on_the_edge_series() {
+    // Zero volume on rows 50-65 and 85-86: zero bases give 0, as TA-Lib.
+    check_vroc("vroc_10_edge_talib.csv");
 }
 
 fn check_ad(name: &str) {

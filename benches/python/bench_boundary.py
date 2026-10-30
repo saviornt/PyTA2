@@ -66,6 +66,7 @@ INDICATORS: dict[str, tuple[dict[str, int | float], int | tuple[str, ...]]] = {
     "ad": ({}, 4),
     "cmf": ({"period": 20}, 4),
     "vwap": ({}, 4),
+    "vroc": ({"period": 10}, 1),
 }
 
 SIZES = (100, 10_000, 1_000_000)

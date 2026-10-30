@@ -17,7 +17,7 @@ def same(got, want):
 
 
 @pytest.mark.parametrize(
-    "name", ["sma", "rsi", "ema", "wma", "dema", "tema", "kama", "stddev", "roc", "trix"]
+    "name", ["sma", "rsi", "ema", "wma", "dema", "tema", "kama", "stddev", "roc", "trix", "vroc"]
 )
 def test_list_matches_single_calls_in_order(name, ohlcv: Ohlcv):
     # Each real column, at a different length, so positions cannot be swapped silently.

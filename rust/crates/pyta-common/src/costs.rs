@@ -343,3 +343,14 @@ pub const CMF_NS_PER_ELEMENT: f64 = 8.4;
 /// `RSI_NS_PER_ELEMENT` (3.0 * 1.68). Confirm with a full
 /// `--single --rust --indicator vwap`.
 pub const VWAP_NS_PER_ELEMENT: f64 = 5.0;
+
+/// Volume Rate of Change, in nanoseconds per input row; independent of
+/// `period` (ROC's shared kernel, one division per row).
+///
+/// Provisional, from a quick run on 2026-10-29
+/// (`benches/results/benchmark_2026-10-29_21-18-08.txt`, `--single --rust
+/// --quick`, governor `performance`): kernels at 1,000,000 rows took
+/// 1.222 ms for Volume ROC-10 (ROC-10 1.241 ms) and 2.490 ms for RSI-14,
+/// scaled here by `RSI_NS_PER_ELEMENT` (3.0 * 0.491). Confirm with a full
+/// `--single --rust --indicator vroc`.
+pub const VROC_NS_PER_ELEMENT: f64 = 1.5;

@@ -24,6 +24,7 @@ fn params(kind: IndicatorKind, period: usize) -> Params {
         },
         IndicatorKind::Mfi => Params::Mfi { period },
         IndicatorKind::Roc => Params::Roc { period },
+        IndicatorKind::Vroc => Params::Vroc { period },
         IndicatorKind::Rsi => Params::Rsi { period },
         IndicatorKind::Sma => Params::Sma { period },
         IndicatorKind::Willr => Params::Willr { period },
@@ -323,6 +324,7 @@ fn the_kind_comes_from_the_params() {
         (Params::Ad, IndicatorKind::Ad),
         (Params::Cmf { period: 2 }, IndicatorKind::Cmf),
         (Params::Vwap, IndicatorKind::Vwap),
+        (Params::Vroc { period: 1 }, IndicatorKind::Vroc),
         (Params::Trix { period: 2 }, IndicatorKind::Trix),
         (
             Params::Ultosc {
@@ -1527,6 +1529,35 @@ async fn vwap_runs_through_the_engine_and_reports_its_errors() {
         PytaError::ColumnCount {
             expected: 4,
             actual: 3,
+        }
+    );
+}
+
+#[tokio::test]
+async fn vroc_runs_through_the_engine_and_reports_its_errors() {
+    // Period 2: 50 / 100 -> -50, 0 / 200 -> -100, 300 / 50 -> 500.
+    let volume = vec![100.0, 200.0, 50.0, 0.0, 300.0];
+    let requests = vec![
+        request(IndicatorKind::Vroc, volume.clone(), 2),
+        request(IndicatorKind::Vroc, volume.clone(), 0),
+        request(IndicatorKind::Vroc, volume.clone(), 5),
+    ];
+
+    let direct = execute_direct(&requests[0]).unwrap();
+    assert_values(direct.values(), &[NAN, NAN, -50.0, -100.0, 500.0]);
+
+    let results = execute_batch(requests).await;
+
+    match &results[0].status {
+        IndicatorStatus::Success(output) => assert_values(output.values(), direct.values()),
+        IndicatorStatus::Error(error) => panic!("expected Volume ROC success, got {error:?}"),
+    }
+    assert_eq!(*error_of(&results[1]), PytaError::InvalidPeriod);
+    assert_eq!(
+        *error_of(&results[2]),
+        PytaError::InsufficientData {
+            required: 6,
+            length: 5,
         }
     );
 }

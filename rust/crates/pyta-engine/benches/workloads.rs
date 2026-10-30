@@ -96,6 +96,7 @@ fn params(kind: IndicatorKind) -> Params {
         },
         IndicatorKind::Willr => Params::Willr { period: 14 },
         IndicatorKind::Roc => Params::Roc { period: 10 },
+        IndicatorKind::Vroc => Params::Vroc { period: 10 },
         IndicatorKind::Mfi => Params::Mfi { period: 14 },
         IndicatorKind::Obv => Params::Obv,
         IndicatorKind::Vwap => Params::Vwap,
@@ -179,6 +180,7 @@ fn request(kind: IndicatorKind, close: Series) -> IndicatorRequest {
         | IndicatorKind::Ema
         | IndicatorKind::Macd
         | IndicatorKind::Roc
+        | IndicatorKind::Vroc
         | IndicatorKind::Trix
         | IndicatorKind::Rsi
         | IndicatorKind::Sma
@@ -334,6 +336,7 @@ fn many_datasets(c: &mut Criterion) {
         (IndicatorKind::Ad, "ad"),
         (IndicatorKind::Cmf, "cmf"),
         (IndicatorKind::Vwap, "vwap"),
+        (IndicatorKind::Vroc, "vroc"),
         (IndicatorKind::Trix, "trix"),
         (IndicatorKind::Ultosc, "ultosc"),
         (IndicatorKind::Ema, "ema"),

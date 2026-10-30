@@ -197,6 +197,13 @@ def test_smoke() -> None:
     assert (vwap_values >= np.minimum.accumulate(np.array(data["low"]))).all()
     assert (vwap_values <= np.maximum.accumulate(np.array(data["high"]))).all()
 
+    vroc_values = np.array(pyta.vroc(data, period=10)["vroc"])
+    assert vroc_values.dtype == np.float64
+    assert vroc_values.shape == (length,), "Volume ROC output length mismatch"
+    assert np.isnan(vroc_values[:10]).all(), "Volume ROC warm-up alignment is incorrect"
+    assert np.isfinite(vroc_values[10:]).all()
+    assert (vroc_values[10:] > -100.0).all()
+
     ultosc_values = np.array(pyta.ultosc(data)["ultosc"])
     assert ultosc_values.dtype == np.float64
     assert ultosc_values.shape == (length,), "Ultimate Oscillator output length mismatch"

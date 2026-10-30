@@ -12,9 +12,6 @@ Available:
 | [Accumulation/Distribution](ad.md) | high, low, close, volume | `ad` |
 | [Chaikin Money Flow](cmf.md) | high, low, close, volume | `cmf` |
 | [VWAP (Volume-Weighted Average Price)](vwap.md) | high, low, close, volume | `vwap` |
+| [Volume ROC](vroc.md) | volume (one column) | `vroc` |
 
-One page per indicator is added here as each ships. Planned for Sprint 11.5:
-
-| Indicator | Inputs | Outputs |
-|---|---|---|
-| Volume ROC | volume | `vroc` |
+Every volume indicator planned for Sprint 11.5 is now available. Volume ROC also rejects a negative value when its column is matched to the volume role by name.

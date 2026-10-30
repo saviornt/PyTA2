@@ -1,0 +1,40 @@
+use pyta_core::kernels::rate_of_change;
+use pyta_core::{IndicatorOutput, PytaError, PytaResult, Series};
+
+/// Calculates the Volume Rate of Change (Volume ROC), as TA-Lib 0.8.3's
+/// `TA_ROC` applied to volume.
+///
+/// Each value from index `period` on is `(volume / earlier - 1) * 100`, with
+/// `earlier` the volume `period` rows before: the percentage change in volume
+/// over `period` rows (`pyta_core::kernels::rate_of_change`, shared with
+/// ROC). The first `period` positions are `NaN` (warm-up). At least
+/// `period + 1` values are required.
+///
+/// Edge case, as TA-Lib: when the earlier volume is exactly 0 the result is
+/// 0, not an infinity.
+///
+/// Volume is not checked for sign here (the Python layer rejects negative
+/// volume).
+///
+/// # Errors
+///
+/// Returns `InvalidPeriod` when `period` is zero.
+/// Returns `InsufficientData` when the input has fewer than `period + 1`
+/// values.
+pub fn vroc(volume: &Series, period: usize) -> PytaResult<IndicatorOutput> {
+    if period == 0 {
+        return Err(PytaError::InvalidPeriod);
+    }
+
+    let values = volume.values();
+    let length = values.len();
+    // Saturates so a huge period from a direct `_native` call is reported,
+    // not overflowed; the public API caps periods far below this.
+    let required = period.saturating_add(1);
+
+    if length < required {
+        return Err(PytaError::InsufficientData { required, length });
+    }
+
+    Ok(IndicatorOutput::new(rate_of_change(values, period)))
+}

@@ -6,13 +6,13 @@ use pyta_common::{
     MFI_NS_PER_ELEMENT, OBV_NS_PER_ELEMENT, ROC_NS_PER_ELEMENT, RSI_NS_PER_ELEMENT,
     SAR_NS_PER_ELEMENT, SMA_NS_PER_ELEMENT, STDDEV_NS_PER_ELEMENT, STDDEV_NS_PER_WINDOW_VALUE,
     STOCH_NS_PER_ELEMENT, TEMA_NS_PER_ELEMENT, TRIX_NS_PER_ELEMENT, ULTOSC_NS_PER_ELEMENT,
-    VWAP_NS_PER_ELEMENT, WILLR_NS_PER_ELEMENT, WMA_NS_PER_ELEMENT,
+    VROC_NS_PER_ELEMENT, VWAP_NS_PER_ELEMENT, WILLR_NS_PER_ELEMENT, WMA_NS_PER_ELEMENT,
 };
 use pyta_core::{IndicatorOutput, PytaResult};
 use pyta_momentum::{cci, mfi, roc, rsi, stoch, trix, ultosc, willr};
 use pyta_trend::{adx, aroon, dema, ema, ichimoku, kama, macd, sar, sma, tema, wma};
 use pyta_volatility::{atr, bbands, donchian, keltner, stddev};
-use pyta_volume::{ad, cmf, obv, vwap};
+use pyta_volume::{ad, cmf, obv, vroc, vwap};
 
 use crate::requests::{IndicatorRequest, Params};
 
@@ -108,6 +108,7 @@ pub(crate) fn dispatch(request: &IndicatorRequest) -> PytaResult<IndicatorOutput
             let [high, low, close] = input.columns()?;
             ultosc(high, low, close, short, medium, long)
         }
+        Params::Vroc { period } => vroc(input.series()?, period),
         Params::Vwap => {
             let [high, low, close, volume] = input.columns()?;
             vwap(high, low, close, volume)
@@ -164,6 +165,7 @@ pub(crate) fn estimated_cost_ns(request: &IndicatorRequest) -> f64 {
         Params::Tema { .. } => TEMA_NS_PER_ELEMENT,
         Params::Trix { .. } => TRIX_NS_PER_ELEMENT,
         Params::Ultosc { .. } => ULTOSC_NS_PER_ELEMENT,
+        Params::Vroc { .. } => VROC_NS_PER_ELEMENT,
         Params::Vwap => VWAP_NS_PER_ELEMENT,
         Params::Willr { .. } => WILLR_NS_PER_ELEMENT,
         Params::Wma { .. } => WMA_NS_PER_ELEMENT,
@@ -309,6 +311,15 @@ mod tests {
                 k_smooth: 50,
                 d: 50
             })
+        );
+    }
+
+    #[test]
+    fn vroc_cost_does_not_depend_on_its_period() {
+        // One division per row whatever the period, as ROC.
+        assert_eq!(
+            cost(Params::Vroc { period: 1 }),
+            cost(Params::Vroc { period: 200 })
         );
     }
 

@@ -119,4 +119,4 @@ The Rust kernel (`pyta-volume`) is one pass with one comparison and one addition
 
 ## See also
 
-[Accumulation/Distribution](ad.md) · [Chaikin Money Flow](cmf.md) · [Volume indicators](README.md) · [MFI](../momentum/mfi.md) · [API reference](../../API.md) · [Multi-column indicators](../../API.md#10-multi-column-indicators)
+[Accumulation/Distribution](ad.md) · [Chaikin Money Flow](cmf.md) · [Volume ROC](vroc.md) · [Volume indicators](README.md) · [MFI](../momentum/mfi.md) · [API reference](../../API.md) · [Multi-column indicators](../../API.md#10-multi-column-indicators)

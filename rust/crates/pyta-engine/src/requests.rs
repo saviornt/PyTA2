@@ -61,6 +61,8 @@ pub enum IndicatorKind {
     Trix,
     /// Ultimate Oscillator (`pyta-momentum`; high, low, close).
     Ultosc,
+    /// Volume Rate of Change (`pyta-volume`; one column, volume by default).
+    Vroc,
     /// Volume-Weighted Average Price, cumulative (`pyta-volume`; high, low,
     /// close, volume).
     Vwap,
@@ -248,6 +250,12 @@ pub enum Params {
         /// Rows in the longest window.
         long: usize,
     },
+    /// Volume Rate of Change: the percentage change from the volume
+    /// `period` rows earlier.
+    Vroc {
+        /// Rows back to the value compared with, at least 1.
+        period: usize,
+    },
     /// Volume-Weighted Average Price: typical price weighted by volume,
     /// cumulative from the first row. No parameters.
     Vwap,
@@ -293,6 +301,7 @@ impl Params {
             Self::Tema { .. } => IndicatorKind::Tema,
             Self::Trix { .. } => IndicatorKind::Trix,
             Self::Ultosc { .. } => IndicatorKind::Ultosc,
+            Self::Vroc { .. } => IndicatorKind::Vroc,
             Self::Vwap => IndicatorKind::Vwap,
             Self::Willr { .. } => IndicatorKind::Willr,
             Self::Wma { .. } => IndicatorKind::Wma,

@@ -36,6 +36,7 @@ LOWER = {
     "mfi": ["mfi"],
     "trix": ["trix"],
     "ultosc": ["ultosc"],
+    "vroc": ["vroc"],
 }
 UPPER = {name: [n.upper() for n in names] for name, names in LOWER.items()}
 TITLE = {
@@ -64,6 +65,7 @@ TITLE = {
     "mfi": ["MFI"],
     "trix": ["TRIX"],
     "ultosc": ["ULTOSC"],
+    "vroc": ["VROC"],
 }
 
 #: Indicators on high, low and close (and MFI's volume), cased by all the columns used.
@@ -71,6 +73,9 @@ MULTI_COLUMN = {"cci", "adx", "ichimoku", "stoch", "willr", "mfi", "ultosc"}
 
 #: Indicators on high and low only, cased by those two columns.
 HIGH_LOW = {"sar", "aroon"}
+
+#: Single-column indicators on the volume column by default, cased by it.
+VOLUME_ONLY = {"vroc"}
 
 #: yfinance's column names.
 YFINANCE = ["Open", "High", "Low", "Close", "Adj Close", "Volume"]
@@ -184,7 +189,10 @@ def test_dict_names_follow_the_columns_used(
     high_low: dict[str, list[str]],
 ) -> None:
     result = call(name, dict_with(ohlcv, columns))
-    expected = multi if name in MULTI_COLUMN else high_low if name in HIGH_LOW else single
+    # The volume column's casing equals the high column's in every row of this table.
+    expected = (
+        multi if name in MULTI_COLUMN else high_low if name in HIGH_LOW | VOLUME_ONLY else single
+    )
 
     assert list(result) == expected[name]  # type: ignore[call-overload]
 

@@ -55,6 +55,8 @@ __all__ = [
     "trix_batch",
     "ultosc",
     "ultosc_batch",
+    "vroc",
+    "vroc_batch",
     "vwap",
     "vwap_batch",
     "willr",
@@ -169,6 +171,10 @@ def donchian_batch(
 ) -> list[list[NDArray[np.float64]] | Exception]: ...
 def obv(columns: list[NDArray[np.float64]]) -> NDArray[np.float64]: ...
 def ad(columns: list[NDArray[np.float64]]) -> NDArray[np.float64]: ...
+def vroc(values: NDArray[np.float64], period: int) -> NDArray[np.float64]: ...
+def vroc_batch(
+    datasets: list[NDArray[np.float64]], period: int
+) -> list[NDArray[np.float64] | Exception]: ...
 def vwap(columns: list[NDArray[np.float64]]) -> NDArray[np.float64]: ...
 def vwap_batch(
     datasets: list[list[NDArray[np.float64]]],

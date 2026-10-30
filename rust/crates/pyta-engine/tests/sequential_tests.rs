@@ -29,6 +29,7 @@ fn params(kind: IndicatorKind, period: usize) -> Params {
         },
         IndicatorKind::Mfi => Params::Mfi { period },
         IndicatorKind::Roc => Params::Roc { period },
+        IndicatorKind::Vroc => Params::Vroc { period },
         IndicatorKind::Rsi => Params::Rsi { period },
         IndicatorKind::Sma => Params::Sma { period },
         IndicatorKind::Willr => Params::Willr { period },

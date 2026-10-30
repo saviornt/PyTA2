@@ -29,7 +29,7 @@ from ._export import Export, exporter
 from ._native import MAX_ABS_INPUT
 from ._outputs import OutputNames
 from ._types import Float64Array, Prepared, PreparedColumns
-from ._validation import Slot, normalize
+from ._validation import VOLUME, Slot, normalize, role_of
 
 _log = logging.getLogger("pyta.api")
 
@@ -77,11 +77,37 @@ def run(
 
     prepared = normalize(data, column, default_column)
     first, valid = _trim(prepared.values)
+    # A column matched to the volume role must not be negative (`NONNEGATIVE_ROLES`),
+    # as for multi-column input; Rust accepts any finite value. The inline lookup
+    # spares a name known not to be volume (SMA on close) any function call.
+    if prepared.names and _VOLUME_NAMES.get(prepared.names[0]) is not False:
+        _reject_negative_volume(prepared.names[0], valid, first)
     results = _pad_all(native(valid, *params), first, prepared.values.shape[0])
 
     if export is None:
         return prepared.restore(outputs.cased(prepared.names), results)
     return export(outputs.cased(prepared.names), results, prepared.index)
+
+
+#: Single-column names seen so far: whether each is matched to the volume role.
+_VOLUME_NAMES: dict[object, bool] = {}
+#: Bound on `_VOLUME_NAMES`, so arbitrary column names cannot grow it without end.
+_VOLUME_NAMES_MAX = 4096
+
+
+def _reject_negative_volume(name: object, valid: Float64Array, first: int) -> None:
+    """Rejects a negative value when the single column used, `name`, is the volume role.
+
+    The role lookup is remembered per name; callers skip this function for a
+    name already known not to be volume, so SMA on close pays one dict lookup.
+    """
+    volume = _VOLUME_NAMES.get(name)
+    if volume is None:
+        volume = role_of(name) == VOLUME
+        if len(_VOLUME_NAMES) < _VOLUME_NAMES_MAX:
+            _VOLUME_NAMES[name] = volume
+    if volume:
+        reject_negative(VOLUME, str(name), valid, first)
 
 
 def _pad_all(result: NativeResult, first: int, length: int) -> Sequence[Float64Array]:
@@ -191,6 +217,8 @@ def run_batch(
         try:
             prepared = normalize(item, column, default_column)
             first, valid = _trim(prepared.values)
+            if prepared.names and _VOLUME_NAMES.get(prepared.names[0]) is not False:
+                _reject_negative_volume(prepared.names[0], valid, first)
         except (TypeError, ValueError) as error:
             outcomes[position] = error
             failed += 1
