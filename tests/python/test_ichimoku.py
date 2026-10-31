@@ -86,8 +86,8 @@ def test_each_output_keeps_its_own_warm_up(
 
 
 def test_spans_shift_for_charting_with_pandas_style_offsets(ohlcv: Ohlcv) -> None:
-    # The wiki's recipe: the spans move `kijun` rows ahead and the chikou span
-    # `kijun` rows back; the unshifted output holds everything needed.
+    # Shifting the default (unshifted) output by hand, which keeps the future
+    # cloud that `shift=True` drops: spans `kijun` rows ahead, chikou back.
     kijun = 26
     result = pyta.ichimoku(ohlcv.columns())
     span_a = np.concatenate([np.full(kijun, np.nan), result["ichimoku_senkou_a"]])
@@ -241,7 +241,7 @@ def test_dataframe_gains_five_columns_with_the_index_kept(ohlcv: Ohlcv) -> None:
     ]
     assert result.index.equals(index)
     np.testing.assert_array_equal(result["Ichimoku_Chikou"].to_numpy(), ohlcv.close)
-    # The charting shift from the wiki page: spans ahead, chikou back.
+    # Shifting the unshifted output with pandas: spans ahead, chikou back.
     ahead = result["Ichimoku_Senkou_A"].shift(26)
     assert ahead.iloc[26 + 25] == result["Ichimoku_Senkou_A"].iloc[25]
     assert result["Ichimoku_Chikou"].shift(-26).iloc[0] == ohlcv.close[26]
