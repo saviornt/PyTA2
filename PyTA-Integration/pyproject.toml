@@ -1,0 +1,41 @@
+# PyTA-Integration: uses PyTA the way an outside project does, as an installed wheel through its
+# public API only. Not a package and not a member of PyTA's uv project: scripts/setup.sh creates
+# .venv and installs the wheel from dist/ together with these dependencies (see README.md).
+[project]
+name = "pyta-integration"
+version = "0.1.0"
+description = "Examples and integration tests for PyTA, installed from a release wheel."
+requires-python = ">=3.15"
+dependencies = [
+    # Satisfied by the wheel in dist/ (scripts/setup.sh), never by an index or the source tree.
+    "pyta",
+    "pandas>=3.1.0",
+]
+
+[project.optional-dependencies]
+# Only for the TA-Lib comparison benchmarks; never a PyTA dependency.
+bench = ["TA-Lib==0.8.3"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "ruff>=0.14",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# The examples are scripts, not a package; the tests import their loaders and main().
+pythonpath = ["examples"]
+addopts = ["-ra", "--strict-markers", "--strict-config"]
+filterwarnings = ["error"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py315"
+extend-exclude = ["dist"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF", "PT", "PERF", "C4", "TID"]

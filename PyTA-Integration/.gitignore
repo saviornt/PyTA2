@@ -1,0 +1,7 @@
+# Created by scripts/setup.sh; never committed.
+.venv/
+dist/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+results/
