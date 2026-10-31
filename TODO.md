@@ -2,7 +2,7 @@
 
 ## Sprint 11.5: the major technical indicators ✓ (planned 2026-10-29, closed 2026-10-30)
 
-**Still open after close** (all in the parking lot): the fma policy (SAR, TRIX, EMA family), ROC's ±inf on a tiny base, Aroon's 100 + 1 ulp, SMA and CCI cost constants (+29%, +25% at 1M rows), a STDDEV period sweep, WMA's 100 x 100 planner row (1.16x), the CCI 10 x 10,000 batch cell, and three stale passages in the `add-indicator` skill.
+**Still open after close** (all in the parking lot): the fma policy (SAR, TRIX, EMA family), ROC's ±inf on a tiny base, Aroon's 100 + 1 ulp, SMA and CCI cost constants (+29%, +25% at 1M rows), a STDDEV period sweep, WMA's 100 x 100 planner row (1.16x), the CCI 10 x 10,000 batch cell (the three stale `add-indicator` skill passages were fixed after close).
 
 Plan of record: `docs/DEVELOPMENT.md`, "Sprint 11.5 — The major technical indicators". Goal: ship the 24 technical indicators in the README catalog beyond SMA, EMA, MACD, RSI and CCI, so PyTA can replace TA-Lib for everyday technical analysis.
 
@@ -139,4 +139,3 @@ Out of scope: `ma=`/`matype` options, VWAP session anchoring, Ichimoku shifted o
 
 - Cost constants left at close (2026-10-30, `benchmark_2026-10-30_10-57-29.txt`): SMA reads +29% and CCI +25% at 1M rows, but their planner rows are fine; refit only with batch-row evidence (memory, "Cost constants near the crossover"). STDDEV's two terms need a period sweep (only the per-row term was refit).
 - Planner: `many_wma_x100` at 100 rows picks parallel, 1.16x the sequential arm (~3 µs; WMA's small-batch cost ~2.1 ns/row against 2.7). The CCI 10 x 10,000 batch cell flips between ~60 and ~95 µs/dataset on `main` too; check whether it is the planner's crossover.
-- `add-indicator` skill passages left stale (an implementer's edit was denied): step 7 still says Stochastic "replaces the `fake` stand-in"; `references/extending-contracts.md` still mentions "a fake Stochastic"; the defaults rule does not mention the Stochastic 14/3/3 exception.

@@ -51,7 +51,7 @@ Multi-column input exists (CCI was its first user), so a new multi-column indica
 
 ## Multi-output (Bollinger Bands, Stochastic %K/%D, Aroon): built in Sprint 10
 
-MACD was the first user; `tests/python/test_multi_output.py` proves a multi-column, multi-output indicator (a fake Stochastic) needs no more plumbing.
+MACD was the first user and Stochastic the first with several columns (its tests and `test_output.py`'s `fake` shape, now `pyta.stoch`); `tests/python/test_multi_output.py` still runs a fake native function through `_api.run_columns` to test the plumbing without Rust. Sprint 11.5 added BBANDS, Keltner, Donchian, ADX, Aroon and Ichimoku the same way.
 
 - **Rust.** The kernel returns `IndicatorOutput::with_outputs(vec![main, ...])`, all as long as the input, in documented order, each with its own `NaN` warm-up. Allocate only the outputs. The cost constant is per row, not per output.
 - **Python.** Declare `OUTPUTS` beside the function, lower case, in documented order: `<indicator>` for the main output and `<indicator>_<part>` for the rest (`("macd", "macd_signal", "macd_hist")`), and `_NAMES = OutputNames("<name>", OUTPUTS, abbreviations=(...))` listing the parts that are abbreviations (written upper case in title-case output: `MACD_Signal`). Nothing else: the runners restore every output and apply the casing rule.
