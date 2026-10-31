@@ -27,6 +27,7 @@ uv run --extra pandas pytest                          # pandas is optional; test
 uv run pytest tests/python/test_batch.py::test_mapping_keeps_keys_and_order   # one Python test
 uv run ruff check python tests && uv run ruff format --check python tests
 cargo bench -p pyta-engine --bench workloads -- --noplot sma   # one Criterion target, name filter
+PyTA-Integration/scripts/setup.sh [--bench]   # release wheel into a clean venv; examples + integration tests (TA-Lib comparison: PyTA-Integration/README.md)
 ```
 
 CI (`.github/workflows/ci.yml`) auto-runs `cargo fmt --all` and commits the result, so run it locally too. `RUSTFLAGS=-D warnings` in CI.

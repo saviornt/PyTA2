@@ -548,25 +548,25 @@ Order matters: the numeric decisions can change outputs and kernel speed, so the
 
 ### Tasks: numeric decisions (in PyTA)
 
-- [ ] Decide the bit-parity policy against TA-Lib 0.8.3: within 1e-9 everywhere (current), or bit for bit, using `f64::mul_add` where TA-Lib's wheel fuses (`TA_FMA_MULTIVERSION`: SAR, TRIX, the EMA family; KAMA's build does not). This settles the fma policy; evidence is in `TODO.md`'s parking lot.
-- [ ] Under that policy, decide the other parked numeric calls (ROC's ±inf on a tiny base, inherited by Volume ROC; Aroon's 100 + 1 ulp), then implement every decision with tests, fixtures and docs.
-- [ ] Refit cost constants from the batch rows where the planner decides (10 x 1,000 and 100 x 100), not by scaling a kernel's 1,000,000-row time against RSI's, which overstates cheap memory-bound kernels: SMA (+29%), CCI (+25%), STDDEV's period term (sweep), WMA's 100 x 100 row (1.16x). After the numeric changes, since `mul_add` changes kernel times.
+- [x] Decide the bit-parity policy against TA-Lib 0.8.3: within 1e-9 everywhere (current), or bit for bit, using `f64::mul_add` where TA-Lib's wheel fuses (`TA_FMA_MULTIVERSION`: SAR, TRIX, the EMA family; KAMA's build does not). This settles the fma policy; evidence is in `TODO.md`'s parking lot.
+- [x] Under that policy, decide the other parked numeric calls (ROC's ±inf on a tiny base, inherited by Volume ROC; Aroon's 100 + 1 ulp), then implement every decision with tests, fixtures and docs.
+- [x] Refit cost constants from the batch rows where the planner decides (10 x 1,000 and 100 x 100), not by scaling a kernel's 1,000,000-row time against RSI's, which overstates cheap memory-bound kernels: SMA (+29%), CCI (+25%), STDDEV's period term (sweep), WMA's 100 x 100 row (1.16x). After the numeric changes, since `mul_add` changes kernel times.
 
 ### Tasks: integration project
 
-- [ ] Create the separate integration repository or sibling project directory.
-- [ ] Create an independent Python virtual environment.
-- [ ] Install PyTA as a built or locally installed package, never by importing its source files.
-- [ ] Add examples for SMA and RSI using a pandas DataFrame shaped like yFinance output.
-- [ ] Add examples using AlphaVantage-shaped JSON and CSV.
-- [ ] Add an example of a batch call across several datasets.
-- [ ] Add integration tests for expected values, invalid parameters, and error messages.
-- [ ] Benchmark PyTA against TA-Lib (PyPI `TA-Lib`, installed in the integration project's environment only, never a PyTA dependency) for every indicator both have, calling each library the way its documentation shows for normal production use and timing the whole call (input conversion and output wrapping included). Time each pair with `timeit` (`Timer.repeat`, best of at least 5 repeats, the two libraries interleaved in the same session, the same data) and record µs per call for each, the ratio (TA-Lib time / PyTA time) and the largest output difference. Two comparisons:
+- [x] Create the separate integration repository or sibling project directory.
+- [x] Create an independent Python virtual environment.
+- [x] Install PyTA as a built or locally installed package, never by importing its source files.
+- [x] Add examples for SMA and RSI using a pandas DataFrame shaped like yFinance output.
+- [x] Add examples using AlphaVantage-shaped JSON and CSV.
+- [x] Add an example of a batch call across several datasets.
+- [x] Add integration tests for expected values, invalid parameters, and error messages.
+- [x] Benchmark PyTA against TA-Lib (PyPI `TA-Lib`, installed in the integration project's environment only, never a PyTA dependency) for every indicator both have, calling each library the way its documentation shows for normal production use and timing the whole call (input conversion and output wrapping included). Time each pair with `timeit` (`Timer.repeat`, best of at least 5 repeats, the two libraries interleaved in the same session, the same data) and record µs per call for each, the ratio (TA-Lib time / PyTA time) and the largest output difference. Two comparisons:
   - **Single indicator:** one dataset per call, `talib.<NAME>(...)` against `pyta.<name>(...)`, on float64 NumPy arrays and on a yFinance-shaped pandas DataFrame, at 100, 10,000 and 1,000,000 rows.
   - **Batch:** the same indicators over many datasets. TA-Lib has no batch call, so its production form is a Python loop calling `talib.<NAME>` per dataset; PyTA's is one `pyta.batch.<name>(...)` call over the list. Shapes as the batch benchmarks: 10 x 1,000, 100 x 100, 100 x 10,000 and 1,000 x 1,000 (datasets x rows).
-- [ ] Add both tables to PyTA's `README.md` with the machine, CPU governor and date; list the indicators TA-Lib lacks (Ichimoku, Keltner, Donchian, CMF, VWAP, Volume ROC) as having no comparison.
-- [ ] Verify that the project does not depend on PyTA's internal crate paths or `pyta._native`.
-- [ ] Document how a new developer installs and runs the examples, tests and benchmark.
+- [x] Add both tables to PyTA's `README.md` with the machine, CPU governor and date; list the indicators TA-Lib lacks (Ichimoku, Keltner, Donchian, CMF, VWAP, Volume ROC) as having no comparison.
+- [x] Verify that the project does not depend on PyTA's internal crate paths or `pyta._native`.
+- [x] Document how a new developer installs and runs the examples, tests and benchmark.
 
 ### Acceptance criteria
 
@@ -578,8 +578,8 @@ Order matters: the numeric decisions can change outputs and kernel speed, so the
 - A package build can be tested from a clean environment.
 - `README.md` has single-indicator and batch `timeit` comparisons with TA-Lib for every indicator both libraries have, reproducible from the integration project.
 
-**Retrospective:**  
-**Sprint completion:** ☐
+**Retrospective:** *What worked:* deciding the numeric policy first (1e-9 tolerance with TA-Lib, no fma; ROC's base tested with `is_zero_scaled`; Aroon clamped) left one consistent rule and no open parity questions; refitting planner costs from the batch rows near break-even fixed every small-batch miss (`benchmark_2026-10-30_18-34-48` against `_22-06-38` to `_22-49-03`); the integration project installs the release wheel into a clean venv and its 52 tests pass (`setup.sh --bench`), with `test-suite_2026-10-30_23-08-29.txt` PASSED (609 Rust, 2580 Python). *What did not:* the TA-Lib comparison (`docs/benchmarks/talib_comparison_2026-10-30.md`) shows TA-Lib faster in most cases: PyTA's per-call Python layer (~3-10 µs on NumPy, ~100-180 µs on a DataFrame) dominates small inputs and small-dataset batches, and at 1,000,000 rows most PyTA calls are 1.2-5x slower (ATR 7.4 against 1.5 ms, EMA 3.8 against 0.9 ms), so kernels and the copy into Rust both cost more than TA-Lib's; PyTA wins only on large NumPy batches (14 of 23 at 100 x 10,000) and ADX, Aroon, CCI; implementer agents were confined to their own worktrees, so files had to be copied in. *Next:* a performance sprint before the release candidate (profile the native call: input copy and validation, kernel loops against TA-Lib's, the Python layer and DataFrame access), measured with the same comparison script.  
+**Sprint completion:** ✓
 
 ---
 

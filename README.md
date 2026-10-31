@@ -124,6 +124,70 @@ Mayer Multiple, Z-Score, P/E(TTM), Earnings Yield, P/B, P/S, Dividend Yield, EV/
 *Future*: DCF, DDM, Residual Income, Justified P/E, Comparables, CAPE
 
 
+## Performance against TA-Lib
+
+Measured 2026-10-30 with `PyTA-Integration/benchmarks/compare_talib.py` (PyTA 0.2.0 release wheel, TA-Lib 0.8.3 from PyPI, Python 3.15, Intel i9-9900K, Linux, CPU governor `performance`). Each library is called as its documentation shows and the whole call is timed with `timeit` (best of 5, the libraries alternating) on a seeded random walk. Cells are **TA-Lib time / PyTA time**: above 1.00x PyTA is faster, below it TA-Lib is. Outputs agree to within 8.7e-12 relative everywhere. Full timings in µs: [`docs/benchmarks/talib_comparison_2026-10-30.md`](docs/benchmarks/talib_comparison_2026-10-30.md).
+
+**Today TA-Lib is faster in most cases.** PyTA's per-call Python layer (validation, container handling) costs a few µs on NumPy and ~100 µs or more on a DataFrame, which dominates small inputs and many-small-dataset batches; at 1,000,000 rows most PyTA kernels plus the copy into Rust are still slower than TA-Lib's. PyTA wins on large batches of NumPy data (`pyta.batch` runs datasets in parallel: faster in 14 of 23 indicators at 100 x 10,000) and on three kernels (ADX, Aroon and CCI at 10,000 rows and more). Closing this gap is the next performance work.
+
+Indicators with no TA-Lib function (`ichimoku`, `keltner`, `donchian`, `cmf`, `vwap`, `vroc`) are not compared.
+
+### Single indicator (one dataset per call, rows)
+
+| Indicator | 100 (NumPy) | 10,000 (NumPy) | 1,000,000 (NumPy) | 100 (DataFrame) | 10,000 (DataFrame) | 1,000,000 (DataFrame) |
+|---|---:|---:|---:|---:|---:|---:|
+| `sma` | 0.45x | 0.72x | 0.62x | 0.15x | 0.28x | 1.01x |
+| `ema` | 0.43x | 0.31x | 0.25x | 0.15x | 0.21x | 0.70x |
+| `wma` | 0.46x | 0.71x | 0.60x | 0.15x | 0.29x | 0.88x |
+| `dema` | 0.44x | 0.35x | 0.30x | 0.15x | 0.22x | 0.67x |
+| `tema` | 0.47x | 0.39x | 0.34x | 0.15x | 0.24x | 0.72x |
+| `kama` | 0.45x | 0.66x | 0.58x | 0.15x | 0.31x | 0.80x |
+| `macd` | 0.50x | 0.31x | 0.33x | 0.26x | 0.32x | 0.68x |
+| `sar` | 0.17x | 0.53x | 0.55x | 0.12x | 0.30x | 0.72x |
+| `adx` | 0.44x | 1.40x | 1.20x | 0.31x | 0.80x | 1.56x |
+| `aroon` | 0.34x | 1.76x | 1.57x | 0.29x | 0.97x | 1.63x |
+| `rsi` | 0.48x | 0.98x | 0.86x | 0.15x | 0.35x | 1.07x |
+| `cci` | 0.28x | 1.96x | 1.61x | 0.13x | 0.88x | 1.68x |
+| `stoch` | 0.22x | 0.70x | 0.68x | 0.18x | 0.45x | 0.79x |
+| `willr` | 0.16x | 0.31x | 0.29x | 0.12x | 0.23x | 0.47x |
+| `roc` | 0.43x | 0.72x | 0.54x | 0.15x | 0.25x | 1.07x |
+| `mfi` | 0.15x | 0.34x | 0.31x | 0.11x | 0.25x | 0.48x |
+| `trix` | 0.47x | 0.46x | 0.40x | 0.15x | 0.26x | 0.64x |
+| `ultosc` | 0.18x | 0.52x | 0.49x | 0.12x | 0.33x | 0.64x |
+| `atr` | 0.16x | 0.21x | 0.20x | 0.12x | 0.19x | 0.51x |
+| `bbands` | 0.50x | 0.36x | 0.33x | 0.27x | 0.34x | 0.48x |
+| `stddev` | 0.44x | 0.45x | 0.37x | 0.15x | 0.28x | 0.47x |
+| `obv` | 0.13x | 0.49x | 0.53x | 0.12x | 0.28x | 0.77x |
+| `ad` | 0.11x | 0.27x | 0.29x | 0.11x | 0.21x | 0.71x |
+
+### Batch (TA-Lib: a loop of calls; PyTA: one `pyta.batch` call; datasets x rows)
+
+| Indicator | 10 x 1,000 (NumPy) | 100 x 100 (NumPy) | 100 x 10,000 (NumPy) | 1,000 x 1,000 (NumPy) | 10 x 1,000 (DataFrame) | 100 x 100 (DataFrame) | 100 x 10,000 (DataFrame) | 1,000 x 1,000 (DataFrame) |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| `sma` | 0.65x | 0.62x | 1.25x | 0.83x | 0.20x | 0.20x | 0.41x | 0.24x |
+| `ema` | 0.34x | 0.48x | 0.70x | 0.65x | 0.17x | 0.19x | 0.33x | 0.23x |
+| `wma` | 0.45x | 0.61x | 1.35x | 0.87x | 0.18x | 0.20x | 0.42x | 0.24x |
+| `dema` | 0.37x | 0.47x | 0.87x | 0.73x | 0.17x | 0.19x | 0.35x | 0.23x |
+| `tema` | 0.41x | 0.51x | 1.06x | 0.77x | 0.17x | 0.19x | 0.38x | 0.24x |
+| `kama` | 0.51x | 0.48x | 1.52x | 1.02x | 0.18x | 0.20x | 0.47x | 0.25x |
+| `macd` | 0.44x | 0.58x | 0.68x | 0.73x | 0.31x | 0.35x | 0.46x | 0.40x |
+| `sar` | 0.30x | 0.23x | 1.13x | 0.54x | 0.18x | 0.17x | 0.54x | 0.23x |
+| `adx` | 0.79x | 0.55x | 1.87x | 1.10x | 0.45x | 0.40x | 1.05x | 0.53x |
+| `aroon` | 1.07x | 0.51x | 3.37x | 1.65x | 0.46x | 0.38x | 1.47x | 0.59x |
+| `rsi` | 0.59x | 0.50x | 1.82x | 1.10x | 0.19x | 0.19x | 0.52x | 0.26x |
+| `cci` | 0.95x | 0.32x | 3.19x | 1.40x | 0.28x | 0.16x | 1.30x | 0.33x |
+| `stoch` | 0.51x | 0.30x | 1.61x | 0.83x | 0.26x | 0.23x | 0.78x | 0.34x |
+| `willr` | 0.22x | 0.19x | 0.64x | 0.38x | 0.16x | 0.15x | 0.40x | 0.21x |
+| `roc` | 0.61x | 0.59x | 0.74x | 0.66x | 0.19x | 0.20x | 0.32x | 0.22x |
+| `mfi` | 0.23x | 0.17x | 0.67x | 0.37x | 0.16x | 0.14x | 0.44x | 0.20x |
+| `trix` | 0.44x | 0.49x | 1.12x | 0.84x | 0.18x | 0.19x | 0.40x | 0.24x |
+| `ultosc` | 0.34x | 0.23x | 1.09x | 0.55x | 0.18x | 0.16x | 0.55x | 0.24x |
+| `atr` | 0.14x | 0.18x | 0.31x | 0.25x | 0.15x | 0.15x | 0.26x | 0.19x |
+| `bbands` | 0.57x | 0.61x | 1.13x | 1.02x | 0.33x | 0.36x | 0.61x | 0.43x |
+| `stddev` | 0.53x | 0.50x | 1.51x | 1.09x | 0.19x | 0.20x | 0.50x | 0.26x |
+| `obv` | 0.23x | 0.18x | 0.87x | 0.40x | 0.16x | 0.16x | 0.44x | 0.21x |
+| `ad` | 0.17x | 0.14x | 0.28x | 0.20x | 0.14x | 0.14x | 0.26x | 0.17x |
+
 ## Data Providers
 
 On release, PyTA will initally support the data formats returned by both **yFinance** (`pandas`, `dict`, `tuple`) and **AlphaVantage** (`json`, `csv`).
@@ -143,6 +207,8 @@ Run benchmarks (`--single`, `--batch`, or `--all`; add `--rust`, `--python`, `--
 ```
 
 Each script prints its progress and writes a timestamped report, with a summary at the top and the full output below, to `tests/results/` or `benches/results/`. Compare reports over time to see what changed. See [`scripts/README.md`](scripts/README.md) for all options.
+
+[`PyTA-Integration/`](PyTA-Integration/README.md) uses PyTA as an outside project does: it installs the release wheel into its own environment and runs examples, integration tests and the TA-Lib comparison (`PyTA-Integration/scripts/setup.sh`).
 
 Project design and plans live in [`docs/`](docs/).
 

@@ -1,6 +1,8 @@
 # TODO Scratchpad — PyTA
 
-## Sprint 12: independent integration project (planned 2026-10-30)
+## Sprint 12: independent integration project ✓ (planned 2026-10-30, closed 2026-10-30)
+
+**Still open after close** (parking lot): PyTA is slower than TA-Lib in most single calls and small batches (README "Performance against TA-Lib"); the next sprint should be performance. Also `period=True`'s message wording, Aroon's 1-ulp-below-100 periods.
 
 Plan of record: `docs/DEVELOPMENT.md`, "Sprint 12 — Independent integration project". Goal: validate PyTA as an external consumer sees it (installed wheel, public API only), settle the numeric calls parked at Sprint 11.5's close, and measure PyTA against TA-Lib the way each is used in production, single calls and batches.
 
@@ -27,7 +29,7 @@ Where things stand:
 - [x] B2. Implement A3: scaled test in `kernels/roc.rs`, Rust and Python tests (tiny base → 0, exact 0 → 0, TA-Lib fixtures still pass), remove the ±inf exception from the wiki (ROC, VROC), `API.md`, `ARCHITECTURE.md`; close the parking-lot entry. *(2026-10-30: `is_zero_scaled(earlier, current.abs())` in `rate_of_change_into` and TRIX's inline step; Rust `kernel_roc_tests`, `roc_tests`, `vroc_tests`, Python `test_roc.py`/`test_vroc.py`; ROC/VROC/TRIX reference tests still bit for bit; TRIX proptest against the cascade still bit for bit. `tests/results/test-suite_2026-10-30_18-29-26.txt` PASSED, 609 Rust (nextest) and 2580 Python tests.)*
 - [x] B3. Implement A4: clamp in `aroon.rs`, Rust test for period 11 (`aroon_up == 100.0`), proptest bound tightened, Python test, wiki/API note. *(2026-10-30: `.min(100.0)` on up/down, `.clamp(-100.0, 100.0)` on the oscillator; periods 97, 161, ... still round one ulp below 100 (not clamped, within range). `tests/results/test-suite_2026-10-30_18-29-26.txt` PASSED, 609 Rust (nextest) and 2580 Python tests.)*
 - [x] B4. Cost refit (`pyta-benchmarks` skill): full `--batch --rust` run; refit SMA, CCI, STDDEV (period sweep) and WMA from the 10 x 1,000 and 100 x 100 rows; constants in `pyta-common/src/costs.rs`; confirm with a second batch run that no planner row is above 1.10x. *(Full `benchmark_2026-10-30_18-34-48.txt` (`--batch --rust`): misses at SMA 10 x 1,000 (1.15x), WMA 100 x 100 (1.32x), STOCH 10 x 100 (1.51x); STDDEV period sweep `7.55 + 0.215 * period` ms. New SMA 1.5, WMA 1.9, STOCH 13.2, STDDEV 5.1 + 0.21/period; CCI's rows all chose right, left. Confirmed `_22-06-38` (sma), `_22-36-57` (wma), `_22-42-36` (stoch), `_22-49-03` (stddev): every small-batch row picks the faster arm; only `6_sma_rsi_ds1_ds2` 1.27x remains (accepted 3,000-point miss, memory).)*
-- [ ] B5. `./scripts/test-suite.sh` passes.
+- [x] B5. `./scripts/test-suite.sh` passes. *(`test-suite_2026-10-30_18-29-26.txt`, `_23-08-29.txt`.)*
 
 ### Part C: integration project (about 4 h)
 
@@ -42,28 +44,28 @@ Where things stand:
 - [x] D1. `PyTA-Integration/benchmarks/compare_talib.py`: every indicator both libraries have, `timeit` best of ≥5, libraries interleaved, outputs compared (largest difference).
 - [x] D2. Single: NumPy arrays and a yFinance-shaped DataFrame at 100, 10,000, 1,000,000 rows.
 - [x] D3. Batch: TA-Lib list-comprehension loop against one `pyta.batch.<name>` call, 10 x 1,000, 100 x 100, 100 x 10,000, 1,000 x 1,000.
-- [ ] D4. Report written to `PyTA-Integration/results/`; both tables in PyTA's `README.md` with machine, governor, date; indicators without a TA-Lib equivalent listed.
+- [x] D4. Report written to `PyTA-Integration/results/`; both tables in PyTA's `README.md` with machine, governor, date; indicators without a TA-Lib equivalent listed. *(`results/compare_talib_2026-10-30_23-07-35.md`, copied to `docs/benchmarks/talib_comparison_2026-10-30.md`; README "Performance against TA-Lib".)*
 
 ### Part E: close (about 1 h)
 
-- [ ] E1. Install docs in `PyTA-Integration/README.md` (setup, examples, tests, benchmark); link from PyTA's `README.md`.
-- [ ] E2. `DEVELOPMENT.md`: tick tasks; retrospective and ✓ once the criteria pass; memory and `pyta-tooling` current.
+- [x] E1. Install docs in `PyTA-Integration/README.md` (setup, examples, tests, benchmark); link from PyTA's `README.md`. *(`PyTA-Integration/README.md` benchmark section; README "Development" and `CLAUDE.md` commands link it.)*
+- [x] E2. `DEVELOPMENT.md`: tick tasks; retrospective and ✓ once the criteria pass; memory and `pyta-tooling` current. *(Retrospective and ✓; memory updated.)*
 
 ### Acceptance criteria for Sprint 12
 
-- [ ] The bit-parity policy and the parked numeric calls are decided, implemented and documented.
-- [ ] The integration project installs and imports PyTA independently (wheel, clean venv).
-- [ ] All example workflows run successfully.
-- [ ] Integration tests pass against the installed package.
-- [ ] The public API works without access to the PyTA source tree.
-- [ ] A package build can be tested from a clean environment.
-- [ ] `README.md` has single and batch `timeit` comparisons with TA-Lib for every indicator both have, reproducible from the integration project.
+- [x] The bit-parity policy and the parked numeric calls are decided, implemented and documented. *(B1-B3, 0ef7d12.)*
+- [x] The integration project installs and imports PyTA independently (wheel, clean venv). *(`setup.sh --bench` from deleted `.venv` and `dist/`.)*
+- [x] All example workflows run successfully. *(`setup.sh`: three examples ran.)*
+- [x] Integration tests pass against the installed package. *(52 passed.)*
+- [x] The public API works without access to the PyTA source tree. *(`test_install.py`: site-packages, wheel, no source on `sys.path`, no private names.)*
+- [x] A package build can be tested from a clean environment. *(`setup.sh` builds the wheel and installs it in a fresh venv.)*
+- [x] `README.md` has single and batch `timeit` comparisons with TA-Lib for every indicator both have, reproducible from the integration project. *(README tables, full report in `docs/benchmarks/`.)*
 
 ### Verification
 
-- [ ] `./scripts/test-suite.sh` after Part B and at close (cite the reports).
-- [ ] `PyTA-Integration/scripts/setup.sh` from a deleted venv and `dist/`.
-- [ ] Benchmark reports for B4 and D cited.
+- [x] `./scripts/test-suite.sh` after Part B and at close (cite the reports). *(`test-suite_2026-10-30_18-29-26.txt`, `_23-08-29.txt`: PASSED.)*
+- [x] `PyTA-Integration/scripts/setup.sh` from a deleted venv and `dist/`. *(52 passed, ruff clean.)*
+- [x] Benchmark reports for B4 and D cited.
 
 Out of scope: CI for the integration project (Sprint 13), an AlphaVantage adapter, new indicators, publishing to PyPI (Sprint 14).
 
@@ -87,5 +89,7 @@ Out of scope: CI for the integration project (Sprint 13), an AlphaVantage adapte
 - VWAP session or date anchoring; needs a datetime role (A9).
 - Further indicators: Stochastic RSI, PPO, Momentum, CMO, Hull MA, Supertrend, Pivot Points, ROCP/ROCR/ROCR100, ADXR, PLUS_DI/MINUS_DI alone (A14).
 
-- Cost constants left at close (2026-10-30, `benchmark_2026-10-30_10-57-29.txt`): SMA reads +29% and CCI +25% at 1M rows, but their planner rows are fine; refit only with batch-row evidence (memory, "Cost constants near the crossover"). STDDEV's two terms need a period sweep (only the per-row term was refit).
-- Planner: `many_wma_x100` at 100 rows picks parallel, 1.16x the sequential arm (~3 µs; WMA's small-batch cost ~2.1 ns/row against 2.7). The CCI 10 x 10,000 batch cell flips between ~60 and ~95 µs/dataset on `main` too; check whether it is the planner's crossover.
+- The CCI 10 x 10,000 batch cell flips between ~60 and ~95 µs/dataset on `main` too; check whether it is the planner's crossover. CCI's cost constant reads +25% at 1M rows but every batch row chooses right (2026-10-30), so it stays.
+- **Performance against TA-Lib (Sprint 12, 2026-10-30):** TA-Lib is faster in most single calls and small batches (`docs/benchmarks/talib_comparison_2026-10-30.md`). At 1M NumPy rows PyTA takes 1.2-5x TA-Lib's time (ATR 7.4 against 1.5 ms, EMA 3.8 against 0.9, OBV 6.6 against 3.5): profile the native call (copy into `Series`, finite/magnitude scan, kernel, output) and compare kernel loops with TA-Lib's. The Python layer costs ~3-10 µs per NumPy call and ~100-180 µs per DataFrame call against TA-Lib's 1-3 and 15-60 µs. Candidate for the next sprint.
+- `pyta.sma(x, period=True)` raises `period must be an integer, not bool` while a str gives `..., got str` (`_validation.py`); `API.md` §7 shows only the "got" form. The integration tests pin the current wording.
+- Aroon: for periods 97, 161, 167, 193-195, 199, 289 `(100 / period) * period` is 1 ulp below 100 (within range and tolerance); write exactly 100 when the extreme is the current row if users notice.
