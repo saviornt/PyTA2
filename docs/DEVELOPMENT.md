@@ -583,6 +583,46 @@ Order matters: the numeric decisions can change outputs and kernel speed, so the
 
 ---
 
+## Sprint 12.5 — Performance against TA-Lib
+
+**Goal:** Close the speed gap Sprint 12 measured, so PyTA is at least as fast as TA-Lib where calculation dominates and the per-call overhead no longer decides small calls, without changing results beyond the 1e-9 TA-Lib tolerance.
+
+**Baseline:** `docs/benchmarks/talib_comparison_2026-10-30.md` (Sprint 12). TA-Lib was faster in most cells: at 1,000,000 NumPy rows the median ratio (TA-Lib time / PyTA time) was 0.49x, at 100 rows 0.43x (NumPy) and 0.15x (DataFrame).
+
+### Tasks: decide
+
+- [ ] Confirm the goal and the speed targets (acceptance criteria below).
+- [ ] Decide the EMA-family recurrence form, runtime FMA dispatch, the input copy, the allocator, and any new dependency (see `TODO.md` Part A).
+
+### Tasks: measure
+
+- [ ] Break the public call into stages (Python layer, input copy and validation, kernel, output, allocation and page faults) for a representative set at 100, 10,000 and 1,000,000 rows, NumPy and DataFrame.
+- [ ] Compare each slow kernel's loop with TA-Lib 0.8.3's, and rank the fixes by expected gain.
+
+### Tasks: improve (each with a same-session A/B and its benchmark report)
+
+- [ ] Kernels: dependency chains, divisions and branches in the hot loops, starting with the EMA family, ATR/ADX and the rolling-extreme indicators.
+- [ ] The native call: the unexplained time beyond copy plus kernel (OBV: 7.6 ms against 3.4 ms expected at 1,000,000 rows).
+- [ ] The Python layer: NumPy single calls, multi-column dicts, DataFrame column access, and per-dataset batch validation.
+- [ ] Re-measure planner cost constants for every changed kernel.
+
+### Tasks: close
+
+- [ ] Re-run `PyTA-Integration/benchmarks/compare_talib.py` and replace the README tables, keeping the Sprint 12 baseline for comparison.
+- [ ] Update `ARCHITECTURE.md`, `API.md` and the wiki where a design or a documented number changes.
+
+### Acceptance criteria
+
+- Every TA-Lib reference fixture still matches to 1e-9; tests, property tests and `./scripts/test-suite.sh` pass.
+- Each adopted change has a same-session A/B benchmark showing its gain.
+- The speed targets agreed in Part A are met, or each miss is explained and parked with its cause.
+- The README comparison is current and reproducible from the integration project.
+
+**Retrospective:**  
+**Sprint completion:** ☐
+
+---
+
 ## Sprint 13 — Quality gates, documentation, and first release candidate
 
 **Goal:** Turn the initial proof of concept into a dependable baseline.
@@ -721,7 +761,7 @@ Valuation indicators come in three kinds, and only the first two belong in PyTA.
 
 ## Sprint 17 — Performance tuning
 
-**Goal:** Keep the engine fast as the library grows, using measurement rather than assumption.
+**Goal:** Keep the engine fast as the library grows, using measurement rather than assumption. (Sprint 12.5 closed the TA-Lib gap for the major set; this sprint re-checks it for the indicators added since and tunes scaling.)
 
 ### Tasks
 
