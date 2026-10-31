@@ -86,8 +86,9 @@ const INDICATORS: [(&str, Params, Kernel, usize); 29] = [
             tenkan: 9,
             kijun: 26,
             senkou: 52,
+            shift: false,
         },
-        |c| ichimoku(&c[0], &c[1], &c[2], 9, 26, 52),
+        |c| ichimoku(&c[0], &c[1], &c[2], 9, 26, 52, false),
         3,
     ),
     (

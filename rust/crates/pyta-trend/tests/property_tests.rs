@@ -738,6 +738,7 @@ proptest! {
             tenkan,
             kijun,
             senkou,
+            false,
         )
         .unwrap();
 
@@ -764,6 +765,7 @@ proptest! {
             tenkan,
             kijun,
             senkou,
+            false,
         )
         .unwrap();
         let [conversion, base, span_a, span_b, chikou] = [0, 1, 2, 3, 4].map(|i| &output.outputs()[i]);
@@ -780,5 +782,44 @@ proptest! {
             prop_assert_eq!(span_a[row].to_bits(), ((conversion[row] + base[row]) / 2.0).to_bits());
         }
         prop_assert_eq!(chikou, &close);
+    }
+}
+
+proptest! {
+    #[test]
+    fn ichimoku_shift_moves_the_unshifted_lines_by_kijun(
+        ([high, low, close], [tenkan, kijun, senkou]) in ohlc_and_ichimoku_windows()
+    ) {
+        // Bit for bit: spans move `kijun` rows later, the chikou span `kijun`
+        // rows earlier, NaN where nothing moves in; tenkan and kijun stay.
+        let run = |shift| {
+            ichimoku(
+                &Series::new(high.clone()).unwrap(),
+                &Series::new(low.clone()).unwrap(),
+                &Series::new(close.clone()).unwrap(),
+                tenkan,
+                kijun,
+                senkou,
+                shift,
+            )
+            .unwrap()
+            .into_outputs()
+        };
+        let (plain, shifted) = (run(false), run(true));
+        let length = close.len();
+        let bits = |value: f64| if value.is_nan() { u64::MAX } else { value.to_bits() };
+
+        for row in 0..length {
+            for line in [0, 1] {
+                prop_assert_eq!(bits(shifted[line][row]), bits(plain[line][row]));
+            }
+            let (ahead, behind) = (row.checked_sub(kijun), row + kijun);
+            for line in [2, 3] {
+                let expected = ahead.map_or(f64::NAN, |from| plain[line][from]);
+                prop_assert_eq!(bits(shifted[line][row]), bits(expected));
+            }
+            let expected = if behind < length { close[behind] } else { f64::NAN };
+            prop_assert_eq!(bits(shifted[4][row]), bits(expected));
+        }
     }
 }

@@ -112,6 +112,7 @@ fn params(kind: IndicatorKind) -> Params {
             tenkan: 9,
             kijun: 26,
             senkou: 52,
+            shift: false,
         },
         IndicatorKind::Keltner => Params::Keltner {
             period: 20,

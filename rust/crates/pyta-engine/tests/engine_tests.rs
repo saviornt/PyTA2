@@ -21,6 +21,7 @@ fn params(kind: IndicatorKind, period: usize) -> Params {
             tenkan: period,
             kijun: period,
             senkou: period,
+            shift: false,
         },
         IndicatorKind::Mfi => Params::Mfi { period },
         IndicatorKind::Roc => Params::Roc { period },
@@ -340,6 +341,7 @@ fn the_kind_comes_from_the_params() {
                 tenkan: 1,
                 kijun: 2,
                 senkou: 2,
+                shift: false,
             },
             IndicatorKind::Ichimoku,
         ),
@@ -1341,6 +1343,7 @@ async fn ichimoku_runs_through_the_engine_with_five_outputs_and_reports_its_erro
                 tenkan,
                 kijun,
                 senkou,
+                shift: false,
             },
         )
     };
@@ -1393,6 +1396,34 @@ async fn ichimoku_runs_through_the_engine_with_five_outputs_and_reports_its_erro
             actual: 1,
         }
     );
+}
+
+#[test]
+fn ichimoku_shift_reaches_the_kernel_through_the_engine() {
+    // The same four rows with kijun 2 and `shift`: both senkou spans move two
+    // rows later, the chikou span two rows earlier; tenkan and kijun stay.
+    let high: &[f64] = &[11.0, 12.0, 13.0, 12.0];
+    let low: &[f64] = &[9.0, 10.0, 11.0, 8.0];
+    let close: &[f64] = &[10.0, 11.0, 12.0, 9.0];
+    let output = execute_direct(&IndicatorRequest::with_columns(
+        columns_of(&[high, low, close]),
+        Params::Ichimoku {
+            tenkan: 1,
+            kijun: 2,
+            senkou: 3,
+            shift: true,
+        },
+    ))
+    .unwrap();
+    let [tenkan, kijun, senkou_a, senkou_b, chikou] = output.outputs() else {
+        panic!("expected five outputs, got {}", output.output_count());
+    };
+
+    assert_values(tenkan, &[10.0, 11.0, 12.0, 10.0]);
+    assert_values(kijun, &[NAN, 10.5, 11.5, 10.5]);
+    assert_values(senkou_a, &[NAN, NAN, NAN, 10.75]);
+    assert_values(senkou_b, &[NAN, NAN, NAN, NAN]);
+    assert_values(chikou, &[12.0, 9.0, NAN, NAN]);
 }
 
 /// Validated columns from slices, in the given order.
@@ -1614,6 +1645,7 @@ fn ichimoku_lines_are_donchian_middles_on_spy() {
             tenkan: 9,
             kijun: 26,
             senkou: 52,
+            shift: false,
         },
     ))
     .unwrap();

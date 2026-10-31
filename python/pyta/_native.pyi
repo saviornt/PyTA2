@@ -140,10 +140,14 @@ def aroon_batch(
     datasets: list[list[NDArray[np.float64]]], period: int
 ) -> list[list[NDArray[np.float64]] | Exception]: ...
 def ichimoku(
-    columns: list[NDArray[np.float64]], tenkan: int, kijun: int, senkou: int
+    columns: list[NDArray[np.float64]], tenkan: int, kijun: int, senkou: int, shift: bool
 ) -> list[NDArray[np.float64]]: ...
 def ichimoku_batch(
-    datasets: list[list[NDArray[np.float64]]], tenkan: int, kijun: int, senkou: int
+    datasets: list[list[NDArray[np.float64]]],
+    tenkan: int,
+    kijun: int,
+    senkou: int,
+    shift: bool,
 ) -> list[list[NDArray[np.float64]] | Exception]: ...
 def sar(
     columns: list[NDArray[np.float64]], acceleration: float, maximum: float

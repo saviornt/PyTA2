@@ -7,7 +7,7 @@ from pyta import _native
 from pyta._api import run_columns, run_columns_batch
 from pyta._export import Output
 from pyta._outputs import OutputNames
-from pyta._validation import ADJ_CLOSE, CLOSE, HIGH, LOW, Slot, validate_int
+from pyta._validation import ADJ_CLOSE, CLOSE, HIGH, LOW, Slot, validate_bool, validate_int
 
 #: The Ichimoku Cloud's inputs, in the order `_native.ichimoku` takes them and
 #: unnamed input uses.
@@ -26,12 +26,15 @@ OUTPUTS = (
 _NAMES = OutputNames("ichimoku", OUTPUTS, abbreviations=())
 
 
-def _params(tenkan: object, kijun: object, senkou: object) -> tuple[int, int, int]:
-    """Validates the Ichimoku Cloud's windows: each at least 1, in any order."""
+def _params(
+    tenkan: object, kijun: object, senkou: object, shift: object
+) -> tuple[int, int, int, bool]:
+    """Validates the Ichimoku Cloud's windows (each at least 1, in any order) and `shift`."""
     return (
         validate_int("tenkan", tenkan, 1),
         validate_int("kijun", kijun, 1),
         validate_int("senkou", senkou, 1),
+        validate_bool("shift", shift),
     )
 
 
@@ -41,11 +44,12 @@ def ichimoku(
     kijun: int = 26,
     senkou: int = 52,
     *,
+    shift: bool = False,
     columns: Sequence[str] | None = None,
     column: None = None,
     output: Output | None = None,
 ) -> Any:
-    """Ichimoku Cloud (Ichimoku Kinko Hyo, Goichi Hosoda), unshifted.
+    """Ichimoku Cloud (Ichimoku Kinko Hyo, Goichi Hosoda), unshifted by default.
 
     `ichimoku_tenkan` (conversion line) is (highest high + lowest low) / 2 over
     the last `tenkan` rows, `ichimoku_kijun` (base line) the same over `kijun`
@@ -54,13 +58,19 @@ def ichimoku(
     line over that window). `ichimoku_senkou_a` (leading span A) is
     (tenkan + kijun) / 2 and `ichimoku_chikou` (lagging span) is close.
 
-    Every line is on the row it is calculated from, so the output is as long
-    as the input and nothing is dropped. Charts draw both senkou spans `kijun`
-    rows ahead (the cloud) and the chikou span `kijun` rows back; shift them
-    yourself to plot (for example pandas' `shift(kijun)` and `shift(-kijun)`).
+    By default every line is on the row it is calculated from, so the output is
+    as long as the input and nothing is dropped, the future cloud included.
+    `shift=True` gives the layout charts draw, still as long as the input: both
+    senkou spans move `kijun` rows later (the value calculated on row t is on
+    row t + kijun; the first `kijun` rows are NaN and the last `kijun` rows'
+    values, the future cloud, are dropped) and the chikou span `kijun` rows
+    earlier (row t holds close of row t + kijun; the last `kijun` rows are
+    NaN), as pandas' `shift(kijun)` and `shift(-kijun)` would. The conversion
+    and base lines do not move.
     Needs at least max(`tenkan`, `kijun`, `senkou`) rows. Each output keeps its
     own warm-up: the first `tenkan - 1`, `kijun - 1`, max(`tenkan`, `kijun`) - 1
-    and `senkou - 1` values of the first four are NaN; the chikou span has none.
+    and `senkou - 1` values of the first four are NaN (the spans' `kijun` rows
+    later with `shift=True`); the chikou span has none unshifted.
 
     Args:
         data: High, low and close prices: a pandas DataFrame, dict of columns,
@@ -73,6 +83,9 @@ def ichimoku(
         kijun: Rows in the base line's window, at least 1 (default 26).
         senkou: Rows in leading span B's window, at least 1 (default 52). The
             three windows may be in any order.
+        shift: True to displace the senkou spans `kijun` rows forward and the
+            chikou span `kijun` rows back, as charts draw them (default False:
+            every line on the row it is calculated from). Must be a bool.
         columns: The three columns to use, in any order, for named input; each
             name is assigned to the input for its role (high; low; close or
             adj_close). Names follow the same rules as `column=` in
@@ -101,7 +114,7 @@ def ichimoku(
 
     Raises:
         TypeError: Unsupported input type or dtype, a one-series input, or a
-            wrong `tenkan`, `kijun`, `senkou` or `columns` type.
+            wrong `tenkan`, `kijun`, `senkou`, `shift` or `columns` type.
         ValueError: An unknown `output`; `tenkan`, `kijun` or `senkou` below 1;
             a required column missing (the message names the required and the
             available columns); an invalid `columns=` or any `column=`; NaN
@@ -110,7 +123,7 @@ def ichimoku(
             rows.
         ModuleNotFoundError: `output="pandas"` and pandas is not installed.
     """
-    params = _params(tenkan, kijun, senkou)
+    params = _params(tenkan, kijun, senkou, shift)
     return run_columns(_native.ichimoku, _NAMES, data, params, columns, SLOTS, column, output)
 
 
@@ -120,6 +133,7 @@ def ichimoku_batch[D: (list[Any], dict[Any, Any])](
     kijun: int = 26,
     senkou: int = 52,
     *,
+    shift: bool = False,
     columns: Sequence[str] | None = None,
     column: None = None,
     output: Output | None = None,
@@ -133,6 +147,8 @@ def ichimoku_batch[D: (list[Any], dict[Any, Any])](
         tenkan: The conversion line's window, shared by every dataset.
         kijun: The base line's window, shared by every dataset.
         senkou: Leading span B's window, shared by every dataset.
+        shift: Whether to displace the spans as charts draw them (see
+            `pyta.ichimoku`), shared by every dataset.
         columns: Columns to use for every named dataset, in any order.
         column: Not valid here (the Ichimoku Cloud uses several columns);
             raises ValueError.
@@ -146,12 +162,12 @@ def ichimoku_batch[D: (list[Any], dict[Any, Any])](
 
     Raises:
         TypeError: `datasets` is not a list or mapping, or `tenkan`, `kijun`,
-            `senkou` or `columns` has the wrong type.
+            `senkou`, `shift` or `columns` has the wrong type.
         ValueError: An unknown `output`; an invalid `tenkan`, `kijun` or
             `senkou`, or a `column=`.
         ModuleNotFoundError: `output="pandas"` and pandas is not installed.
     """
-    params = _params(tenkan, kijun, senkou)
+    params = _params(tenkan, kijun, senkou, shift)
     return run_columns_batch(
         _native.ichimoku_batch, _NAMES, datasets, params, columns, SLOTS, column, output
     )

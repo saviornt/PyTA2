@@ -11,12 +11,19 @@ fn series(values: &[f64]) -> Series {
     Series::new(values.to_vec()).unwrap()
 }
 
-/// Tenkan-sen, kijun-sen, senkou span A, senkou span B and chikou span.
-fn lines_of(
+/// Tenkan-sen, kijun-sen, senkou span A, senkou span B and chikou span,
+/// unshifted.
+fn lines_of(columns: [&[f64]; 3], tenkan: usize, kijun: usize, senkou: usize) -> [Vec<f64>; 5] {
+    lines_with(columns, tenkan, kijun, senkou, false)
+}
+
+/// The five lines, unshifted or (with `shift`) in the charts' layout.
+fn lines_with(
     [high, low, close]: [&[f64]; 3],
     tenkan: usize,
     kijun: usize,
     senkou: usize,
+    shift: bool,
 ) -> [Vec<f64>; 5] {
     let outputs = ichimoku(
         &series(high),
@@ -25,6 +32,7 @@ fn lines_of(
         tenkan,
         kijun,
         senkou,
+        shift,
     )
     .unwrap()
     .into_outputs();
@@ -81,7 +89,16 @@ const CLOSE: [f64; 7] = [10.0, 11.0, 12.0, 11.0, 13.0, 14.0, 13.0];
 fn ichimoku_returns_five_outputs_with_input_length_and_their_own_warm_ups() {
     // tenkan 2 from row 1, kijun 3 from row 2, senkou A from row 2, senkou
     // B 5 from row 4, chikou from row 0.
-    let output = ichimoku(&series(&HIGH), &series(&LOW), &series(&CLOSE), 2, 3, 5).unwrap();
+    let output = ichimoku(
+        &series(&HIGH),
+        &series(&LOW),
+        &series(&CLOSE),
+        2,
+        3,
+        5,
+        false,
+    )
+    .unwrap();
     assert_eq!(output.output_count(), 5);
 
     for (line, first) in output.outputs().iter().zip([1, 2, 2, 4, 0]) {
@@ -186,7 +203,8 @@ fn ichimoku_rejects_a_zero_window_naming_it() {
                 &series(&CLOSE),
                 tenkan,
                 kijun,
-                senkou
+                senkou,
+                false
             ),
             Err(PytaError::InvalidParameter {
                 name,
@@ -205,7 +223,7 @@ fn ichimoku_rejects_columns_of_unequal_length() {
         [&HIGH[..], &LOW[..], &CLOSE[..6]],
     ] {
         assert_eq!(
-            ichimoku(&series(high), &series(low), &series(close), 2, 3, 5),
+            ichimoku(&series(high), &series(low), &series(close), 2, 3, 5, false),
             Err(PytaError::LengthMismatch)
         );
     }
@@ -222,7 +240,8 @@ fn ichimoku_needs_rows_for_its_longest_window() {
                 &series(&CLOSE),
                 tenkan,
                 kijun,
-                senkou
+                senkou,
+                false
             ),
             Err(PytaError::InsufficientData {
                 required: 8,
@@ -242,7 +261,8 @@ fn ichimoku_reports_a_huge_window_without_overflow() {
             &series(&CLOSE),
             2,
             3,
-            usize::MAX
+            usize::MAX,
+            false
         ),
         Err(PytaError::InsufficientData {
             required: usize::MAX,
@@ -273,4 +293,81 @@ fn ichimoku_is_finite_at_the_magnitude_limit() {
     for line in &lines {
         assert!(line[2..].iter().all(|value| value.is_finite()));
     }
+}
+
+#[test]
+fn ichimoku_shift_matches_a_hand_calculation() {
+    // kijun 3: both spans move three rows later, the chikou span three rows
+    // earlier. Unshifted senkou A is 11.25, 11.5, ... from row 2 and senkou B
+    // (3 rows) is the kijun-sen, 11.0, 11.5, ... from row 2.
+    let nan = f64::NAN;
+    let [tenkan, kijun, senkou_a, senkou_b, chikou] =
+        lines_with([&HIGH, &LOW, &CLOSE], 2, 3, 3, true);
+    let [plain_tenkan, plain_kijun, ..] = lines_of([&HIGH, &LOW, &CLOSE], 2, 3, 3);
+
+    assert_bits(&tenkan, &plain_tenkan, "tenkan");
+    assert_bits(&kijun, &plain_kijun, "kijun");
+    assert_bits(
+        &senkou_a,
+        &[nan, nan, nan, nan, nan, 11.25, 11.5],
+        "senkou_a",
+    );
+    assert_bits(
+        &senkou_b,
+        &[nan, nan, nan, nan, nan, 11.0, 11.5],
+        "senkou_b",
+    );
+    assert_bits(&chikou, &[11.0, 13.0, 14.0, 13.0, nan, nan, nan], "chikou");
+}
+
+#[test]
+fn ichimoku_shift_by_the_whole_length_leaves_the_moved_lines_empty() {
+    // kijun 7 on 7 rows is valid (the minimum is the longest window), but
+    // every moved value falls off the end.
+    let [tenkan, kijun, senkou_a, senkou_b, chikou] =
+        lines_with([&HIGH, &LOW, &CLOSE], 2, 7, 3, true);
+    let [plain_tenkan, plain_kijun, ..] = lines_of([&HIGH, &LOW, &CLOSE], 2, 7, 3);
+
+    assert_bits(&tenkan, &plain_tenkan, "tenkan");
+    assert_bits(&kijun, &plain_kijun, "kijun");
+    for line in [&senkou_a, &senkou_b, &chikou] {
+        assert_eq!(line.len(), 7);
+        assert!(line.iter().all(|value| value.is_nan()));
+    }
+}
+
+#[test]
+fn ichimoku_shift_keeps_the_errors_and_the_minimum_rows() {
+    // The shift changes no parameter or length rule.
+    assert_eq!(
+        ichimoku(
+            &series(&HIGH),
+            &series(&LOW),
+            &series(&CLOSE),
+            2,
+            8,
+            3,
+            true
+        ),
+        Err(PytaError::InsufficientData {
+            required: 8,
+            length: 7,
+        })
+    );
+    assert_eq!(
+        ichimoku(
+            &series(&HIGH),
+            &series(&LOW),
+            &series(&CLOSE),
+            2,
+            0,
+            3,
+            true
+        ),
+        Err(PytaError::InvalidParameter {
+            name: "kijun",
+            minimum: 1,
+            value: 0,
+        })
+    );
 }

@@ -245,6 +245,21 @@ def validate_positive_float(name: str, value: object, maximum: float | None = No
     return number
 
 
+def validate_bool(name: str, value: object) -> bool:
+    """Returns the flag parameter `name` as a bool (Ichimoku's `shift`).
+
+    Only `True`, `False` or a NumPy bool is accepted; anything else, including
+    0, 1, None and strings, raises `TypeError`, so a misspelt or misplaced
+    argument is not read as a flag.
+    """
+    if value is False or value is True:
+        return value
+    if isinstance(value, np.bool_):
+        return value is np.True_  # NumPy bools are singletons
+
+    raise TypeError(f"{name} must be True or False, got {type(value).__name__}")
+
+
 def validate_ascending(*named: tuple[str, float], strict: bool) -> None:
     """Checks that already validated parameters are in ascending order, as given.
 

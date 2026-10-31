@@ -16,7 +16,7 @@ The Ichimoku Cloud (Ichimoku Kinko Hyo, "equilibrium chart at a glance") is a co
 
 Each midpoint is the middle line of [Donchian Channels](../volatility/donchian.md) over the same window.
 
-**The cloud** (kumo) is the area between the two senkou spans. On a chart both spans are drawn `kijun` bars (26) **ahead** of the bar they were calculated on, so the cloud runs into the future, and the chikou span is drawn `kijun` bars **back**. PyTA does not shift anything: every line is on the bar it is calculated from (see [Plotting the cloud](#plotting-the-cloud)).
+**The cloud** (kumo) is the area between the two senkou spans. On a chart both spans are drawn `kijun` bars (26) **ahead** of the bar they were calculated on, so the cloud runs into the future, and the chikou span is drawn `kijun` bars **back**. By default PyTA does not shift anything: every line is on the bar it is calculated from. `shift=True` gives the chart's layout instead (see [Plotting the cloud](#plotting-the-cloud)).
 
 **The defaults 9, 26 and 52** come from the Japanese trading calendar of Hosoda's time, with six trading days a week: 9 is a week and a half, 26 a month and 52 two months. They are kept almost everywhere today, including on five-day markets; some traders scale them (for example 7, 22 and 44, or doubled windows on markets that trade every day).
 
@@ -87,24 +87,27 @@ pyta.batch.trend.ichimoku({"SPY": spy, "QQQ": qqq})         # dict of results, s
 
 ### Plotting the cloud
 
-PyTA returns every line on the bar it is calculated from, so the output is as long as the input and nothing is lost. To draw the classic chart, shift the spans `kijun` bars forward and the chikou span `kijun` bars back. With pandas:
+`shift=True` returns the lines in the layout charts draw, displaced by `kijun` bars (26 by default) and still as long as the input:
+
+- **Senkou spans A and B** move `kijun` bars **forward**: the value calculated on bar `t` is on bar `t + kijun`. The first `kijun` bars are `NaN` (on top of each span's own warm-up), and the values calculated on the last `kijun` bars, the cloud that lies ahead of today, fall off the end.
+- **The chikou span** moves `kijun` bars **back**: bar `t` holds the close of bar `t + kijun`, so the last `kijun` bars are `NaN`.
+- **The tenkan-sen and kijun-sen** do not move.
 
 ```python
-kijun = 26
-cloud = pyta.ichimoku(df, kijun=kijun)
+chart = pyta.ichimoku(df, shift=True)          # spans 26 bars ahead, chikou 26 bars back
+chart = pyta.ichimoku(df, kijun=22, shift=True)  # the shift follows kijun: 22 bars
 
-# Extend the index by `kijun` future bars, so the last 26 span values stay visible.
-future = pd.bdate_range(df.index[-1], periods=kijun + 1)[1:]
-chart = cloud.reindex(df.index.append(future))
-
-chart["ichimoku_senkou_a"] = chart["ichimoku_senkou_a"].shift(kijun)   # 26 bars ahead
-chart["ichimoku_senkou_b"] = chart["ichimoku_senkou_b"].shift(kijun)
-chart["ichimoku_chikou"] = chart["ichimoku_chikou"].shift(-kijun)      # 26 bars back
+result = pyta.ichimoku(data, tenkan=2, kijun=3, senkou=5, shift=True)   # data from Usage
+# result["ichimoku_senkou_a"]: [nan, nan, nan, nan, nan, 11.25, 11.5, 12.0]
+# result["ichimoku_senkou_b"]: [nan, nan, nan, nan, nan, nan, nan, 11.5]
+# result["ichimoku_chikou"]:   [11.0, 13.0, 14.0, 13.0, 11.0, nan, nan, nan]
 ```
 
-Without the extra index, `shift(kijun)` drops the last 26 values of each span, which are the part of the cloud that lies ahead of today. With NumPy, pad instead: `np.concatenate([np.full(kijun, np.nan), span_a])`.
+This is pandas' `shift(kijun)` of each span and `shift(-kijun)` of the chikou span applied to the default output. If `kijun` equals the number of rows, both spans and the chikou span are all `NaN` (not an error).
 
-The unshifted lines are also what a strategy needs: on bar `t`, the cloud a chart shows above that bar is `senkou_a[t - kijun]` and `senkou_b[t - kijun]`.
+The future cloud is only in the default, unshifted output: to plot it, call without `shift` and place the spans' last `kijun` values on future dates yourself. The unshifted lines are also what a strategy needs: on bar `t`, the cloud a chart shows above that bar is `senkou_a[t - kijun]` and `senkou_b[t - kijun]`.
+
+TradingView's built-in Ichimoku script draws the spans `kijun - 1` bars ahead (it counts the current bar as the first); PyTA displaces by `kijun`, as StockCharts and pandas-ta do.
 
 ## Parameters
 
@@ -114,6 +117,7 @@ The unshifted lines are also what a strategy needs: on bar `t`, the cloud a char
 | `tenkan` | `int` | `9` | Bars in the tenkan-sen's (conversion line's) window; at least `1` |
 | `kijun` | `int` | `26` | Bars in the kijun-sen's (base line's) window; at least `1`. Also the usual plotting shift |
 | `senkou` | `int` | `52` | Bars in senkou span B's window; at least `1` |
+| `shift` | `bool` | `False` | `True` displaces both senkou spans `kijun` bars forward and the chikou span `kijun` bars back, as charts draw them (see [Plotting the cloud](#plotting-the-cloud)); keyword only |
 | `columns` | list of `str` or `None` | `None` | The three columns to use, in any order: a high, a low and a close (or adjusted close). `None` finds them by name. Names are standard column names or aliases, such as `High`. See [multi-column indicators](../../API.md#10-multi-column-indicators) |
 | `output` | `str` or `None` | `None` | Container to return instead of the input's own: `"list"`, `"tuple"`, `"numpy"`, `"pandas"`, `"dict"`, `"json"`, `"json_bytes"`, `"csv"` or `"csv_bytes"`, each in one fixed shape, with a pandas index carried to the named targets. See [output conversion](../../API.md#output-conversion-output) |
 
@@ -131,8 +135,8 @@ A missing column raises `ValueError` naming the required and the available colum
 
 ## Output
 
-- Five outputs in the order `ichimoku_tenkan`, `ichimoku_kijun`, `ichimoku_senkou_a`, `ichimoku_senkou_b`, `ichimoku_chikou`, each the same length as the input, `float64`, **unshifted**.
-- Each output keeps its own warm-up (`NaN`): the first `tenkan - 1` values of the tenkan-sen, `kijun - 1` of the kijun-sen, `max(tenkan, kijun) - 1` of senkou span A and `senkou - 1` of senkou span B. The chikou span has none. With the defaults: 8, 25, 25 and 51 rows.
+- Five outputs in the order `ichimoku_tenkan`, `ichimoku_kijun`, `ichimoku_senkou_a`, `ichimoku_senkou_b`, `ichimoku_chikou`, each the same length as the input, `float64`, **unshifted** unless `shift=True`.
+- Each output keeps its own warm-up (`NaN`): the first `tenkan - 1` values of the tenkan-sen, `kijun - 1` of the kijun-sen, `max(tenkan, kijun) - 1` of senkou span A and `senkou - 1` of senkou span B. The chikou span has none. With the defaults: 8, 25, 25 and 51 rows. With `shift=True` the spans have `kijun` more (51 and 77 with the defaults) and the chikou span's last `kijun` values are `NaN`.
 - At least `max(tenkan, kijun, senkou)` rows are required, so every output has a value.
 - A DataFrame, dict or JSON object gets one column or key per output (a dict keeps the container type of its high column); a 2-D array or a tuple of arrays gives a tuple of the five. See [multi-output indicators](../../API.md#11-multi-output-indicators).
 - Names follow the input's casing: `ICHIMOKU_TENKAN` for `HIGH, LOW, CLOSE`, `Ichimoku_Tenkan` and `Ichimoku_Senkou_A` for `High, Low, Close` (no part of the name is an abbreviation).
@@ -145,6 +149,7 @@ A missing column raises `ValueError` naming the required and the available colum
 | A flat window (every high and low equal) | the line is that level |
 | `tenkan` longer than `kijun` | allowed; senkou span A starts with the longer of the two |
 | `adj_close` and no `close` | the chikou span is the adjusted close |
+| `shift=True` with `kijun` equal to the row count | both spans and the chikou span are all `NaN` |
 
 ## Missing and invalid data
 
@@ -156,18 +161,20 @@ A missing column raises `ValueError` naming the required and the available colum
 | Columns of different lengths | `ValueError` |
 | Fewer than `max(tenkan, kijun, senkou)` rows | `ValueError` |
 | `tenkan`, `kijun` or `senkou` below 1 | `ValueError` naming it |
+| `shift` not `True` or `False` (for example `1`, `"yes"`, `None`) | `TypeError` naming `shift` (a NumPy bool is accepted) |
 | A list, 1-D array or Series (one series) | `TypeError`: the Ichimoku Cloud needs three columns |
 
 ## Implementation notes
 
 TA-Lib has no Ichimoku function, so PyTA follows Hosoda's definition as charting platforms (StockCharts, TradingView) calculate it, with two choices of its own:
 
-- **Unshifted output.** Every line is on the bar it is calculated from, and the output is as long as the input. Shifting within the input's length would drop the last `kijun` values of both spans, the part of the cloud traders look at; shifting beyond it would break "output length equals input length". [Plotting the cloud](#plotting-the-cloud) shows the shift.
+- **Unshifted output by default.** Every line is on the bar it is calculated from, and the output is as long as the input. Shifting within the input's length drops the last `kijun` values of both spans, the part of the cloud traders look at, and shifting beyond it would break "output length equals input length", so the shift is an option: `shift=True` displaces by `kijun` within the input's length ([Plotting the cloud](#plotting-the-cloud)). The shift is done in the Rust kernel, an O(n) copy.
 - **Each output keeps its own warm-up**, so the tenkan-sen has values long before senkou span B.
 
 Differences from other libraries:
 
-- **pandas-ta** returns the spans already shifted forward by `kijun` (and the chikou span shifted back), so its values sit on different rows than PyTA's; shift PyTA's as above to compare.
+- **pandas-ta** returns the spans already shifted forward by `kijun` (and the chikou span shifted back), so compare it with `shift=True`.
+- **TradingView**'s built-in script draws the spans `kijun - 1` bars ahead, one bar less than PyTA's `shift=True`.
 - Some implementations exclude the current bar from the windows; PyTA includes it, as Hosoda and the charting platforms do.
 
 There is no reference library for the unshifted lines, so the tests check them two ways: on 300 real SPY sessions the tenkan-sen, kijun-sen and senkou span B equal [Donchian Channels](../volatility/donchian.md)' middle line over 9, 26 and 52 bars bit for bit (Donchian's upper and lower channels match TA-Lib's `MAX` and `MIN`), senkou span A equals their average and the chikou span equals the close; and a hand-computed table, `tests/fixtures/ichimoku_hand.csv` (windows 2, 3 and 5), matches exactly.

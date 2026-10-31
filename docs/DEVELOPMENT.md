@@ -632,6 +632,7 @@ The shapes are a starting point; each indicator's spec (the `add-indicator` skil
 ### Tasks
 
 - [ ] List candidates not covered by Sprint 11.5: the rest of TA-Lib's overlap, momentum, volatility and volume functions (for example PPO, CMO, Momentum, Stochastic RSI, ADXR, Chaikin Oscillator, NATR, T3, MAMA), widely used non-TA-Lib indicators (Hull MA, Supertrend, Pivot Points, Chandelier Exit), and anything parked during Sprint 11.5 (an `ma=` option, anchored VWAP).
+- [ ] SAREXT (TA-Lib `TA_SAREXT`, maintainer's request 2026-10-30): the extended Parabolic SAR, with separate acceleration start, step and maximum for long and short positions, a start value and a reversal offset; build it on the Sprint 11.5 SAR kernel and check it against TA-Lib-generated fixtures like the other TA-Lib indicators.
 - [ ] Rank them by user demand, implementation complexity and validation requirements, and agree the list with the maintainer.
 - [ ] Add one indicator at a time using the standard workflow below.
 - [ ] Add formula documentation, reference tests, and edge-case tests for each indicator.
