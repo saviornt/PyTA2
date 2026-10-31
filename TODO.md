@@ -2,7 +2,7 @@
 
 ## Sprint 12.5: performance against TA-Lib (planned 2026-10-30)
 
-Plan of record: `docs/DEVELOPMENT.md`, "Sprint 12.5 — Performance against TA-Lib". Goal: PyTA at least as fast as TA-Lib where calculation dominates, and per-call overhead no longer deciding small calls, results unchanged beyond the 1e-9 tolerance. Yardstick: `PyTA-Integration/benchmarks/compare_talib.py` (Sprint 12 baseline `docs/benchmarks/talib_comparison_2026-10-30.md`) plus `--single --rust` stages and same-session A/Bs against the Sprint 12 tip.
+Plan of record: `docs/DEVELOPMENT.md`, "Sprint 12.5 — Performance against TA-Lib". Goal: PyTA as fast as TA-Lib or faster in every comparison cell, with accuracy kept (1e-9 to every fixture; no cell's difference from TA-Lib above Sprint 12's 8.7e-12). Yardstick: `PyTA-Integration/benchmarks/compare_talib.py` (Sprint 12 baseline `docs/benchmarks/talib_comparison_2026-10-30.md`) plus `--single --rust` stages and same-session A/Bs against the Sprint 12 tip.
 
 Carried over from Sprint 12 (parking lot): `period=True`'s message wording; Aroon 1 ulp below 100 for some periods.
 
@@ -17,7 +17,7 @@ Where things stand (measured 2026-10-30, governor `performance`, release builds)
 
 ### Part A: start and decide (about 30 min)
 
-- [x] A1. **Goal and speed targets.** *(2026-10-30, user: every Part A recommendation approved as written.)* *Recommend* (ratios TA-Lib / PyTA from `compare_talib.py`, full run): (a) single, NumPy, 1,000,000 rows: median ≥ 1.0x, none below 0.8x; (b) single, NumPy, 10,000 rows: median ≥ 0.9x; (c) single, NumPy, 100 rows: median ≥ 0.7x (Python layer ≤ ~2.5 µs single-column, ≤ ~4 µs multi-column); (d) DataFrame, 100 rows: median ≥ 0.4x; (e) batch NumPy 100 x 10,000 and 1,000 x 1,000: median ≥ 1.2x; batch DataFrame: median ≥ 0.5x. Indicators TA-Lib lacks: no regression beyond noise.
+- [x] A1. **Goal and speed targets.** *(2026-10-30, user: every Part A recommendation approved as written.)* **Goal raised by the user (2026-10-30): as fast as TA-Lib or faster in every cell (ratio ≥ 1.0x), with accuracy kept (every fixture to 1e-9, and no comparison cell's largest difference above Sprint 12's 8.7e-12 relative).** The numbers below are the floors for closing the sprint; a cell between its floor and 1.0x is parked with its cause and the next step. *Recommend* (ratios TA-Lib / PyTA from `compare_talib.py`, full run): (a) single, NumPy, 1,000,000 rows: median ≥ 1.0x, none below 0.8x; (b) single, NumPy, 10,000 rows: median ≥ 0.9x; (c) single, NumPy, 100 rows: median ≥ 0.7x (Python layer ≤ ~2.5 µs single-column, ≤ ~4 µs multi-column); (d) DataFrame, 100 rows: median ≥ 0.4x; (e) batch NumPy 100 x 10,000 and 1,000 x 1,000: median ≥ 1.2x; batch DataFrame: median ≥ 0.5x. Indicators TA-Lib lacks: no regression beyond noise.
 - [x] A2. **EMA recurrence form.** *Recommend:* switch `ema_step` to TA-Lib's unfused `beta * prev + k * x` (`beta = 1 - k`), shortening the chain; changes EMA/DEMA/TEMA/MACD/TRIX/Keltner bits within the tolerance policy (TA-Lib's plain form was within 3.9e-12 of TRIX's fixtures; check every fixture); keep DEMA/TEMA/TRIX bit-identical to their cascaded `kernels::ema` definitions.
 - [x] A3. **Runtime FMA dispatch** (`#[target_feature(enable = "fma")]` + `is_x86_feature_detected!`, as TA-Lib's `TA_FMA_MULTIVERSION`). *Recommend:* not now: results would differ between CPUs with and without FMA, and the bit-parity policy (2026-10-30) chose plain multiply-adds; revisit only if A2 leaves the EMA family below target.
 - [x] A4. **Input copy.** The bridge copies each column so the GIL can be released. *Recommend:* keep the copy (thread safety), but fuse every per-value check into it (finite, magnitude, negative volume) so input is read once; borrowing without a copy (GIL held) only if B1 shows the copy, not allocation, is the cost.
@@ -59,7 +59,8 @@ Where things stand (measured 2026-10-30, governor `performance`, release builds)
 
 - [ ] Every TA-Lib reference fixture still matches to 1e-9; `./scripts/test-suite.sh` passes.
 - [ ] Each adopted change has a same-session A/B benchmark showing its gain.
-- [ ] The A1 speed targets are met, or each miss is explained and parked with its cause.
+- [ ] Every comparison cell is at least its A1 floor; cells below 1.0x are listed with their cause and next step.
+- [ ] No comparison cell's largest difference from TA-Lib exceeds 8.7e-12 relative (Sprint 12's worst).
 - [ ] The README comparison is current and reproducible from `PyTA-Integration/`.
 
 ### Verification

@@ -585,7 +585,7 @@ Order matters: the numeric decisions can change outputs and kernel speed, so the
 
 ## Sprint 12.5 — Performance against TA-Lib
 
-**Goal:** Close the speed gap Sprint 12 measured, so PyTA is at least as fast as TA-Lib where calculation dominates and the per-call overhead no longer decides small calls, without changing results beyond the 1e-9 TA-Lib tolerance.
+**Goal:** Be as fast as TA-Lib or faster, single calls and batches, NumPy and DataFrame, while keeping accuracy: every TA-Lib fixture within 1e-9 and no result further from TA-Lib than Sprint 12's.
 
 **Baseline:** `docs/benchmarks/talib_comparison_2026-10-30.md` (Sprint 12). TA-Lib was faster in most cells: at 1,000,000 NumPy rows the median ratio (TA-Lib time / PyTA time) was 0.49x, at 100 rows 0.43x (NumPy) and 0.15x (DataFrame).
 
@@ -615,7 +615,8 @@ Order matters: the numeric decisions can change outputs and kernel speed, so the
 
 - Every TA-Lib reference fixture still matches to 1e-9; tests, property tests and `./scripts/test-suite.sh` pass.
 - Each adopted change has a same-session A/B benchmark showing its gain.
-- The speed targets agreed in Part A are met, or each miss is explained and parked with its cause.
+- Every comparison cell meets its Part A floor; any cell below 1.0x (TA-Lib faster) is listed with its cause and next step.
+- No comparison cell's largest difference from TA-Lib exceeds Sprint 12's worst (8.7e-12 relative).
 - The README comparison is current and reproducible from the integration project.
 
 **Retrospective:**  
