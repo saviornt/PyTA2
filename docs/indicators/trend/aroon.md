@@ -111,7 +111,7 @@ A missing column raises `ValueError` naming the required and the available colum
 | Two bars share the highest high or the lowest low | the more recent bar counts |
 | A steady rise | up 100, down 0, oscillator 100 |
 | A steady fall | up 0, down 100, oscillator −100 |
-| `period` such as 11, 22 or 39 | `100 / period × period` rounds to one unit in the last place above or below 100 (`100.00000000000001` for 11), exactly as TA-Lib |
+| `period` such as 11, 22 or 39 | `100 / period × period` rounds to `100.00000000000001`, which TA-Lib returns; PyTA clamps up and down to `[0, 100]` and the oscillator to `[-100, 100]`, so a new extreme reads exactly 100. For a few periods (97, 161, ...) it rounds one unit in the last place below 100, which is kept (within `1e-9` of 100) |
 
 ## Missing and invalid data
 
@@ -127,12 +127,13 @@ A missing column raises `ValueError` naming the required and the available colum
 
 ## Implementation notes
 
-PyTA follows TA-Lib's `AROON` and `AROONOSC` (Chande's definition), and matches TA-Lib 0.8.3 bit for bit on 300 real SPY sessions and on an edge-case series with flat stretches (where TA-Lib also gives 100, 100 and 0), stored in `tests/fixtures/aroon_14_talib.csv` and `aroon_14_edge_talib.csv`.
+PyTA follows TA-Lib's `AROON` and `AROONOSC` (Chande's definition), and matches TA-Lib 0.8.3 bit for bit (the clamp does not bind at period 14) on 300 real SPY sessions and on an edge-case series with flat stretches (where TA-Lib also gives 100, 100 and 0), stored in `tests/fixtures/aroon_14_talib.csv` and `aroon_14_edge_talib.csv`.
 
 - **The window has `period + 1` bars.** "Bars since the highest high" counts from 0 (today) to `period`, so the window spans the current bar and the `period` before it, as in TA-Lib and Chande's definition. A window of only `period` bars would never reach 0.
 - **Ties go to the newest bar**, as TA-Lib's `>=` and `<=` comparisons do.
 - **Output order differs from TA-Lib's.** TA-Lib's `AROON` returns `(aroondown, aroonup)`; PyTA returns `aroon_up`, `aroon_down`, `aroon_osc`, in reading order, and computes the oscillator in the same call (TA-Lib's separate `AROONOSC`).
 - **The oscillator** is written as TA-Lib writes it, `100 / period × (bar of the highest high − bar of the lowest low)`, which equals `aroon_up − aroon_down`.
+- **Clamped to the range**, as RSI is: `aroon_up` and `aroon_down` to `[0, 100]`, `aroon_osc` to `[-100, 100]`. Where TA-Lib returns `100.00000000000001` (periods 11, 22, 39, ...), PyTA returns 100.
 - **Period.** TA-Lib's default 14 is kept (Chande used 25), with TA-Lib's minimum of 2; TA-Lib caps `period` at 100,000, PyTA does not.
 
 The Rust kernel (`pyta-trend`) uses the shared rolling-extreme kernels of `pyta-core` (the van Herk/Gil-Werman algorithm, which reports the row of each extreme, ties to the newest), about three comparisons per row whatever the period and the data. TA-Lib rescans the window only when its extreme leaves it, which is fast on rising highs but takes `period` steps per bar on a steadily falling high.

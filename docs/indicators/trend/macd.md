@@ -99,7 +99,7 @@ If `slow` is less than `fast`, the two are swapped, as TA-Lib does, so `macd(clo
 
 ## Implementation notes
 
-The Rust kernel (`pyta-trend`) computes all three EMAs in one pass, with the same arithmetic in the same order as three separate EMA passes (so the results are identical to the bit), and allocates only the three outputs. PyTA matches TA-Lib's own output to `1e-9` on 300 real SPY closes for 12/26/9 and 5/35/5 (`tests/fixtures/macd_12_26_9_talib.csv`, `macd_5_35_5_talib.csv`, generated with TA-Lib 0.8.3; the `macd` column before the signal exists comes from TA-Lib with `signalperiod=1`).
+The Rust kernel (`pyta-trend`) computes all three EMAs in one pass, with the same arithmetic in the same order as three separate EMA passes (so the results are identical to the bit), and allocates only the three outputs. PyTA matches TA-Lib's own output to `1e-9` on 300 real SPY closes for 12/26/9 and 5/35/5 (`tests/fixtures/macd_12_26_9_talib.csv`, `macd_5_35_5_talib.csv`, generated with TA-Lib 0.8.3; the `macd` column before the signal exists comes from TA-Lib with `signalperiod=1`). TA-Lib 0.8.3 writes the EMA update as a fused multiply-add, `fma(beta, previous, k × price)`; PyTA keeps the plain `(price − previous) × k + previous`, so the EMAs can differ from TA-Lib's in the last bits; MACD's line is a difference of two EMAs, so near zero that is up to `2.1e-12` relative on the reference series, far inside the `1e-9` tolerance. PyTA promises agreement with TA-Lib 0.8.3 within `1e-9`, not bit for bit, and uses plain multiplies and adds everywhere, never a fused multiply-add or code picked by CPU at run time ([API: Agreement with TA-Lib](../../API.md#agreement-with-ta-lib)).
 
 ## See also
 

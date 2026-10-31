@@ -19,6 +19,14 @@ def test_known_values() -> None:
     assert result[2:] == EXPECTED
 
 
+def test_a_tiny_base_gives_zero_not_infinity() -> None:
+    # A volume of 1e-300 is zero against 5e6, so the output stays finite.
+    result = pyta.vroc([1e-300, 5.0e6, 0.0, 10.0], period=1)
+
+    assert np.isfinite(result[1:]).all()
+    assert result[1:] == [0.0, -100.0, 0.0]
+
+
 def test_matches_roc_of_the_volume_column(ohlcv: Ohlcv) -> None:
     # The same shared kernel as ROC, so every value is identical.
     np.testing.assert_array_equal(

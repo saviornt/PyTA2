@@ -23,16 +23,19 @@ NAMES = ["aroon_up", "aroon_down", "aroon_osc"]
 def reference_aroon(
     high: NDArray[np.float64], low: NDArray[np.float64], period: int
 ) -> list[NDArray[np.float64]]:
-    """Aroon computed independently of PyTA, by rescanning every window of `period` + 1 rows."""
+    """Aroon computed independently of PyTA, by rescanning every window of `period` + 1 rows.
+
+    Clamped to [0, 100] and [-100, 100], as PyTA documents.
+    """
     factor = 100.0 / period
     warm_up = np.full(period, np.nan)
     # argmax returns the first of equal values; reversing each window makes it the newest.
     since_high = sliding_window_view(high, period + 1)[:, ::-1].argmax(axis=1)
     since_low = sliding_window_view(low, period + 1)[:, ::-1].argmin(axis=1)
-    up = factor * (period - since_high)
-    down = factor * (period - since_low)
+    up = np.minimum(factor * (period - since_high), 100.0)
+    down = np.minimum(factor * (period - since_low), 100.0)
     # TA-Lib's AROONOSC: factor * (row of the highest high - row of the lowest low).
-    osc = factor * (since_low - since_high)
+    osc = np.clip(factor * (since_low - since_high), -100.0, 100.0)
     return [np.concatenate([warm_up, line]) for line in (up, down, osc)]
 
 
@@ -74,6 +77,23 @@ def test_warm_up_is_period_and_values_are_bounded(ohlcv: Ohlcv, period: int) -> 
     assert ((up[valid] >= 0) & (up[valid] <= 100)).all()
     assert ((down[valid] >= 0) & (down[valid] <= 100)).all()
     np.testing.assert_allclose(osc[valid], up[valid] - down[valid], rtol=0, atol=1e-12)
+
+
+@pytest.mark.parametrize("period", [11, 22, 39])
+def test_a_new_extreme_reads_exactly_100_for_every_period(period: int) -> None:
+    # (100 / 11) * 11 is 100.00000000000001 in IEEE doubles (TA-Lib writes it); PyTA clamps.
+    assert (100.0 / period) * period > 100.0
+    rising = np.arange(60, dtype=np.float64)
+    falling = rising[::-1].copy()
+
+    up, down, osc = pyta.aroon({"high": rising, "low": rising}, period=period).values()
+    assert (up[period:] == 100.0).all()
+    assert (down[period:] == 0.0).all()
+    assert (osc[period:] == 100.0).all()
+    up, down, osc = pyta.aroon({"high": falling, "low": falling}, period=period).values()
+    assert (up[period:] == 0.0).all()
+    assert (down[period:] == 100.0).all()
+    assert (osc[period:] == -100.0).all()
 
 
 def test_the_window_holds_period_plus_one_rows() -> None:

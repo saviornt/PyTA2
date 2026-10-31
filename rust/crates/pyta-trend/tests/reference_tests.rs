@@ -260,8 +260,9 @@ fn check_aroon(name: &str) {
         assert_output_matches(actual, &reference, index);
     }
     // Every value is a multiple of `100 / period` written with TA-Lib's own
-    // expressions (the oscillator as `factor * (highest - lowest)`), so all
-    // three outputs match the wheel's doubles bit for bit.
+    // expressions (the oscillator as `factor * (highest - lowest)`), and
+    // the clamp to [0, 100] never binds at period 14, so all three outputs
+    // match the wheel's doubles bit for bit.
     for (output, (actual, expected)) in output.outputs().iter().zip(&reference.outputs).enumerate()
     {
         for (index, (a, e)) in actual.iter().zip(expected).enumerate() {

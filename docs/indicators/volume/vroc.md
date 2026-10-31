@@ -74,6 +74,7 @@ pyta.batch.volume.vroc({"SPY": spy, "QQQ": qqq})        # dict of results, same 
 | Volume unchanged over `period` rows | `0` |
 | Volume now zero | `−100` |
 | Volume `period` rows earlier exactly zero | `0`, as TA-Lib writes (not an infinity) |
+| Volume `period` rows earlier zero next to the current one (`|earlier| ≤ 1e-14 × |volume|`, such as `1e-300` against `5e6`) | `0`, as for [ROC](../momentum/roc.md), so every value is finite; TA-Lib divides here and can return `±inf` |
 | Flat volume | `0` |
 
 ## Missing and invalid data
@@ -91,7 +92,7 @@ The negative-volume check applies to every single-column indicator whose column 
 
 ## Implementation notes
 
-TA-Lib has no separate Volume ROC; PyTA applies TA-Lib 0.8.3's `ROC` to volume, through the same shared kernel as `pyta.roc` (`pyta_core::kernels::rate_of_change`), so the two give identical bits on the same column. Both TA-Lib fixtures (`talib.ROC` of the SPY and edge-series volumes, the edge series with zero-volume rows) match bit for bit. The default period is TA-Lib's ROC default, 10.
+TA-Lib has no separate Volume ROC; PyTA applies TA-Lib 0.8.3's `ROC` to volume, through the same shared kernel as `pyta.roc` (`pyta_core::kernels::rate_of_change`), so the two give identical bits on the same column. Both TA-Lib fixtures (`talib.ROC` of the SPY and edge-series volumes, the edge series with zero-volume rows) match bit for bit; the scaled zero test on the earlier volume (ROC's) is the one deliberate difference from TA-Lib's exact `0` test. The default period is TA-Lib's ROC default, 10.
 
 ## See also
 

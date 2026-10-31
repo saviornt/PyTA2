@@ -20,7 +20,7 @@ fn lines_of(high: &[f64], low: &[f64], period: usize) -> [Vec<f64>; 3] {
 }
 
 /// Aroon by its definition: rescan each window of `period + 1` rows, ties
-/// to the later row, and write TA-Lib's expressions.
+/// to the later row, and write TA-Lib's expressions, clamped to the range.
 fn reference_lines(high: &[f64], low: &[f64], period: usize) -> [Vec<f64>; 3] {
     let length = high.len();
     let factor = 100.0 / period as f64;
@@ -34,9 +34,9 @@ fn reference_lines(high: &[f64], low: &[f64], period: usize) -> [Vec<f64>; 3] {
         let lowest = window
             .reduce(|best, i| if low[i] <= low[best] { i } else { best })
             .unwrap();
-        up.push(factor * (period - (today - highest)) as f64);
-        down.push(factor * (period - (today - lowest)) as f64);
-        osc.push(factor * (highest as f64 - lowest as f64));
+        up.push((factor * (period - (today - highest)) as f64).min(100.0));
+        down.push((factor * (period - (today - lowest)) as f64).min(100.0));
+        osc.push((factor * (highest as f64 - lowest as f64)).clamp(-100.0, 100.0));
     }
     [up, down, osc]
 }
@@ -276,14 +276,39 @@ fn aroon_ignores_the_magnitude_of_its_input() {
 }
 
 #[test]
-fn a_new_extreme_with_period_eleven_is_talibs_hundred_plus_one_ulp() {
-    // Found by proptest: `(100 / 11) * 11` rounds to 100.00000000000001.
-    // TA-Lib writes the same double, so it is kept rather than clamped.
+fn a_new_extreme_with_period_eleven_is_clamped_to_one_hundred() {
+    // Found by proptest: `(100 / 11) * 11` rounds to 100.00000000000001,
+    // which TA-Lib writes; PyTA clamps it so the range holds exactly.
     let rising: Vec<f64> = (0..20).map(f64::from).collect();
+    let falling: Vec<f64> = rising.iter().rev().copied().collect();
+    let eleven = std::hint::black_box(11.0_f64);
+    assert!((100.0 / eleven) * eleven > 100.0);
 
-    let [up, down, _] = lines_of(&rising, &rising, 11);
+    let [up, down, osc] = lines_of(&rising, &rising, 11);
 
-    assert_eq!(up[11], 100.000_000_000_000_01);
-    assert_eq!(up[11].to_bits(), ((100.0 / 11.0) * 11.0_f64).to_bits());
-    assert_eq!(down[11], 0.0);
+    assert!(
+        up[11..]
+            .iter()
+            .all(|value| value.to_bits() == 100.0_f64.to_bits())
+    );
+    assert!(down[11..].iter().all(|value| *value == 0.0));
+    assert!(
+        osc[11..]
+            .iter()
+            .all(|value| value.to_bits() == 100.0_f64.to_bits())
+    );
+
+    let [up, down, osc] = lines_of(&falling, &falling, 11);
+
+    assert!(up[11..].iter().all(|value| *value == 0.0));
+    assert!(
+        down[11..]
+            .iter()
+            .all(|value| value.to_bits() == 100.0_f64.to_bits())
+    );
+    assert!(
+        osc[11..]
+            .iter()
+            .all(|value| value.to_bits() == (-100.0_f64).to_bits())
+    );
 }

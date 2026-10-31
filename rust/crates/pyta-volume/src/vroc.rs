@@ -10,8 +10,10 @@ use pyta_core::{IndicatorOutput, PytaError, PytaResult, Series};
 /// ROC). The first `period` positions are `NaN` (warm-up). At least
 /// `period + 1` values are required.
 ///
-/// Edge case, as TA-Lib: when the earlier volume is exactly 0 the result is
-/// 0, not an infinity.
+/// Edge case: when the earlier volume is zero relative to the current one
+/// (`|earlier| <= 1e-14 * |volume|`, an exact 0 included) the result is 0,
+/// so every value is finite. TA-Lib tests only an exact 0, which gives a
+/// huge value or an infinity on a tiny non-zero base.
 ///
 /// Volume is not checked for sign here (the Python layer rejects negative
 /// volume).

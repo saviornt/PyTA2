@@ -30,8 +30,11 @@ const MIN_PERIOD: usize = 2;
 ///   low, so up and down are 100 and the oscillator 0.
 /// - Every value is `100 / period` times a whole number of rows, from 0 to
 ///   100 (the oscillator from -100 to 100). For some periods (11, 22, 39,
-///   ...) `(100 / period) * period` rounds to one ulp above or below 100,
-///   and TA-Lib writes the same double.
+///   ...) `(100 / period) * period` rounds to one ulp above 100, as TA-Lib
+///   writes it; up and down are clamped to `[0, 100]` and the oscillator to
+///   `[-100, 100]` (as RSI is), so the documented range holds exactly. For
+///   a few others (97, 161, ...) it rounds one ulp below 100, which the
+///   clamp leaves, within the 1e-9 tolerance to TA-Lib like the rest.
 ///
 /// The columns are not checked against each other (for example high
 /// below low); the Python layer does that before calling.
@@ -74,13 +77,13 @@ pub fn aroon(high: &Series, low: &Series, period: usize) -> PytaResult<Indicator
     // Row indices are far below 2^53, so as `f64` they and their
     // differences are exact, like TA-Lib's `int` arithmetic.
     for_each_window_max(high, required, |row, index| {
-        up[row] = factor * (period - (row - index)) as f64;
+        up[row] = (factor * (period - (row - index)) as f64).min(100.0);
         // Holds the highest high's row until the lows are walked.
         oscillator[row] = index as f64;
     });
     for_each_window_min(low, required, |row, index| {
-        down[row] = factor * (period - (row - index)) as f64;
-        oscillator[row] = factor * (oscillator[row] - index as f64);
+        down[row] = (factor * (period - (row - index)) as f64).min(100.0);
+        oscillator[row] = (factor * (oscillator[row] - index as f64)).clamp(-100.0, 100.0);
     });
 
     IndicatorOutput::with_outputs(vec![up, down, oscillator])

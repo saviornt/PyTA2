@@ -136,15 +136,15 @@ Follows TA-Lib's `SAR` (Wilder, 1978) on high and low. The first direction is TA
 
 - Needs at least 2 rows; the first value is `NaN` (warm-up), as in TA-Lib.
 - `acceleration` (default 0.02) is the start and the step; `maximum` (default 0.2) the cap. Both are finite and above 0, and `acceleration <= maximum`: TA-Lib lowers a larger `acceleration` silently, PyTA raises. TA-Lib's `SAREXT` (separate start, step and per-direction values) is not provided.
-- TA-Lib fuses `AF * (EP - SAR) + SAR` into one `fma`; PyTA uses a plain multiply and add, so a few values differ from TA-Lib's in the last bit (at most 2.1e-16 relative on the reference series).
+- TA-Lib fuses `AF * (EP - SAR) + SAR` into one `fma`; PyTA uses a plain multiply and add (see [Agreement with TA-Lib](#agreement-with-ta-lib)), so a few values differ from TA-Lib's in the last bit (at most 2.1e-16 relative on the reference series).
 
 ### AROON (Aroon)
 
-Follows TA-Lib's `AROON` and `AROONOSC` (Chande, 1995), bit for bit, on high and low. Each row looks back over `period + 1` rows: the current row and the `period` before it. `aroon_up = 100 / period * (period - rows since the highest high)`, `aroon_down` the same with the lowest low; a tie goes to the most recent row, as in TA-Lib. `aroon_osc = 100 / period * (row of the highest high - row of the lowest low)`, which is `aroon_up - aroon_down` (written as TA-Lib's `AROONOSC` writes it). Three outputs, in the order `aroon_up`, `aroon_down`, `aroon_osc` (title case `Aroon_Up`, `Aroon_Down`, `Aroon_Osc`); TA-Lib's `AROON` returns down before up.
+Follows TA-Lib's `AROON` and `AROONOSC` (Chande, 1995) on high and low, bit for bit except where the clamp below binds. Each row looks back over `period + 1` rows: the current row and the `period` before it. `aroon_up = 100 / period * (period - rows since the highest high)`, `aroon_down` the same with the lowest low; a tie goes to the most recent row, as in TA-Lib. `aroon_osc = 100 / period * (row of the highest high - row of the lowest low)`, which is `aroon_up - aroon_down` (written as TA-Lib's `AROONOSC` writes it). Three outputs, in the order `aroon_up`, `aroon_down`, `aroon_osc` (title case `Aroon_Up`, `Aroon_Down`, `Aroon_Osc`); TA-Lib's `AROON` returns down before up.
 
 - Needs at least `period + 1` rows; every output has values from row `period`.
 - `period` is at least 2 (TA-Lib's minimum); the default is 14, TA-Lib's (Chande used 25). TA-Lib caps `period` at 100,000; PyTA does not.
-- A flat window gives `aroon_up` and `aroon_down` 100 and `aroon_osc` 0. For some periods (11, 22, 39, ...) `100 / period * period` rounds to one unit in the last place above or below 100, as in TA-Lib.
+- A flat window gives `aroon_up` and `aroon_down` 100 and `aroon_osc` 0. `aroon_up` and `aroon_down` are clamped to `[0, 100]` and `aroon_osc` to `[-100, 100]` (as `rsi` is): for some periods (11, 22, 39, ...) `100 / period * period` rounds to `100.00000000000001`, which TA-Lib returns and PyTA clamps to 100. For a few others (97, 161, ...) it rounds one unit in the last place below 100, which is kept.
 
 ### ICHIMOKU (Ichimoku Cloud)
 
@@ -189,10 +189,10 @@ Follows TA-Lib 0.8.3's `WILLR`, bit for bit: `%R = (highest high - close) / (hig
 
 ### ROC (Rate of Change)
 
-Follows TA-Lib 0.8.3's `ROC`, bit for bit: `ROC = (value / value period rows earlier - 1) * 100`, the percentage change over `period` rows.
+Follows TA-Lib 0.8.3's `ROC`, bit for bit except on a near-zero base (below): `ROC = (value / value period rows earlier - 1) * 100`, the percentage change over `period` rows.
 
 - `period` defaults to 10 (TA-Lib; StockCharts uses 12) and is at least 1. Needs at least `period + 1` values. The first `period` results are `NaN` (warm-up).
-- An earlier value of exactly `0` gives `0`, as TA-Lib writes; a tiny non-zero one can give `±inf`, as in TA-Lib. Flat prices give `0`.
+- An earlier value that is zero relative to the current one (`|earlier| <= 1e-14 * |value|`, exact `0` included) gives `0`, so every result is finite. TA-Lib writes `0` only for an exact `0` and divides by a tiny non-zero one, which can give `±inf`. Flat prices give `0`.
 - One column, `close` by default. TA-Lib's `ROCP`, `ROCR` and `ROCR100` are not separate functions: they are `roc / 100`, `roc / 100 + 1` and `roc + 100` (see the [ROC page](indicators/momentum/roc.md)).
 
 ### MFI (Money Flow Index)
@@ -208,7 +208,7 @@ Follows TA-Lib 0.8.3's `MFI` (Quong and Soudack), bit for bit: each row's money 
 Follows TA-Lib 0.8.3's `TRIX` (Hutson): three cascaded EMAs of `period` (each seeded with the mean of its input's first `period` values, as `ema`), then `TRIX = (EMA3 / previous EMA3 - 1) * 100`.
 
 - `period` defaults to 30 (TA-Lib; Hutson and StockCharts use 15) and is at least 1. Needs at least `3 * period - 1` values. The first `3 * (period - 1) + 1` results are `NaN` (warm-up). `period=1` is the one-row `roc`.
-- A previous EMA3 of exactly `0` gives `0`, as TA-Lib writes; flat prices give `0`. The EMAs use PyTA's shared update, `(price - previous) * k + previous`, where TA-Lib 0.8.3 fuses its own (`fma`), so values agree with TA-Lib's to about `4e-13` relative and equal `roc(ema(ema(ema(x, n), n), n), 1)` bit for bit.
+- A previous EMA3 that is zero relative to the current one (`|previous| <= 1e-14 * |EMA3|`, exact `0` included) gives `0`, as `roc`; flat prices give `0`. The EMAs use PyTA's shared update, `(price - previous) * k + previous`, where TA-Lib 0.8.3 fuses its own (`fma`), so values agree with TA-Lib's to about `4e-13` relative (see [Agreement with TA-Lib](#agreement-with-ta-lib)) and equal `roc(ema(ema(ema(x, n), n), n), 1)` bit for bit.
 - One column, `close` by default. The signal line is not part of TRIX: use `ema(trix, 9)`. Output `trix` (`TRIX` in title case).
 
 ### ULTOSC (Ultimate Oscillator)
@@ -297,10 +297,10 @@ Not a TA-Lib function. Each row's typical price `(high + low + close) / 3` weigh
 
 ### VROC (Volume Rate of Change)
 
-TA-Lib 0.8.3's `ROC` applied to volume, bit for bit: `VROC = (volume / volume period rows earlier - 1) * 100`, through the same kernel as `roc`.
+TA-Lib 0.8.3's `ROC` applied to volume, bit for bit except on a near-zero base (below): `VROC = (volume / volume period rows earlier - 1) * 100`, through the same kernel as `roc`.
 
 - `period` defaults to 10 (TA-Lib's ROC default) and is at least 1. Needs at least `period + 1` values. The first `period` results are `NaN` (warm-up).
-- An earlier volume of exactly `0` gives `0`, as TA-Lib writes.
+- An earlier volume that is zero relative to the current one (`|earlier| <= 1e-14 * |volume|`, exact `0` included) gives `0`, so every result is finite; TA-Lib writes `0` only for an exact `0`.
 - One column, `volume` by default (`column=` picks another; a lone column is used whatever its name). A negative value in a column matched to the volume role raises `ValueError`, as for multi-column input; unnamed input is not checked. Output `vroc` (`VROC` in title case: an abbreviation).
 
 ## 4. Input containers
@@ -387,9 +387,13 @@ pyta.sma(df, period=20, column="adjusted close") # the "Adj Close" column
 - A pandas result keeps the input's index; positions are never reordered.
 - Outputs are named after the indicator, without parameters (`sma`, not `sma_20`); a multi-output indicator names each output `<indicator>_<part>` after the main one (`macd`, `macd_signal`, `macd_hist`). The casing follows the input's columns ([§11](#11-multi-output-indicators)).
 
+### Agreement with TA-Lib
+
+PyTA promises agreement with TA-Lib 0.8.3 within `1e-9` (the tolerance of every TA-Lib reference test in `tests/fixtures/`), not bit for bit. Every kernel uses plain multiplies and adds; none uses a fused multiply-add (`fma`) or picks code by CPU at run time. TA-Lib 0.8.3 writes some updates as `fma` (the EMA update in EMA, DEMA, TEMA, MACD and TRIX; SAR's step), and its wheel fuses some of them, so those indicators can differ from TA-Lib's own output in the last bits. On the reference series the largest relative differences are `2e-16` (EMA), `4e-16` (DEMA), `1.2e-15` (TEMA), `2.1e-16` (SAR), `4e-13` (TRIX) and `2.1e-12` (MACD, whose line is a difference of two EMAs and so loses relative precision near zero), all far inside `1e-9`. Many indicators still match bit for bit (each section in [§3](#3-indicators) says which). The deliberate differences where PyTA's result is not TA-Lib's at all, such as ROC's near-zero base and Aroon's clamp, are listed with each indicator.
+
 ### Undefined ratios
 
-Where a formula divides by zero, PyTA returns what TA-Lib 0.8.3 returns, so results match it row for row; the indicators TA-Lib lacks return `NaN`. "Flat" means zero within TA-Lib's tolerance (`1e-14` of the values' scale). Each indicator's section in [§3](#3-indicators) gives the details.
+Where a formula divides by zero, PyTA returns what TA-Lib 0.8.3 returns, so results match it row for row (except ROC's near-zero base, below); the indicators TA-Lib lacks return `NaN`. "Flat" means zero within TA-Lib's tolerance (`1e-14` of the values' scale). Each indicator's section in [§3](#3-indicators) gives the details.
 
 | Case | Result |
 |---|---|
@@ -397,7 +401,7 @@ Where a formula divides by zero, PyTA returns what TA-Lib 0.8.3 returns, so resu
 | CCI, STDDEV, Bollinger Bands: flat window | `0`; three equal bands |
 | MFI: no money flow in the window | `0` |
 | Ultimate Oscillator: a window with no true range | that window's term is dropped (the divisor stays 7) |
-| ROC, Volume ROC, TRIX: earlier value exactly `0` | `0` (a tiny nonzero earlier value can give `±inf`, as in TA-Lib) |
+| ROC, Volume ROC, TRIX: earlier value zero within `1e-14` of the current value's magnitude | `0`, so the result is always finite (TA-Lib: `0` only for an exact `0`; a tiny non-zero value can give `±inf`) |
 | A/D, CMF: high equal to low | the row adds `0` |
 | ADX: no true range | both DIs `0`, ADX keeps its value |
 | CMF: no volume in the window; VWAP: no volume yet | `NaN` |

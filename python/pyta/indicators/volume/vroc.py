@@ -46,9 +46,10 @@ def vroc(
     """Volume Rate of Change: TA-Lib's `ROC` applied to volume.
 
     The percentage change from the volume `period` rows earlier:
-    (volume / earlier volume - 1) * 100. When the earlier volume is exactly 0
-    the result is 0, as TA-Lib writes. Needs at least `period + 1` values. The
-    first `period` results are NaN (warm-up).
+    (volume / earlier volume - 1) * 100. When the earlier volume is zero
+    relative to the current one (at most 1e-14 of its magnitude, exactly 0
+    included) the result is 0, so every result is finite. Needs at least
+    `period + 1` values. The first `period` results are NaN (warm-up).
 
     Args:
         data: Volumes as a list, tuple, NumPy array, pandas Series or

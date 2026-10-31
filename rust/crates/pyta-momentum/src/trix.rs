@@ -1,4 +1,4 @@
-use pyta_core::kernels::{ema_multiplier, ema_step, rate_of_change};
+use pyta_core::kernels::{ema_multiplier, ema_step, is_zero_scaled, rate_of_change};
 use pyta_core::{IndicatorOutput, PytaError, PytaResult, Series};
 
 /// Calculates Jack Hutson's TRIX, as TA-Lib 0.8.3's `TA_TRIX`: the one-row
@@ -22,8 +22,10 @@ use pyta_core::{IndicatorOutput, PytaError, PytaResult, Series};
 /// EMA update as `fma(beta, previous, k * value)`, so the two differ in the
 /// last bits of the EMAs (within `4e-13` relative on its fixtures).
 ///
-/// Edge case, as TA-Lib: when the previous `EMA3` is exactly 0 the result
-/// is 0, not an infinity.
+/// Edge case: when the previous `EMA3` is zero relative to the current one
+/// (`|previous| <= 1e-14 * |EMA3|`, an exact 0 included) the result is 0,
+/// so every value is finite. TA-Lib tests only an exact 0, which gives an
+/// infinity on a tiny non-zero previous `EMA3`.
 ///
 /// # Errors
 ///
@@ -90,7 +92,7 @@ pub fn trix(input: &Series, period: usize) -> PytaResult<IndicatorOutput> {
         ema2 = ema_step(ema2, ema1, k);
         ema3 = ema_step(ema3, ema2, k);
         // `kernels::rate_of_change_into`'s expression and zero rule.
-        *slot = if previous == 0.0 {
+        *slot = if is_zero_scaled(previous, ema3.abs()) {
             0.0
         } else {
             (ema3 / previous - 1.0) * 100.0

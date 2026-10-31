@@ -39,7 +39,7 @@ fn roc_matches_a_hand_calculation() {
 
 #[test]
 fn roc_is_zero_for_a_zero_base_and_for_flat_input() {
-    // TA-Lib: an earlier value of exactly 0 gives 0, not an infinity.
+    // An earlier value of exactly 0 gives 0, not an infinity (as TA-Lib).
     let output = roc_of(&[0.0, 5.0, 5.0, 0.0, 5.0], 1);
     assert_eq!(output[1..], [0.0, 0.0, -100.0, 0.0]);
 
@@ -93,9 +93,11 @@ fn roc_is_finite_at_the_magnitude_limit() {
 }
 
 #[test]
-fn roc_overflows_to_infinity_on_a_tiny_nonzero_base_as_talib() {
-    // Only an exact 0 base is guarded (TA-Lib's `!= 0.0`), so a ratio past
-    // `f64::MAX`, here 1e10 / 1e-300, is an infinity, as TA-Lib's is.
-    let output = roc_of(&[1e-300, 1e10], 1);
-    assert_eq!(output[1], f64::INFINITY);
+fn roc_is_zero_on_a_tiny_base_where_talib_overflows_to_infinity() {
+    // A base within 1e-14 of the current value's size counts as zero, so
+    // 1e10 / 1e-300 (an infinity in TA-Lib) and 1 / 1e-300 read 0.
+    let output = roc_of(&[1e-300, 1e10, 1e-300, 1.0], 1);
+    assert_eq!(output[1], 0.0);
+    assert_eq!(output[3], 0.0);
+    assert!(output[1..].iter().all(|value| value.is_finite()));
 }

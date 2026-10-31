@@ -85,7 +85,7 @@ fn trix_is_zero_on_flat_prices_and_when_the_previous_ema_is_zero() {
     let output = trix_of(&[105.0; 10], 2);
     assert!(output[4..].iter().all(|value| *value == 0.0));
 
-    // TA-Lib: a zero previous EMA3 gives 0, not an infinity.
+    // A zero previous EMA3 gives 0, not an infinity (as TA-Lib).
     let output = trix_of(&[0.0, 0.0, 0.0, 0.0, 0.0, 3.0], 2);
     assert_eq!(output[4..], [0.0, 0.0]);
 }

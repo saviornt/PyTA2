@@ -71,7 +71,7 @@ def test_period_one_is_the_one_row_roc(ohlcv: Ohlcv) -> None:
 
 def test_flat_prices_and_a_zero_previous_ema_give_zero() -> None:
     assert (pyta.trix(np.full(20, 7.5), period=3)[7:] == 0.0).all()
-    # TA-Lib: a zero previous EMA3 gives 0, not an infinity.
+    # A zero previous EMA3 gives 0, not an infinity (as TA-Lib).
     assert pyta.trix([0.0, 0.0, 0.0, 0.0, 0.0, 3.0], period=2)[4:] == [0.0, 0.0]
 
 

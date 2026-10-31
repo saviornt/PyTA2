@@ -8,8 +8,15 @@ pub fn ema_multiplier(period: usize) -> f64 {
     2.0 / (period + 1) as f64
 }
 
-/// One EMA update: `(value - previous) * k + previous`, TA-Lib's order of
-/// operations, which every PyTA EMA uses so their results agree bit for bit.
+/// One EMA update: `(value - previous) * k + previous`, the order of
+/// operations of TA-Lib's older `INT_EMA`, which every PyTA EMA uses so
+/// their results agree bit for bit with each other.
+///
+/// TA-Lib 0.8.3 writes the update as `fma(beta, previous, k * value)` with
+/// `beta = (period - 1) / (period + 1)`; PyTA keeps plain multiplies and
+/// adds (the project's policy: agreement with TA-Lib within `1e-9`, not bit
+/// for bit), so EMA-based results differ from 0.8.3's in the last bits
+/// (EMA at most `2e-16` relative on its reference series).
 #[inline]
 #[must_use]
 pub fn ema_step(previous: f64, value: f64, k: f64) -> f64 {
@@ -49,8 +56,10 @@ pub fn ema(values: &[f64], period: usize) -> Vec<f64> {
 /// The seed, at `start`, is the simple average of the `period` values ending
 /// there (a left-to-right sum divided by `period`), so `start` may be later
 /// than `period - 1`: MACD seeds its fast EMA at the slow one's start that
-/// way. Every later value is [`ema_step`]. The arithmetic follows TA-Lib's
-/// `INT_EMA` in the same order, so results match it bit for bit.
+/// way. Every later value is [`ema_step`]. The seed follows TA-Lib's
+/// `INT_EMA`; the update is not 0.8.3's fused form (see [`ema_step`]), so
+/// results agree with TA-Lib 0.8.3 within its reference tolerance rather
+/// than bit for bit.
 ///
 /// The caller guarantees `1 <= period <= start + 1 <= values.len()` and
 /// `output.len() == values.len()`.

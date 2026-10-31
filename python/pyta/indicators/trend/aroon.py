@@ -37,10 +37,11 @@ def aroon(
     Each row looks back over `period` + 1 rows: the current row and the
     `period` before it. `aroon_up` is 100 * (`period` - rows since the highest
     high) / `period`, `aroon_down` the same with the lowest low; a tie goes to
-    the most recent row. `aroon_osc` is `aroon_up` - `aroon_down`. Identical to
-    TA-Lib's AROON and AROONOSC. Needs at least `period` + 1 rows; the first
-    `period` results of every output are NaN (warm-up). A flat window gives 100,
-    100 and 0.
+    the most recent row. `aroon_osc` is `aroon_up` - `aroon_down`. TA-Lib's
+    AROON and AROONOSC, clamped to [0, 100] and [-100, 100] (for periods such
+    as 11, TA-Lib returns 100.00000000000001 at a new extreme). Needs at
+    least `period` + 1 rows; the first `period` results of every output are
+    NaN (warm-up). A flat window gives 100, 100 and 0.
 
     Args:
         data: High and low prices: a pandas DataFrame, dict of columns, JSON

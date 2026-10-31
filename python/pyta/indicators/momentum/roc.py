@@ -46,9 +46,10 @@ def roc(
     """Rate of Change, as TA-Lib's `ROC`.
 
     The percentage change from the value `period` rows earlier:
-    (value / earlier value - 1) * 100. When the earlier value is exactly 0 the
-    result is 0, as TA-Lib writes. Needs at least `period + 1` values. The
-    first `period` results are NaN (warm-up).
+    (value / earlier value - 1) * 100. When the earlier value is zero relative
+    to the current one (at most 1e-14 of its magnitude, exactly 0 included)
+    the result is 0, so every result is finite. Needs at least `period + 1`
+    values. The first `period` results are NaN (warm-up).
 
     Args:
         data: Closing prices as a list, tuple, NumPy array, pandas Series or

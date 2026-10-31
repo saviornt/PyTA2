@@ -10,11 +10,12 @@ from ohlcv_data import Ohlcv
 
 
 def reference_roc(prices: NDArray[np.float64], period: int) -> NDArray[np.float64]:
-    """TA-Lib's ROC written out with NumPy: (price / earlier - 1) * 100, 0 on a zero base."""
+    """TA-Lib's ROC written out with NumPy: (price / earlier - 1) * 100, 0 on a scaled-zero base."""
     out = np.full(prices.shape[0], np.nan)
     earlier = prices[:-period]
     with np.errstate(divide="ignore", invalid="ignore"):
-        out[period:] = np.where(earlier != 0.0, (prices[period:] / earlier - 1.0) * 100.0, 0.0)
+        zero = np.abs(earlier) <= 1e-14 * np.abs(prices[period:])
+        out[period:] = np.where(zero, 0.0, (prices[period:] / earlier - 1.0) * 100.0)
     return out
 
 
@@ -43,9 +44,19 @@ def test_default_period_is_ten(ohlcv: Ohlcv) -> None:
 
 
 def test_zero_base_gives_zero_and_flat_prices_give_zero() -> None:
-    # TA-Lib: an earlier value of exactly 0 gives 0, not an infinity.
+    # An earlier value of exactly 0 gives 0, not an infinity (as TA-Lib).
     assert pyta.roc([0.0, 5.0, 5.0, 0.0, 5.0], period=1)[1:] == [0.0, 0.0, -100.0, 0.0]
     assert (pyta.roc(np.full(20, 7.5), period=5)[5:] == 0.0).all()
+
+
+def test_a_tiny_base_gives_zero_where_talib_gives_infinity() -> None:
+    # |earlier| <= 1e-14 * |current| counts as zero, so every output is finite.
+    result = pyta.roc(np.array([1e-300, 1e10, 1e-300, 1.0, 1e-14, 1.0, 2e-14, 1.0]), period=1)
+
+    assert np.isfinite(result[1:]).all()
+    assert list(result[[1, 3, 5]]) == [0.0, 0.0, 0.0]
+    # Just above the scaled zero the ratio is written.
+    assert result[7] == (1.0 / 2e-14 - 1.0) * 100.0
 
 
 def test_needs_period_plus_one_values() -> None:

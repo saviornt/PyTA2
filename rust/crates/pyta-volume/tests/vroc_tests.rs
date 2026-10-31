@@ -47,6 +47,14 @@ fn vroc_is_bit_for_bit_the_shared_rate_of_change() {
 }
 
 #[test]
+fn vroc_is_zero_on_a_tiny_base_where_talib_overflows_to_infinity() {
+    // A volume of 1e-300 is zero against 5e6 (|base| <= 1e-14 * 5e6).
+    let output = vroc_of(&[1e-300, 5.0e6, 0.0, 10.0], 1);
+
+    assert_eq!(output[1..], [0.0, -100.0, 0.0]);
+}
+
+#[test]
 fn vroc_rejects_a_zero_period() {
     assert_eq!(vroc(&series(&VOLUME), 0), Err(PytaError::InvalidPeriod));
 }

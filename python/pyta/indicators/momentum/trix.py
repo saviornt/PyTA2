@@ -48,8 +48,8 @@ def trix(
     The one-row rate of change, in percent, of a triple-smoothed EMA: EMA1 of
     the prices, EMA2 of EMA1 and EMA3 of EMA2, all over `period` and each
     seeded with the mean of its input's first `period` values, then
-    (EMA3 / previous EMA3 - 1) * 100. A zero previous EMA3 gives 0, as TA-Lib
-    writes. Needs at least `3 * period - 1` values. The first
+    (EMA3 / previous EMA3 - 1) * 100. A previous EMA3 that is zero relative to
+    the current one gives 0, as in `pyta.roc`. Needs at least `3 * period - 1` values. The first
     `3 * (period - 1) + 1` results are NaN (warm-up). The signal line is not
     part of TRIX: take `pyta.ema` of the result.
 

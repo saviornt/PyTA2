@@ -84,7 +84,7 @@ The derived values can differ from TA-Lib's own in the last bit. Where the earli
 | Flat prices | `0` |
 | The earlier price is exactly `0` | `0`, as TA-Lib writes (not an infinity) |
 | The current price is `0` (earlier non-zero) | `−100` |
-| A tiny but non-zero earlier price | A very large value, or `±inf` once the ratio passes the largest double (as TA-Lib) |
+| An earlier price that is zero next to the current one (`|earlier| ≤ 1e-14 × |price|`, such as `1e-300` against `5`) | `0`, so every value is finite (below `1e14` %). TA-Lib divides here and returns a huge value or `±inf` |
 
 ROC is meant for prices, which are positive. With negative values (spreads, returns) the sign of the result follows the ratio, as in TA-Lib, and is hard to read.
 
@@ -99,7 +99,7 @@ ROC is meant for prices, which are positive. With negative values (spreads, retu
 
 ## Implementation notes
 
-PyTA follows TA-Lib 0.8.3's `TA_ROC`: the same expression in the same order (`(price / earlier − 1) × 100`), the exact-zero rule for the earlier price, the warm-up (`period`) and the default (10). It matches TA-Lib's own output bit for bit on 300 real SPY closes and on a synthetic edge series with a zero price (`tests/fixtures/roc_10_talib.csv`, `roc_10_edge_talib.csv`, generated with TA-Lib 0.8.3). The calculation is the shared `pyta_core::kernels::rate_of_change`, which Volume ROC uses too; it costs one division per bar whatever the period. TA-Lib rejects periods above 100,000; PyTA accepts any period the data covers.
+PyTA follows TA-Lib 0.8.3's `TA_ROC`: the same expression in the same order (`(price / earlier − 1) × 100`), the warm-up (`period`) and the default (10). It matches TA-Lib's own output bit for bit on 300 real SPY closes and on a synthetic edge series with a zero price (`tests/fixtures/roc_10_talib.csv`, `roc_10_edge_talib.csv`, generated with TA-Lib 0.8.3). The one deliberate difference is the zero test on the earlier price: TA-Lib tests for exactly `0`, PyTA for zero relative to the current price (TA-Lib's own scaled test, `|earlier| ≤ 1e-14 × |price|`), so a tiny non-zero base gives `0` instead of an overflow and every output is finite; real prices never come near it. The calculation is the shared `pyta_core::kernels::rate_of_change`, which Volume ROC uses too; it costs one division per bar whatever the period. TA-Lib rejects periods above 100,000; PyTA accepts any period the data covers.
 
 ## See also
 

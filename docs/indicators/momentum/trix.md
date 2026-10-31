@@ -72,7 +72,7 @@ pyta.batch.momentum.trix({"SPY": spy, "QQQ": qqq})      # dict of results, same 
 | Flat prices | `0` |
 | The previous `EMA3` is exactly `0` | `0`, as TA-Lib writes (not an infinity) |
 | `period = 1` | Each EMA is a copy of its input, so TRIX is the one-bar [ROC](roc.md) of the price, as in TA-Lib |
-| A tiny but non-zero previous `EMA3` | A very large value, or `±inf` once the ratio passes the largest double (as TA-Lib) |
+| A previous `EMA3` that is zero next to the current one (`|previous| ≤ 1e-14 × |EMA3|`) | `0`, as for [ROC](roc.md), so every value is finite; TA-Lib divides here and can return `±inf` |
 
 TRIX is meant for prices, which are positive; with series that cross zero the ratio is hard to read, as for ROC.
 
@@ -87,7 +87,7 @@ TRIX is meant for prices, which are positive; with series that cross zero the ra
 
 ## Implementation notes
 
-PyTA follows TA-Lib 0.8.3's `TA_TRIX`: the same seeds, the same lockstep EMAs, the rate of change of `EMA3` with the exact-zero rule, the warm-up (`3 × (period − 1) + 1`) and the default (30, where Hutson used 15). TA-Lib 0.8.3 writes each EMA update as a fused multiply-add, `fma(beta, previous, k × price)`; PyTA uses the update every PyTA EMA shares, `(price − previous) × k + previous`, so the EMAs can differ from TA-Lib's in the last bits and TRIX agrees with TA-Lib's own output to about `4e-13` relative on 300 real SPY closes at periods 30 and 15 and on a synthetic edge series (`tests/fixtures/trix_30_talib.csv`, `trix_15_talib.csv`, `trix_30_edge_talib.csv`), well inside the `1e-9` tolerance. In exchange TRIX equals `pyta.roc(pyta.ema(pyta.ema(pyta.ema(x, n), n), n), 1)` bit for bit.
+PyTA follows TA-Lib 0.8.3's `TA_TRIX`: the same seeds, the same lockstep EMAs, the rate of change of `EMA3` (with ROC's scaled zero test on the previous `EMA3`, where TA-Lib tests for exactly `0`), the warm-up (`3 × (period − 1) + 1`) and the default (30, where Hutson used 15). TA-Lib 0.8.3 writes each EMA update as a fused multiply-add, `fma(beta, previous, k × price)`; PyTA uses the update every PyTA EMA shares, `(price − previous) × k + previous`, so the EMAs can differ from TA-Lib's in the last bits and TRIX agrees with TA-Lib's own output to about `4e-13` relative on 300 real SPY closes at periods 30 and 15 and on a synthetic edge series (`tests/fixtures/trix_30_talib.csv`, `trix_15_talib.csv`, `trix_30_edge_talib.csv`), well inside the `1e-9` tolerance. PyTA promises agreement with TA-Lib 0.8.3 within `1e-9`, not bit for bit, and uses plain multiplies and adds everywhere, never a fused multiply-add or code picked by CPU at run time ([API: Agreement with TA-Lib](../../API.md#agreement-with-ta-lib)). In exchange TRIX equals `pyta.roc(pyta.ema(pyta.ema(pyta.ema(x, n), n), n), 1)` bit for bit.
 
 The Rust kernel (`pyta-momentum`) runs the three EMAs and the rate of change in one pass, built from the shared `pyta_core` EMA step and kept bit for bit equal to three `kernels::ema` passes and `kernels::rate_of_change` (a property test checks it); its cost does not depend on `period`.
 

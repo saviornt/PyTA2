@@ -683,19 +683,20 @@ proptest! {
     #[test]
     fn aroon_lies_on_its_grid_and_osc_is_up_minus_down((high, low, period) in high_low_and_aroon_period()) {
         // Up and down are `100 / period` times a whole number of rows from
-        // 0 to `period`; the oscillator is their difference to rounding.
-        // `(100 / period) * period` is 100 give or take one ulp (period 11:
-        // 100.00000000000001, as TA-Lib), hence the bounds' tolerance.
+        // 0 to `period`, clamped to [0, 100] (period 11's
+        // `(100 / period) * period` is 100.00000000000001 unclamped); the
+        // oscillator is their difference to rounding, within [-100, 100].
         let output = aroon(&Series::new(high).unwrap(), &Series::new(low).unwrap(), period).unwrap();
         let [up, down, osc] = [0, 1, 2].map(|i| &output.outputs()[i]);
         let factor = 100.0 / period as f64;
 
         for row in period..up.len() {
             for value in [up[row], down[row]] {
-                prop_assert!((0.0..=100.0 + 1e-12).contains(&value), "row {}: {}", row, value);
+                prop_assert!((0.0..=100.0).contains(&value), "row {}: {}", row, value);
                 let steps = (value / factor).round();
                 prop_assert!((value - factor * steps).abs() <= 1e-9, "row {}: {}", row, value);
             }
+            prop_assert!((-100.0..=100.0).contains(&osc[row]), "row {}: {}", row, osc[row]);
             prop_assert!((osc[row] - (up[row] - down[row])).abs() <= 1e-9);
         }
     }
