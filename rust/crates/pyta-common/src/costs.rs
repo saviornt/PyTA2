@@ -6,7 +6,13 @@
 //! dependence on `period` in its estimate.
 
 /// Simple Moving Average, in nanoseconds per input element.
-pub const SMA_NS_PER_ELEMENT: f64 = 1.8;
+///
+/// Refit 2026-10-30 from the batch rows where the planner decides (`benches/results/benchmark_2026-10-30_18-34-48.txt`, `--batch --rust`, governor
+/// `performance`):
+/// at 1.8, 10 x 1,000 rows ran in parallel 1.15x slower than sequential
+/// (break-even ~1.6 ns/element there); 1.5 keeps it sequential and still
+/// parallelizes 10 x 10,000 and 1,000 x 100.
+pub const SMA_NS_PER_ELEMENT: f64 = 1.5;
 
 /// Relative Strength Index, in nanoseconds per input element.
 pub const RSI_NS_PER_ELEMENT: f64 = 3.0;
@@ -60,12 +66,18 @@ pub const CCI_NS_PER_WINDOW_VALUE: f64 = 0.24;
 /// 2.505 ms at 1,000,000 rows, scaled by `RSI_NS_PER_ELEMENT` (3.0 *
 /// 3.69). Only the per-row term was refit (`11.07 - 0.23 * 5`);
 /// separating the two terms needs a new period sweep.
-pub const STDDEV_NS_PER_ELEMENT: f64 = 9.9;
+///
+/// Both terms refit 2026-10-30: a period sweep of the release-built call
+/// at 1,000,000 rows (periods 2 to 200, best of 15) fits
+/// `7.55 + 0.215 * period` ms, and the batch rows (`benches/results/benchmark_2026-10-30_18-34-48.txt`, `--batch --rust`, governor
+/// `performance`)
+/// read 6.0-6.5 ns/element at period 5, so `6.2 - 0.21 * 5 = 5.1`.
+pub const STDDEV_NS_PER_ELEMENT: f64 = 5.1;
 
 /// Standard Deviation, in nanoseconds per row and per unit of `period`:
 /// each row's deviation is a fresh pass over its window, so the cost is
-/// O(rows * period). Measured as [`STDDEV_NS_PER_ELEMENT`].
-pub const STDDEV_NS_PER_WINDOW_VALUE: f64 = 0.23;
+/// O(rows * period). Measured as [`STDDEV_NS_PER_ELEMENT`] (sweep slope).
+pub const STDDEV_NS_PER_WINDOW_VALUE: f64 = 0.21;
 
 /// Bollinger Bands, in nanoseconds per input row, excluding the per-window
 /// pass (see [`BBANDS_NS_PER_WINDOW_VALUE`]): the compensated rolling mean
@@ -121,8 +133,12 @@ pub const EMA_NS_PER_ELEMENT: f64 = 3.6;
 /// --quick`, governor `performance`): kernels at 1,000,000 rows took
 /// 2.353 ms for WMA-30 and 2.638 ms for RSI-14, scaled here by
 /// `RSI_NS_PER_ELEMENT` (3.0 * 0.89). Confirm with a full
-/// `--single --rust --indicator wma`.
-pub const WMA_NS_PER_ELEMENT: f64 = 2.7;
+/// `--single --rust --indicator wma`. Refit 2026-10-30 from the batch
+/// rows (`benches/results/benchmark_2026-10-30_18-34-48.txt`, `--batch --rust`, governor
+/// `performance`): they read 2.0-2.2 ns/element, and
+/// at 2.7, 100 x 100 rows ran in parallel 1.32x slower than sequential
+/// (break-even ~2.0 there).
+pub const WMA_NS_PER_ELEMENT: f64 = 1.9;
 
 /// Double Exponential Moving Average, in nanoseconds per input element;
 /// independent of `period` (one fused pass for both EMAs after their seeds).
@@ -209,8 +225,12 @@ pub const ICHIMOKU_NS_PER_ELEMENT: f64 = 32.1;
 /// full run on 2026-10-30
 /// (`benches/results/benchmark_2026-10-30_10-57-29.txt`, `--single --rust`,
 /// governor `performance`): 14.981 ms against RSI-14's 2.505 ms at 1,000,000 rows,
-/// scaled by `RSI_NS_PER_ELEMENT` (3.0 * 5.98).
-pub const STOCH_NS_PER_ELEMENT: f64 = 17.9;
+/// scaled by `RSI_NS_PER_ELEMENT` (3.0 * 5.98). Refit 2026-10-30 from the
+/// batch rows (`benches/results/benchmark_2026-10-30_18-34-48.txt`, `--batch --rust`, governor
+/// `performance`): they read 12.4-13.5
+/// ns/element, and at 17.9, 10 x 100 rows ran in parallel 1.51x slower
+/// than sequential (break-even ~16 there).
+pub const STOCH_NS_PER_ELEMENT: f64 = 13.2;
 
 /// Williams %R, in nanoseconds per input row; independent of `period` (two
 /// van Herk/Gil-Werman rolling-extreme walks, O(n) whatever the window).

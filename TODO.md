@@ -26,22 +26,22 @@ Where things stand:
 - [x] B1. Implement A2: docs (`ARCHITECTURE.md`, `API.md`, wiki notes for SAR, TRIX, EMA family, KAMA), memory, parking-lot entry removed. *(2026-10-30: `ARCHITECTURE.md` numerical conventions "Agreement with TA-Lib", `API.md` §5 "Agreement with TA-Lib", notes on the EMA, DEMA, TEMA, MACD, KAMA, SAR, TRIX pages; `kernels::ema` doc no longer claims 0.8.3 bit parity. Measured against the fixtures: EMA ≤2e-16, MACD ≤2.1e-12 relative (line near zero). `tests/results/test-suite_2026-10-30_18-29-26.txt` PASSED, 609 Rust (nextest) and 2580 Python tests.)*
 - [x] B2. Implement A3: scaled test in `kernels/roc.rs`, Rust and Python tests (tiny base → 0, exact 0 → 0, TA-Lib fixtures still pass), remove the ±inf exception from the wiki (ROC, VROC), `API.md`, `ARCHITECTURE.md`; close the parking-lot entry. *(2026-10-30: `is_zero_scaled(earlier, current.abs())` in `rate_of_change_into` and TRIX's inline step; Rust `kernel_roc_tests`, `roc_tests`, `vroc_tests`, Python `test_roc.py`/`test_vroc.py`; ROC/VROC/TRIX reference tests still bit for bit; TRIX proptest against the cascade still bit for bit. `tests/results/test-suite_2026-10-30_18-29-26.txt` PASSED, 609 Rust (nextest) and 2580 Python tests.)*
 - [x] B3. Implement A4: clamp in `aroon.rs`, Rust test for period 11 (`aroon_up == 100.0`), proptest bound tightened, Python test, wiki/API note. *(2026-10-30: `.min(100.0)` on up/down, `.clamp(-100.0, 100.0)` on the oscillator; periods 97, 161, ... still round one ulp below 100 (not clamped, within range). `tests/results/test-suite_2026-10-30_18-29-26.txt` PASSED, 609 Rust (nextest) and 2580 Python tests.)*
-- [ ] B4. Cost refit (`pyta-benchmarks` skill): full `--batch --rust` run; refit SMA, CCI, STDDEV (period sweep) and WMA from the 10 x 1,000 and 100 x 100 rows; constants in `pyta-common/src/costs.rs`; confirm with a second batch run that no planner row is above 1.10x.
+- [x] B4. Cost refit (`pyta-benchmarks` skill): full `--batch --rust` run; refit SMA, CCI, STDDEV (period sweep) and WMA from the 10 x 1,000 and 100 x 100 rows; constants in `pyta-common/src/costs.rs`; confirm with a second batch run that no planner row is above 1.10x. *(Full `benchmark_2026-10-30_18-34-48.txt` (`--batch --rust`): misses at SMA 10 x 1,000 (1.15x), WMA 100 x 100 (1.32x), STOCH 10 x 100 (1.51x); STDDEV period sweep `7.55 + 0.215 * period` ms. New SMA 1.5, WMA 1.9, STOCH 13.2, STDDEV 5.1 + 0.21/period; CCI's rows all chose right, left. Confirmed `_22-06-38` (sma), `_22-36-57` (wma), `_22-42-36` (stoch), `_22-49-03` (stddev): every small-batch row picks the faster arm; only `6_sma_rsi_ds1_ds2` 1.27x remains (accepted 3,000-point miss, memory).)*
 - [ ] B5. `./scripts/test-suite.sh` passes.
 
 ### Part C: integration project (about 4 h)
 
-- [ ] C1. `PyTA-Integration/` skeleton: `pyproject.toml` (Python 3.15, `pyta` from `dist/`, pandas, pytest; extra `bench`: `TA-Lib==0.8.3`), `README.md`, `.gitignore`; root tooling (pytest `testpaths`, ruff, pyright, coverage) does not pick it up.
-- [ ] C2. `PyTA-Integration/scripts/setup.sh`: builds the release wheel, creates the venv, installs the wheel (never the source tree), runs examples and tests.
-- [ ] C3. Examples (`examples/`): SMA and RSI on a yFinance-shaped DataFrame; AlphaVantage-shaped CSV and JSON; a batch over several datasets.
-- [ ] C4. Integration tests (`tests/`): examples run, expected values (SPY reference values copied as data, not read from PyTA's tree), invalid parameters and error messages, a check that `pyta.__file__` is inside the venv's site-packages.
-- [ ] C5. Check no use of `pyta._native` or crate paths (`grep` test in the suite).
+- [x] C1. `PyTA-Integration/` skeleton: `pyproject.toml` (Python 3.15, `pyta` from `dist/`, pandas, pytest; extra `bench`: `TA-Lib==0.8.3`), `README.md`, `.gitignore`; root tooling (pytest `testpaths`, ruff, pyright, coverage) does not pick it up.
+- [x] C2. `PyTA-Integration/scripts/setup.sh`: builds the release wheel, creates the venv, installs the wheel (never the source tree), runs examples and tests.
+- [x] C3. Examples (`examples/`): SMA and RSI on a yFinance-shaped DataFrame; AlphaVantage-shaped CSV and JSON; a batch over several datasets.
+- [x] C4. Integration tests (`tests/`): examples run, expected values (SPY reference values copied as data, not read from PyTA's tree), invalid parameters and error messages, a check that `pyta.__file__` is inside the venv's site-packages.
+- [x] C5. Check no use of `pyta._native` or crate paths (`grep` test in the suite). *(97093eb; `setup.sh --bench` from a deleted `.venv` and `dist/`: 52 passed, ruff clean, on the wheel with B1-B3.)*
 
 ### Part D: TA-Lib comparison (about 3 h)
 
-- [ ] D1. `PyTA-Integration/benchmarks/compare_talib.py`: every indicator both libraries have, `timeit` best of ≥5, libraries interleaved, outputs compared (largest difference).
-- [ ] D2. Single: NumPy arrays and a yFinance-shaped DataFrame at 100, 10,000, 1,000,000 rows.
-- [ ] D3. Batch: TA-Lib list-comprehension loop against one `pyta.batch.<name>` call, 10 x 1,000, 100 x 100, 100 x 10,000, 1,000 x 1,000.
+- [x] D1. `PyTA-Integration/benchmarks/compare_talib.py`: every indicator both libraries have, `timeit` best of ≥5, libraries interleaved, outputs compared (largest difference).
+- [x] D2. Single: NumPy arrays and a yFinance-shaped DataFrame at 100, 10,000, 1,000,000 rows.
+- [x] D3. Batch: TA-Lib list-comprehension loop against one `pyta.batch.<name>` call, 10 x 1,000, 100 x 100, 100 x 10,000, 1,000 x 1,000.
 - [ ] D4. Report written to `PyTA-Integration/results/`; both tables in PyTA's `README.md` with machine, governor, date; indicators without a TA-Lib equivalent listed.
 
 ### Part E: close (about 1 h)
