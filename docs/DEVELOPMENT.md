@@ -561,7 +561,10 @@ Order matters: the numeric decisions can change outputs and kernel speed, so the
 - [ ] Add examples using AlphaVantage-shaped JSON and CSV.
 - [ ] Add an example of a batch call across several datasets.
 - [ ] Add integration tests for expected values, invalid parameters, and error messages.
-- [ ] Benchmark PyTA against TA-Lib (PyPI `TA-Lib`, installed in the integration project's environment only, never a PyTA dependency) for every indicator both have. Time each pair with `timeit` (`Timer.repeat`, best of at least 5 repeats, the two libraries interleaved in the same session, the same float64 NumPy input, at 100, 10,000 and 1,000,000 rows) and record µs per call for each, the ratio (TA-Lib time / PyTA time) and the largest output difference. Add the table to PyTA's `README.md` with the machine, CPU governor and date; list the indicators TA-Lib lacks (Ichimoku, Keltner, Donchian, CMF, VWAP, Volume ROC) as having no comparison.
+- [ ] Benchmark PyTA against TA-Lib (PyPI `TA-Lib`, installed in the integration project's environment only, never a PyTA dependency) for every indicator both have, calling each library the way its documentation shows for normal production use and timing the whole call (input conversion and output wrapping included). Time each pair with `timeit` (`Timer.repeat`, best of at least 5 repeats, the two libraries interleaved in the same session, the same data) and record µs per call for each, the ratio (TA-Lib time / PyTA time) and the largest output difference. Two comparisons:
+  - **Single indicator:** one dataset per call, `talib.<NAME>(...)` against `pyta.<name>(...)`, on float64 NumPy arrays and on a yFinance-shaped pandas DataFrame, at 100, 10,000 and 1,000,000 rows.
+  - **Batch:** the same indicators over many datasets. TA-Lib has no batch call, so its production form is a Python loop calling `talib.<NAME>` per dataset; PyTA's is one `pyta.batch.<name>(...)` call over the list. Shapes as the batch benchmarks: 10 x 1,000, 100 x 100, 100 x 10,000 and 1,000 x 1,000 (datasets x rows).
+- [ ] Add both tables to PyTA's `README.md` with the machine, CPU governor and date; list the indicators TA-Lib lacks (Ichimoku, Keltner, Donchian, CMF, VWAP, Volume ROC) as having no comparison.
 - [ ] Verify that the project does not depend on PyTA's internal crate paths or `pyta._native`.
 - [ ] Document how a new developer installs and runs the examples, tests and benchmark.
 
@@ -573,7 +576,7 @@ Order matters: the numeric decisions can change outputs and kernel speed, so the
 - Integration tests pass against the installed package.
 - The public API works without access to the PyTA source tree.
 - A package build can be tested from a clean environment.
-- `README.md` has a `timeit` comparison with TA-Lib for every indicator both libraries have, reproducible from the integration project.
+- `README.md` has single-indicator and batch `timeit` comparisons with TA-Lib for every indicator both libraries have, reproducible from the integration project.
 
 **Retrospective:**  
 **Sprint completion:** ☐
