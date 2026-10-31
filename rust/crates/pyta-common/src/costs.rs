@@ -14,13 +14,16 @@ pub const RSI_NS_PER_ELEMENT: f64 = 3.0;
 /// Average True Range, in nanoseconds per input row; independent of
 /// `period` (one true-range pass and one smoothing pass after the seed).
 ///
-/// Provisional, from a quick run on 2026-10-29
+/// First estimated from a quick run on 2026-10-29
 /// (`benches/results/benchmark_2026-10-29_03-31-27.txt`, `--single --rust
 /// --quick`, governor `performance`): kernels at 1,000,000 rows took
 /// 4.344 ms for ATR-14 and 2.508 ms for RSI-14, scaled here by
-/// `RSI_NS_PER_ELEMENT` (3.0 * 1.73). Confirm with a full
-/// `--single --rust --indicator atr`.
-pub const ATR_NS_PER_ELEMENT: f64 = 5.2;
+/// `RSI_NS_PER_ELEMENT` (3.0 * 1.73). Refit from the
+/// full run on 2026-10-30
+/// (`benches/results/benchmark_2026-10-30_10-57-29.txt`, `--single --rust`,
+/// governor `performance`): 5.213 ms against RSI-14's 2.505 ms at 1,000,000 rows,
+/// scaled by `RSI_NS_PER_ELEMENT` (3.0 * 2.08).
+pub const ATR_NS_PER_ELEMENT: f64 = 6.2;
 
 /// Commodity Channel Index, in nanoseconds per input row, excluding the
 /// mean-deviation pass (see [`CCI_NS_PER_WINDOW_VALUE`]): typical price and
@@ -42,7 +45,7 @@ pub const CCI_NS_PER_WINDOW_VALUE: f64 = 0.24;
 /// per-window pass (see [`STDDEV_NS_PER_WINDOW_VALUE`]): the compensated
 /// rolling mean and the multiply.
 ///
-/// Provisional, from a quick run on 2026-10-29
+/// First estimated from a quick run on 2026-10-29
 /// (`benches/results/benchmark_2026-10-29_06-18-35.txt`, `--single --rust
 /// --quick`, governor `performance`: kernels at 1,000,000 rows took
 /// 9.079 ms for STDDEV-5 and 2.735 ms for RSI-14) and a period sweep of the
@@ -50,9 +53,14 @@ pub const CCI_NS_PER_WINDOW_VALUE: f64 = 0.24;
 /// 15, twice): `7.5 + 0.214 * period` ms, less the native call's ~0.55 ms
 /// of copying (RSI's native call minus its kernel), so the kernel is about
 /// `6.95 + 0.214 * period` ns per row, scaled here by `RSI_NS_PER_ELEMENT`
-/// / RSI's kernel time (1.10). Confirm with a full
-/// `--single --rust --indicator stddev`.
-pub const STDDEV_NS_PER_ELEMENT: f64 = 7.6;
+/// / RSI's kernel time (1.10). Refit from the
+/// full run on 2026-10-30
+/// (`benches/results/benchmark_2026-10-30_10-57-29.txt`, `--single --rust`,
+/// governor `performance`): 9.241 ms for STDDEV-5 against RSI-14's
+/// 2.505 ms at 1,000,000 rows, scaled by `RSI_NS_PER_ELEMENT` (3.0 *
+/// 3.69). Only the per-row term was refit (`11.07 - 0.23 * 5`);
+/// separating the two terms needs a new period sweep.
+pub const STDDEV_NS_PER_ELEMENT: f64 = 9.9;
 
 /// Standard Deviation, in nanoseconds per row and per unit of `period`:
 /// each row's deviation is a fresh pass over its window, so the cost is
@@ -192,14 +200,17 @@ pub const ICHIMOKU_NS_PER_ELEMENT: f64 = 32.1;
 /// rolling-extreme walks and two running-sum SMAs, O(n) whatever the
 /// windows).
 ///
-/// Provisional, from a quick run on 2026-10-29
+/// First estimated from a quick run on 2026-10-29
 /// (`benches/results/benchmark_2026-10-29_12-24-15.txt`, `--single --rust
 /// --quick`, governor `performance`): kernels at 1,000,000 rows took
 /// 12.951 ms for Stochastic-14/3/3 and 2.653 ms for RSI-14, scaled here by
 /// `RSI_NS_PER_ELEMENT` (3.0 * 4.88). Donchian-20 (the same two walks) took
-/// 9.684 ms in the same run. Confirm with a full
-/// `--single --rust --indicator stoch`.
-pub const STOCH_NS_PER_ELEMENT: f64 = 14.6;
+/// 9.684 ms in the same run. Refit from the
+/// full run on 2026-10-30
+/// (`benches/results/benchmark_2026-10-30_10-57-29.txt`, `--single --rust`,
+/// governor `performance`): 14.981 ms against RSI-14's 2.505 ms at 1,000,000 rows,
+/// scaled by `RSI_NS_PER_ELEMENT` (3.0 * 5.98).
+pub const STOCH_NS_PER_ELEMENT: f64 = 17.9;
 
 /// Williams %R, in nanoseconds per input row; independent of `period` (two
 /// van Herk/Gil-Werman rolling-extreme walks, O(n) whatever the window).
@@ -263,15 +274,18 @@ pub const ULTOSC_NS_PER_ELEMENT: f64 = 10.2;
 /// Parabolic SAR, in nanoseconds per input row; independent of
 /// `acceleration` and `maximum` (one pass).
 ///
-/// Provisional, from a quick run on 2026-10-29
+/// First estimated from a quick run on 2026-10-29
 /// (`benches/results/benchmark_2026-10-29_11-44-46.txt`, `--single --rust
 /// --quick`, governor `performance`): kernels at 1,000,000 rows took
 /// 3.098 ms for SAR-0.02/0.2 and 2.811 ms for RSI-14, scaled here by
 /// `RSI_NS_PER_ELEMENT` (3.0 * 1.10). The kernel branches on every row, so
 /// its speed depends on the data: a random walk with frequent reversals
-/// took ~6 ms in a scratch run. Confirm with a full
-/// `--single --rust --indicator sar`.
-pub const SAR_NS_PER_ELEMENT: f64 = 3.3;
+/// took ~6 ms in a scratch run. Refit from the
+/// full run on 2026-10-30
+/// (`benches/results/benchmark_2026-10-30_10-57-29.txt`, `--single --rust`,
+/// governor `performance`): 2.186 ms against RSI-14's 2.505 ms at 1,000,000 rows,
+/// scaled by `RSI_NS_PER_ELEMENT` (3.0 * 0.873).
+pub const SAR_NS_PER_ELEMENT: f64 = 2.6;
 
 /// Keltner Channels, in nanoseconds per input row; independent of `period`,
 /// `atr_period` and `k` (one EMA pass, one true-range and Wilder pass, one
@@ -312,13 +326,16 @@ pub const OBV_NS_PER_ELEMENT: f64 = 2.6;
 /// Accumulation/Distribution line, in nanoseconds per input row (one
 /// division and one add per row; no parameters).
 ///
-/// Provisional, from a quick run on 2026-10-29
-/// (`benches/results/benchmark_2026-10-29_17-39-01.txt`, `--single --rust
-/// --quick`, governor `performance`): kernels at 1,000,000 rows took
-/// 1.780 ms for A/D and 2.510 ms for RSI-14, scaled here by
-/// `RSI_NS_PER_ELEMENT` (3.0 * 0.709). Confirm with a full
-/// `--single --rust --indicator ad`.
-pub const AD_NS_PER_ELEMENT: f64 = 2.1;
+/// Set from the batch path, not the kernel at 1,000,000 rows: the full
+/// runs on 2026-10-30 timed the kernel at 2.193 ms per 1,000,000 rows
+/// (`benches/results/benchmark_2026-10-30_10-57-29.txt`, 2.6 ns scaled by
+/// RSI), memory-bound over four columns, but sequential batches near the
+/// planner's crossover at 1.23-1.69 ns per row
+/// (`benchmark_2026-10-30_13-29-35.txt`: 100 x 100 rows in 16.9 µs, 10 x
+/// 1,000 in 12.3 µs). At 2.1 the planner ran those two workloads in
+/// parallel, 1.8-1.9x slower than sequential; 1.5 (as ROC) keeps them
+/// sequential and every larger A/D workload parallel.
+pub const AD_NS_PER_ELEMENT: f64 = 1.5;
 
 /// Chaikin Money Flow, in nanoseconds per input row; independent of
 /// `period` (two compensated running sums over a ring of the last `period`
@@ -351,6 +368,9 @@ pub const VWAP_NS_PER_ELEMENT: f64 = 5.0;
 /// (`benches/results/benchmark_2026-10-29_21-18-08.txt`, `--single --rust
 /// --quick`, governor `performance`): kernels at 1,000,000 rows took
 /// 1.222 ms for Volume ROC-10 (ROC-10 1.241 ms) and 2.490 ms for RSI-14,
-/// scaled here by `RSI_NS_PER_ELEMENT` (3.0 * 0.491). Confirm with a full
-/// `--single --rust --indicator vroc`.
+/// scaled here by `RSI_NS_PER_ELEMENT` (3.0 * 0.491). Kept although the full run on
+/// 2026-10-30 (`benches/results/benchmark_2026-10-30_10-57-29.txt`) timed
+/// the kernel at 1.547 ms (1.9 ns scaled by RSI): at 1.9 the planner ran 10
+/// x 1,000 rows in parallel, 1.32x slower than sequential
+/// (`benchmark_2026-10-30_17-06-42.txt`, quick), as for A/D.
 pub const VROC_NS_PER_ELEMENT: f64 = 1.5;

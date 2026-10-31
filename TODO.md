@@ -1,6 +1,8 @@
 # TODO Scratchpad — PyTA
 
-## Sprint 11.5: the major technical indicators ☐ (planned 2026-10-29)
+## Sprint 11.5: the major technical indicators ✓ (planned 2026-10-29, closed 2026-10-30)
+
+**Still open after close** (all in the parking lot): the fma policy (SAR, TRIX, EMA family), ROC's ±inf on a tiny base, Aroon's 100 + 1 ulp, SMA and CCI cost constants (+29%, +25% at 1M rows), a STDDEV period sweep, WMA's 100 x 100 planner row (1.16x), the CCI 10 x 10,000 batch cell, and three stale passages in the `add-indicator` skill.
 
 Plan of record: `docs/DEVELOPMENT.md`, "Sprint 11.5 — The major technical indicators". Goal: ship the 24 technical indicators in the README catalog beyond SMA, EMA, MACD, RSI and CCI, so PyTA can replace TA-Lib for everyday technical analysis.
 
@@ -88,33 +90,32 @@ Every indicator box means the `add-indicator` skill's nine steps are done: spec 
 
 ### Part G: benchmarks and close (about 2 h, `pyta-benchmarks` skill)
 
-- [ ] `main` baselines in a scratch worktree before Part C (`--single --python`, `--batch --python`).
-- [ ] Cost constants for every new indicator confirmed by one full `--single --rust` and `--batch --rust` run.
-- [ ] Same-session A/B against `main`: existing indicators' single and batch calls within ~5%.
-- [ ] README catalog, `API.md` (catalog, parameters, float parameters, zero-denominator conventions) (also §11's multi-output table, which lists MACD only: add BBANDS, Donchian, Keltner, ADX, Aroon and the rest), `ARCHITECTURE.md` (new crates, `pyta-core` kernels), memory.
-- [ ] `DEVELOPMENT.md`: tick tasks; retrospective and ✓ once the criteria pass.
+- [x] `main` baselines in a scratch worktree before Part C (`--single --python`, `--batch --python`). *(Done at close instead: base 53a49af benchmarked in a scratch worktree in the same session, `benches/results/base-53a49af_*`.)*
+- [x] Cost constants for every new indicator confirmed by one full `--single --rust` and `--batch --rust` run. *(Full runs `benchmark_2026-10-30_10-57-29.txt` (single) and `_13-29-35.txt` (batch). Refit: ATR 6.2, STOCH 17.9, SAR 2.6, STDDEV per-row 9.9; A/D 1.5 from its batch rows; VROC kept 1.5; quick batch re-checks `_17-05-25` to `_17-08-52`.)*
+- [x] Same-session A/B against `main`: existing indicators' single and batch calls within ~5%. *(Within noise on every single and batch row; EMA/MACD/CCI batch re-run in a third round.)*
+- [x] README catalog, `API.md` (catalog, parameters, float parameters, zero-denominator conventions) (also §11's multi-output table, which lists MACD only: add BBANDS, Donchian, Keltner, ADX, Aroon and the rest), `ARCHITECTURE.md` (new crates, `pyta-core` kernels), memory. *(520cbc4, b7c2035 and the per-indicator commits.)*
+- [x] `DEVELOPMENT.md`: tick tasks; retrospective and ✓ once the criteria pass.
 
 ### Acceptance criteria for Sprint 11.5
 
-- [ ] Every indicator in scope is available as `pyta.<name>`, `pyta.<category>.<name>` and `pyta.batch.<name>`, in every supported container, with its wiki page.
-- [ ] Every TA-Lib indicator matches the TA-Lib fixtures (A1) to 1e-9; every other one matches its cited reference within the stated tolerance.
-- [ ] Each indicator has edge-case and property tests and passes the indicator completion rule.
-- [ ] No indicator adds engine special cases or per-indicator execution infrastructure.
-- [ ] Existing indicators are unchanged, and their single-call cost stays within ~5% of `main`.
-- [ ] `./scripts/test-suite.sh` passes.
+- [x] Every indicator in scope is available as `pyta.<name>`, `pyta.<category>.<name>` and `pyta.batch.<name>`, in every supported container, with its wiki page. *(`test_namespaces.py`, `test_output.py`, `test_roundtrip.py`; 23 + 4 READMEs in `docs/indicators/`.)*
+- [x] Every TA-Lib indicator matches the TA-Lib fixtures (A1) to 1e-9; every other one matches its cited reference within the stated tolerance. *(Rust and Python reference tests; manual DataFrame check below: worst 1.0e-13 relative.)*
+- [x] Each indicator has edge-case and property tests and passes the indicator completion rule. *(Each indicator's commit; `property_tests.rs`, Hypothesis tests.)*
+- [x] No indicator adds engine special cases or per-indicator execution infrastructure. *(Only `Params` variants, dispatch arms and cost constants.)*
+- [x] Existing indicators are unchanged, and their single-call cost stays within ~5% of `main`. *(EMA/MACD/RSI/CCI bit-identical; A/B within noise.)*
+- [x] `./scripts/test-suite.sh` passes. *(`tests/results/test-suite_2026-10-30_17-09-08.txt`: PASSED, 600 Rust, 2561 Python.)*
 
 ### Verification
 
-- [ ] `./scripts/test-suite.sh` after Part B, after each category and at the end (cite the reports).
-- [ ] Benchmarks per Part G.
-- [ ] Manual: the SPY fixture through every new indicator as a DataFrame, last row compared with the TA-Lib fixture.
+- [x] `./scripts/test-suite.sh` after Part B, after each category and at the end (cite the reports). *(Final: `test-suite_2026-10-30_17-09-08.txt`.)*
+- [x] Benchmarks per Part G.
+- [x] Manual: the SPY fixture through every new indicator as a DataFrame, last row compared with the TA-Lib fixture. *(2026-10-30: all 29 TA-Lib fixtures, worst relative difference 1.0e-13.)*
 
 Out of scope: `ma=`/`matype` options, VWAP session anchoring, Ichimoku shifted output, the A14 extras, SAREXT, TA-Lib's unstable-period setting.
 
 ## Parking lot
 
 - Confirm two calls made during Sprint 10: all-capitals words count as title case (so `MACD_Signal` chains as title), and plain in-range ints skip Pydantic in the parameter validators.
-- Confirm the provisional cost constants with full runs: `--single --rust --indicator ema` (3.6) and `--indicator macd` (6.7).
 - `bench_boundary.py` single-column rows time only NumPy input; Series, list and dict inputs are not benchmarked. Its `**params` call adds ~0.1 µs that `main`'s did not.
 - A CCI batch row (100 × 1,000) read +8.7% in one implementer's A/B but +3.9% in the final one; check with `--batch --rust` if it recurs.
 
@@ -135,3 +136,7 @@ Out of scope: `ma=`/`matype` options, VWAP session anchoring, Ichimoku shifted o
 - TA-Lib 0.8.3 updates EMAs as `fma(beta, prev, k*x)`; `kernels::ema_step` uses `(x - prev)*k + prev`, so EMA/DEMA/TEMA differ from TA-Lib by ~1e-15 (inside 1e-9). Check whether the `kernels::ema` doc claim "bit for bit with INT_EMA" still holds for 0.8.3, and decide whether to switch to `mul_add` (would change EMA/MACD bits). *Evidence against switching (KAMA, 9d06811): KAMA written with plain multiply-adds matches the 0.8.3 wheel bit for bit although the source says `fma`, so the wheel likely does not fuse; and `f64::mul_add` without `target-feature=+fma` is a libm call (KAMA 7.39 vs 3.39 ms per 1e6 rows).* *But SAR (e33cbb8) is bit-exact only with `mul_add`: `ta_SAR.c` is built with `TA_FMA_MULTIVERSION`, so the wheel fuses per function. Plain SAR is within one ulp (2.1e-16) and 16% faster than fused; kept plain. Decide one policy at QA: within-1e-9 everywhere (current) or fused where TA-Lib multiversions.*
 - Aroon (22f0ab5) writes `(100/period)*period`, which is 100 + 1 ulp for some periods (11, 22, 39, ...), as TA-Lib does; kept for bit parity. Clamp to 100 like RSI if users notice.
 - ROC (e9502ac) copies TA-Lib's exact `earlier != 0.0` guard, so a tiny nonzero base gives ±inf (documented exception to "outputs are finite"). Decide: keep parity, or a scaled zero test / NaN. Volume ROC inherits it.
+
+- Cost constants left at close (2026-10-30, `benchmark_2026-10-30_10-57-29.txt`): SMA reads +29% and CCI +25% at 1M rows, but their planner rows are fine; refit only with batch-row evidence (memory, "Cost constants near the crossover"). STDDEV's two terms need a period sweep (only the per-row term was refit).
+- Planner: `many_wma_x100` at 100 rows picks parallel, 1.16x the sequential arm (~3 µs; WMA's small-batch cost ~2.1 ns/row against 2.7). The CCI 10 x 10,000 batch cell flips between ~60 and ~95 µs/dataset on `main` too; check whether it is the planner's crossover.
+- `add-indicator` skill passages left stale (an implementer's edit was denied): step 7 still says Stochastic "replaces the `fake` stand-in"; `references/extending-contracts.md` still mentions "a fake Stochastic"; the defaults rule does not mention the Stochastic 14/3/3 exception.
