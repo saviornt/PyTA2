@@ -591,8 +591,8 @@ Order matters: the numeric decisions can change outputs and kernel speed, so the
 
 ### Tasks: decide
 
-- [ ] Confirm the goal and the speed targets (acceptance criteria below).
-- [ ] Decide the EMA-family recurrence form, runtime FMA dispatch, the input copy, the allocator, and any new dependency (see `TODO.md` Part A).
+- [x] Confirm the goal and the speed targets (acceptance criteria below).
+- [x] Decide the EMA-family recurrence form, runtime FMA dispatch, the input copy, the allocator, and any new dependency (see `TODO.md` Part A).
 
 ### Tasks: measure
 
