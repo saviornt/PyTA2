@@ -61,9 +61,10 @@ pub(crate) fn dispatch(request: &IndicatorRequest) -> PytaResult<IndicatorOutput
             tenkan,
             kijun,
             senkou,
+            shift,
         } => {
             let [high, low, close] = input.columns()?;
-            ichimoku(high, low, close, tenkan, kijun, senkou)
+            ichimoku(high, low, close, tenkan, kijun, senkou, shift)
         }
         Params::Kama { period } => kama(input.series()?, period),
         Params::Keltner {
@@ -287,12 +288,14 @@ mod tests {
             cost(Params::Ichimoku {
                 tenkan: 2,
                 kijun: 3,
-                senkou: 5
+                senkou: 5,
+                shift: false,
             }),
             cost(Params::Ichimoku {
                 tenkan: 9,
                 kijun: 26,
-                senkou: 52
+                senkou: 52,
+                shift: false,
             })
         );
     }

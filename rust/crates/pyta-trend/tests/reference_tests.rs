@@ -298,6 +298,7 @@ fn ichimoku_matches_the_hand_calculation() {
         reference.parameter("tenkan"),
         reference.parameter("kijun"),
         reference.parameter("senkou"),
+        false,
     )
     .unwrap();
 

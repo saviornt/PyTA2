@@ -29,8 +29,8 @@ pub enum IndicatorKind {
     Donchian,
     /// Exponential Moving Average (`pyta-trend`).
     Ema,
-    /// Ichimoku Cloud, unshifted (`pyta-trend`; high, low, close; five
-    /// outputs).
+    /// Ichimoku Cloud, unshifted or in the charts' layout (`pyta-trend`;
+    /// high, low, close; five outputs).
     Ichimoku,
     /// Kaufman Adaptive Moving Average (`pyta-trend`).
     Kama,
@@ -142,7 +142,7 @@ pub enum Params {
     },
     /// Ichimoku Cloud (Ichimoku Kinko Hyo): three window midpoints, the
     /// average of the first two, and close, each on the row it is
-    /// calculated from (unshifted).
+    /// calculated from unless `shift` is set.
     Ichimoku {
         /// Rows in the tenkan-sen's (conversion line's) window, at least 1.
         tenkan: usize,
@@ -150,6 +150,9 @@ pub enum Params {
         kijun: usize,
         /// Rows in senkou span B's window, at least 1.
         senkou: usize,
+        /// Displace the outputs by `kijun` rows as charts draw them: both
+        /// senkou spans forward, the chikou span back (length kept).
+        shift: bool,
     },
     /// Kaufman Adaptive Moving Average: an EMA whose weight follows the
     /// efficiency ratio of the last `period` rows (smoothing constants 2 and

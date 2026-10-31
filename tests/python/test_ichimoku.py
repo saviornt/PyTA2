@@ -278,6 +278,104 @@ def test_chained_inputs_are_aligned_on_the_longest_warm_up(ohlcv: Ohlcv) -> None
         np.testing.assert_array_equal(result[name][9:], trimmed[name])
 
 
+# --- shift=True ---------------------------------------------------------------------------
+
+
+def test_shift_moves_the_spans_forward_and_the_chikou_back_by_kijun() -> None:
+    # kijun 3: senkou A (from row 2) lands from row 5, senkou B (from row 4)
+    # from row 7; the chikou span holds close three rows later.
+    result = pyta.ichimoku(small(), tenkan=2, kijun=3, senkou=5, shift=True)
+
+    assert list(result) == NAMES
+    assert np.isnan(result["ichimoku_tenkan"][:1]).all()
+    assert result["ichimoku_tenkan"][1:] == TENKAN_2
+    assert result["ichimoku_kijun"][2:] == KIJUN_3
+    assert np.isnan(result["ichimoku_senkou_a"][:5]).all()
+    assert result["ichimoku_senkou_a"][5:] == SENKOU_A[:3]
+    assert np.isnan(result["ichimoku_senkou_b"][:7]).all()
+    assert result["ichimoku_senkou_b"][7:] == SENKOU_5[:1]
+    assert result["ichimoku_chikou"][:5] == CLOSE[3:]
+    assert np.isnan(result["ichimoku_chikou"][5:]).all()
+
+
+@pytest.mark.pandas
+@pytest.mark.parametrize(("tenkan", "kijun", "senkou"), [(9, 26, 52), (30, 5, 2), (1, 1, 1)])
+def test_shift_equals_pandas_shift_of_the_unshifted_lines(
+    ohlcv: Ohlcv, tenkan: int, kijun: int, senkou: int
+) -> None:
+    pd = pytest.importorskip("pandas")
+    frame = pd.DataFrame({"high": ohlcv.high, "low": ohlcv.low, "close": ohlcv.close})
+
+    plain = pyta.ichimoku(frame, tenkan, kijun, senkou)
+    shifted = pyta.ichimoku(frame, tenkan, kijun, senkou, shift=True)
+
+    assert list(shifted.columns) == NAMES
+    assert shifted.index.equals(frame.index)
+    offsets = {"ichimoku_senkou_a": kijun, "ichimoku_senkou_b": kijun, "ichimoku_chikou": -kijun}
+    for name in NAMES:
+        expected = plain[name].shift(offsets.get(name, 0))
+        np.testing.assert_array_equal(shifted[name].to_numpy(), expected.to_numpy())
+
+
+def test_shift_false_is_the_default(ohlcv: Ohlcv) -> None:
+    default = pyta.ichimoku(ohlcv.columns())
+    explicit = pyta.ichimoku(ohlcv.columns(), shift=False)
+
+    for name in NAMES:
+        np.testing.assert_array_equal(default[name], explicit[name])
+
+
+def test_shift_by_the_whole_length_leaves_the_moved_lines_empty() -> None:
+    # kijun 8 on 8 rows is valid, but every moved value falls off the end.
+    result = pyta.ichimoku(small(), tenkan=2, kijun=8, senkou=3, shift=True)
+    plain = pyta.ichimoku(small(), tenkan=2, kijun=8, senkou=3)
+
+    np.testing.assert_array_equal(result["ichimoku_tenkan"], plain["ichimoku_tenkan"])
+    np.testing.assert_array_equal(result["ichimoku_kijun"], plain["ichimoku_kijun"])
+    for name in NAMES[2:]:
+        assert len(result[name]) == len(CLOSE)
+        assert np.isnan(result[name]).all()
+
+
+def test_shift_accepts_a_numpy_bool(ohlcv: Ohlcv) -> None:
+    flagged = pyta.ichimoku(ohlcv.columns(), shift=np.bool_(True))  # type: ignore[arg-type]
+    shifted = pyta.ichimoku(ohlcv.columns(), shift=True)
+
+    for name in NAMES:
+        np.testing.assert_array_equal(flagged[name], shifted[name])
+
+
+@pytest.mark.parametrize("value", [1, 0, "yes", None, 1.0])
+def test_shift_must_be_a_bool(value: object) -> None:
+    with pytest.raises(TypeError, match="shift must be True or False, got"):
+        pyta.ichimoku(small(), 2, 3, 5, shift=value)  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="shift must be True or False, got"):
+        pyta.batch.ichimoku([small()], 2, 3, 5, shift=value)  # type: ignore[arg-type]
+
+
+def test_shift_round_trips_through_dict_and_json(ohlcv: Ohlcv) -> None:
+    shifted = pyta.ichimoku(ohlcv.columns(), shift=True)
+    records = json.dumps(
+        [
+            {"high": h, "low": lo, "close": c}
+            for h, lo, c in zip(ohlcv.high, ohlcv.low, ohlcv.close, strict=True)
+        ]
+    )
+
+    from_json = json.loads(pyta.ichimoku(records, shift=True))
+    as_json = json.loads(pyta.ichimoku(ohlcv.columns(), shift=True, output="json"))
+
+    assert isinstance(shifted, dict)
+    assert len(from_json) == len(ohlcv.close)
+    for name in NAMES:
+        expected = [None if np.isnan(value) else value for value in shifted[name]]
+        assert [record[name] for record in from_json] == expected
+        assert as_json[name] == expected
+    assert from_json[0]["ichimoku_senkou_a"] is None
+    assert from_json[0]["ichimoku_chikou"] == ohlcv.close[26]
+    assert from_json[-1]["ichimoku_chikou"] is None
+
+
 # --- batch ----------------------------------------------------------------------------------
 
 
@@ -315,3 +413,13 @@ def test_batch_shared_parameters_raise_for_the_whole_call(ohlcv: Ohlcv) -> None:
         pyta.batch.ichimoku([ohlcv.columns()], senkou=5.0)  # type: ignore[arg-type]
     with pytest.raises(ValueError, match="column= is for single-column indicators; ichimoku uses"):
         pyta.batch.ichimoku([ohlcv.columns()], column="close")  # type: ignore[arg-type]
+
+
+def test_batch_shift_is_shared_and_matches_single_calls(ohlcv: Ohlcv) -> None:
+    results = pyta.batch.ichimoku({"spy": ohlcv.columns(), "small": small()}, 2, 3, 5, shift=True)
+
+    for key, data in [("spy", ohlcv.columns()), ("small", small())]:
+        single = pyta.ichimoku(data, 2, 3, 5, shift=True)
+        for name in NAMES:
+            np.testing.assert_array_equal(results[key][name], single[name])
+    assert np.isnan(results["small"]["ichimoku_senkou_a"][:5]).all()

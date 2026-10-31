@@ -50,7 +50,7 @@ Each indicator lives in its own module in a category subpackage, `pyta.indicator
 | `adx` | Trend | `adx(data, period=14, *, columns=None, output=None)` |
 | `sar` | Trend | `sar(data, acceleration=0.02, maximum=0.2, *, columns=None, output=None)` |
 | `aroon` | Trend | `aroon(data, period=14, *, columns=None, output=None)` |
-| `ichimoku` | Trend | `ichimoku(data, tenkan=9, kijun=26, senkou=52, *, columns=None, output=None)` |
+| `ichimoku` | Trend | `ichimoku(data, tenkan=9, kijun=26, senkou=52, *, shift=False, columns=None, output=None)` |
 | `rsi` | Momentum | `rsi(data, period=14, *, column=None, output=None)` |
 | `cci` | Momentum | `cci(data, period=14, *, columns=None, output=None)` |
 | `stoch` | Momentum | `stoch(data, k=14, k_smooth=3, d=3, *, columns=None, output=None)` |
@@ -150,8 +150,9 @@ Follows TA-Lib's `AROON` and `AROONOSC` (Chande, 1995), bit for bit, on high and
 
 Ichimoku Kinko Hyo (Hosoda, 1969) on high, low and close; TA-Lib has no Ichimoku. With `midpoint(n) = (highest high + lowest low) / 2` over the last `n` rows, current row included (Donchian Channels' middle line, bit for bit): `ichimoku_tenkan = midpoint(tenkan)`, `ichimoku_kijun = midpoint(kijun)`, `ichimoku_senkou_a = (tenkan + kijun) / 2`, `ichimoku_senkou_b = midpoint(senkou)` and `ichimoku_chikou = close`. Five outputs in that order (title case `Ichimoku_Tenkan`, `Ichimoku_Senkou_A`).
 
-- **Unshifted:** every line is on the row it is calculated from, and the output is as long as the input. Charts draw both senkou spans `kijun` rows ahead and the chikou span `kijun` rows back; the [wiki page](indicators/trend/ichimoku.md#plotting-the-cloud) shows the shift. pandas-ta returns the spans already shifted.
-- Each output keeps its own warm-up: the first `tenkan - 1`, `kijun - 1`, `max(tenkan, kijun) - 1` and `senkou - 1` values of the first four are `NaN`; the chikou span has none. Needs at least `max(tenkan, kijun, senkou)` rows.
+- **Unshifted by default:** every line is on the row it is calculated from, and the output is as long as the input (the future cloud included).
+- **`shift=True`** (a `bool`, anything else is a `TypeError`) gives the layout charts draw, still as long as the input: the senkou span values calculated on row `t` are on row `t + kijun` (the first `kijun` rows are `NaN`; the last `kijun` rows' values, the future cloud, are dropped), and row `t` of the chikou span is the close of row `t + kijun` (the last `kijun` rows are `NaN`). The tenkan-sen and kijun-sen do not move. If `kijun` equals the row count, the shifted lines are all `NaN`. This matches StockCharts and pandas-ta; TradingView's built-in script draws the spans `kijun - 1` rows ahead. See the [wiki page](indicators/trend/ichimoku.md#plotting-the-cloud).
+- Each output keeps its own warm-up: the first `tenkan - 1`, `kijun - 1`, `max(tenkan, kijun) - 1` and `senkou - 1` values of the first four are `NaN` (with `shift=True`, `kijun` more for each span); the chikou span has none unshifted. Needs at least `max(tenkan, kijun, senkou)` rows.
 - `tenkan`, `kijun` and `senkou` (defaults 9, 26 and 52, from a six-day trading week) are each at least 1, in any order.
 
 ### RSI (Relative Strength Index)
@@ -494,7 +495,7 @@ The examples show the current wording, which may change between releases, so cat
 
 | Exception | Raised for |
 |---|---|
-| `TypeError` | Unsupported container or dtype (booleans, complex numbers, dates), text that is not a number (naming the column and index), DataFrames with MultiIndex columns, non-integer `period`, `fast`, `slow`, `signal`, `atr_period`, `tenkan`, `kijun` or `senkou`, `stoch`'s `k`, `k_smooth` or `d`, or `ultosc`'s `short`, `medium` or `long` (including `bool`), a float parameter such as `k` that is not a number (including `bool`), non-string `column`, `columns` that is not a list of strings, JSON of the wrong shape (including arrays that mix records and numbers), one series (list, 1-D array, Series) given to a multi-column indicator, an index value that JSON or CSV cannot hold (`output=`) |
+| `TypeError` | Unsupported container or dtype (booleans, complex numbers, dates), text that is not a number (naming the column and index), DataFrames with MultiIndex columns, non-integer `period`, `fast`, `slow`, `signal`, `atr_period`, `tenkan`, `kijun` or `senkou`, `stoch`'s `k`, `k_smooth` or `d`, or `ultosc`'s `short`, `medium` or `long` (including `bool`), a float parameter such as `k` that is not a number (including `bool`), an `ichimoku` `shift` that is not `True`, `False` or a NumPy bool, non-string `column`, `columns` that is not a list of strings, JSON of the wrong shape (including arrays that mix records and numbers), one series (list, 1-D array, Series) given to a multi-column indicator, an index value that JSON or CSV cannot hold (`output=`) |
 | `ValueError` | An unknown `output=` name, an index named like an output (`output=` with an index), `period`, `signal`, `atr_period`, `tenkan`, `kijun`, `senkou`, `stoch`'s `k`, `k_smooth` and `d` or `ultosc`'s `short`, `medium` and `long` outside `1` to `2**31 - 1` (`period` below `2` for `stddev`, `bbands`, `adx`, `aroon`, `willr` and `mfi`), `fast` or `slow` outside `2` to `2**31 - 1`, a float parameter that is zero, negative or not finite, parameters out of their required order, period larger than the series (`sma`, `wma`, `stddev`, `bbands`, `donchian`, `cmf`) or fewer than `period` values (`ema`), `2 * period - 1` values (`dema`), `3 * period - 2` values (`tema`), `period + 1` values (`rsi`, `kama`), `3 * period - 1` values (`trix`) or rows (`atr`, `mfi`), `period` rows (`cci`), `k + k_smooth + d - 2` rows (`stoch`), `2 * period` rows (`adx`), `period + 1` rows (`aroon`), `long + 1` rows (`ultosc`), 2 rows (`sar`), `slow + signal - 1` values (`macd`) `max(period, atr_period + 1)` rows (`keltner`) or `max(tenkan, kijun, senkou)` rows (`ichimoku`), empty input or input with no valid values, a non-finite value after the first valid value, a value larger in magnitude than `1e290`, multidimensional or ragged input, invalid JSON, CSV without a header row or with a row of the wrong field count (or bytes that are not UTF-8), a missing or ambiguous column, `column=` on input without columns; for multi-column indicators: an invalid `columns=` (see [§10](#10-multi-column-indicators)), columns of different lengths, a high below its low on any row, a negative volume on any row (for an indicator with a volume input, or a single-column indicator whose column is matched to the volume role), the wrong number of unnamed columns (or a 2-D table with neither axis of that length), Series that do not share one index, and `column=` on a multi-column indicator or `columns=` on a single-column one |
 | `ModuleNotFoundError` | `output="pandas"` without pandas installed |
 | `RuntimeError` | An internal calculation failure |
@@ -574,7 +575,7 @@ Indicators that produce several series return them all, in a documented order, i
 | MACD | `macd`, `macd_signal`, `macd_hist` | `fast=12`, `slow=26`, `signal=9` |
 | ADX | `adx`, `adx_plus_di`, `adx_minus_di` | `period=14` |
 | Aroon | `aroon_up`, `aroon_down`, `aroon_osc` | `period=14` |
-| Ichimoku Cloud | `ichimoku_tenkan`, `ichimoku_kijun`, `ichimoku_senkou_a`, `ichimoku_senkou_b`, `ichimoku_chikou` | `tenkan=9`, `kijun=26`, `senkou=52` |
+| Ichimoku Cloud | `ichimoku_tenkan`, `ichimoku_kijun`, `ichimoku_senkou_a`, `ichimoku_senkou_b`, `ichimoku_chikou` | `tenkan=9`, `kijun=26`, `senkou=52`, `shift=False` |
 | Stochastic | `stoch_k`, `stoch_d` | `k=14`, `k_smooth=3`, `d=3` |
 | Bollinger Bands | `bbands_upper`, `bbands_middle`, `bbands_lower` | `period=20`, `k=2.0` |
 | Keltner Channels | `keltner_upper`, `keltner_middle`, `keltner_lower` | `period=20`, `atr_period=10`, `k=2.0` |
