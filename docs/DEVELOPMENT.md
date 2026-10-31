@@ -544,11 +544,16 @@ The shapes are a starting point; each indicator's spec (the `add-indicator` skil
 
 **Project:** `PyTA-Integration/`, a testing project with its own `pyproject.toml` and virtual environment.
 
-### Tasks
+Order matters: the numeric decisions can change outputs and kernel speed, so they come before the cost refit, and all three come before any expected value or timing is recorded in the integration project. The TA-Lib comparison needs the installed package and the final kernels, and the checks and documentation come last because they cover everything above.
 
-- [ ] Decide on bit parity policy.
-- [ ] Fix RSI overstating cheap kernels where the planner decides when scaling to 1,000,000-rows
-- [ ] Make decision for parked numeric calls (fma policy, ROC's inf on a tiny base, Arron's 100 + 1 ulp) and then implement the decision.
+### Tasks: numeric decisions (in PyTA)
+
+- [ ] Decide the bit-parity policy against TA-Lib 0.8.3: within 1e-9 everywhere (current), or bit for bit, using `f64::mul_add` where TA-Lib's wheel fuses (`TA_FMA_MULTIVERSION`: SAR, TRIX, the EMA family; KAMA's build does not). This settles the fma policy; evidence is in `TODO.md`'s parking lot.
+- [ ] Under that policy, decide the other parked numeric calls (ROC's ±inf on a tiny base, inherited by Volume ROC; Aroon's 100 + 1 ulp), then implement every decision with tests, fixtures and docs.
+- [ ] Refit cost constants from the batch rows where the planner decides (10 x 1,000 and 100 x 100), not by scaling a kernel's 1,000,000-row time against RSI's, which overstates cheap memory-bound kernels: SMA (+29%), CCI (+25%), STDDEV's period term (sweep), WMA's 100 x 100 row (1.16x). After the numeric changes, since `mul_add` changes kernel times.
+
+### Tasks: integration project
+
 - [ ] Create the separate integration repository or sibling project directory.
 - [ ] Create an independent Python virtual environment.
 - [ ] Install PyTA as a built or locally installed package, never by importing its source files.
@@ -556,17 +561,19 @@ The shapes are a starting point; each indicator's spec (the `add-indicator` skil
 - [ ] Add examples using AlphaVantage-shaped JSON and CSV.
 - [ ] Add an example of a batch call across several datasets.
 - [ ] Add integration tests for expected values, invalid parameters, and error messages.
+- [ ] Benchmark PyTA against TA-Lib (PyPI `TA-Lib`, installed in the integration project's environment only, never a PyTA dependency) for every indicator both have. Time each pair with `timeit` (`Timer.repeat`, best of at least 5 repeats, the two libraries interleaved in the same session, the same float64 NumPy input, at 100, 10,000 and 1,000,000 rows) and record µs per call for each, the ratio (TA-Lib time / PyTA time) and the largest output difference. Add the table to PyTA's `README.md` with the machine, CPU governor and date; list the indicators TA-Lib lacks (Ichimoku, Keltner, Donchian, CMF, VWAP, Volume ROC) as having no comparison.
 - [ ] Verify that the project does not depend on PyTA's internal crate paths or `pyta._native`.
-- [ ] Document how a new developer installs and runs the examples.
-- [ ] Perform benchmark comparison of current indicators against TA-Lib (from PyPi) and create a comparison table within the repository's `README.md`.
+- [ ] Document how a new developer installs and runs the examples, tests and benchmark.
 
 ### Acceptance criteria
 
+- The bit-parity policy and the parked numeric calls are decided, implemented and documented.
 - The integration project installs and imports PyTA independently.
 - All example workflows run successfully.
 - Integration tests pass against the installed package.
 - The public API works without access to the PyTA source tree.
 - A package build can be tested from a clean environment.
+- `README.md` has a `timeit` comparison with TA-Lib for every indicator both libraries have, reproducible from the integration project.
 
 **Retrospective:**  
 **Sprint completion:** ☐
