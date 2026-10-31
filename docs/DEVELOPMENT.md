@@ -546,6 +546,9 @@ The shapes are a starting point; each indicator's spec (the `add-indicator` skil
 
 ### Tasks
 
+- [ ] Decide on bit parity policy.
+- [ ] Fix RSI overstating cheap kernels where the planner decides when scaling to 1,000,000-rows
+- [ ] Make decision for parked numeric calls (fma policy, ROC's inf on a tiny base, Arron's 100 + 1 ulp) and then implement the decision.
 - [ ] Create the separate integration repository or sibling project directory.
 - [ ] Create an independent Python virtual environment.
 - [ ] Install PyTA as a built or locally installed package, never by importing its source files.
